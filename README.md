@@ -80,17 +80,23 @@ await Braid.RunAsync(async context =>
 
 ## Failure Reporting
 
-Failures are wrapped in `BraidRunException`. The exception includes the failing seed, iteration, and a human-readable trace:
+Failures are wrapped in `BraidRunException`. braid reports the failing seed, iteration, scripted schedule (if configured), and trace:
 
 ```text
+braid run failed.
 Seed: 12345
 Iteration: 0
+Schedule:
+  1. worker-1 @ after-read
+  2. worker-2 @ after-read
 Trace:
-  worker-1 forked
-  worker-1 hit before-failure
+  1. worker-1 forked
+  2. worker-2 forked
+  3. worker-1 hit after-read
+  4. worker-1 released at after-read
 ```
 
-The seed and trace are the starting point for replaying the same interleaving with a scripted schedule.
+This report is meant to be copyable into test logs and issue reports so a failing interleaving can be replayed quickly.
 
 ## Package shape
 

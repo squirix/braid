@@ -12,13 +12,25 @@ public sealed class BraidRunException : Exception
     /// <param name="seed">The seed used for the failing iteration.</param>
     /// <param name="iteration">The failing iteration index.</param>
     /// <param name="trace">The recorded scheduling trace.</param>
+    /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
-    public BraidRunException(string message, int seed, int iteration, IReadOnlyList<string> trace, Exception? innerException)
-        : base(FormatMessage(message, seed, iteration, trace), innerException)
+    public BraidRunException(
+        string message,
+        int seed,
+        int iteration,
+        IReadOnlyList<string> trace,
+        IReadOnlyList<BraidStep>? schedule,
+        Exception? innerException)
+        : base(message, innerException)
     {
+        ArgumentNullException.ThrowIfNull(trace);
+
         Seed = seed;
         Iteration = iteration;
-        Trace = trace;
+        Trace = Array.AsReadOnly(trace.ToArray());
+        Schedule = schedule is null
+            ? Array.Empty<BraidStep>()
+            : Array.AsReadOnly(schedule.ToArray());
     }
 
     /// <summary>
@@ -36,17 +48,43 @@ public sealed class BraidRunException : Exception
     /// </summary>
     public IReadOnlyList<string> Trace { get; }
 
-    private static string FormatMessage(string message, int seed, int iteration, IReadOnlyList<string> trace)
+    /// <summary>
+    /// Gets the configured replay schedule.
+    /// </summary>
+    public IReadOnlyList<BraidStep> Schedule { get; }
+
+    /// <inheritdoc />
+    public override string ToString()
     {
         var lines = new List<string>
         {
-            message,
-            $"Seed: {seed}",
-            $"Iteration: {iteration}",
-            "Trace:",
+            Message,
+            $"Seed: {Seed}",
+            $"Iteration: {Iteration}",
         };
 
-        lines.AddRange(trace.Select(static line => "  " + line));
+        if (Schedule.Count > 0)
+        {
+            lines.Add("Schedule:");
+            for (var index = 0; index < Schedule.Count; index++)
+            {
+                var step = Schedule[index];
+                lines.Add($"  {index + 1}. {step.WorkerId} @ {step.ProbeName}");
+            }
+        }
+
+        lines.Add("Trace:");
+        for (var index = 0; index < Trace.Count; index++)
+        {
+            lines.Add($"  {index + 1}. {Trace[index]}");
+        }
+
+        if (InnerException is not null)
+        {
+            lines.Add("Inner exception:");
+            lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
+        }
+
         return string.Join(Environment.NewLine, lines);
     }
 }

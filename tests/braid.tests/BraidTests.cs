@@ -65,7 +65,56 @@ public sealed class BraidTests : TestBase
 
         Assert.Equal(12345, exception.Seed);
         Assert.Contains(exception.Trace, static line => line.Contains("before-failure", StringComparison.Ordinal));
-        Assert.Contains("boom", exception.ToString(), StringComparison.Ordinal);
+        var report = exception.ToString();
+        Assert.Contains("Seed: 12345", report, StringComparison.Ordinal);
+        Assert.Contains("Iteration:", report, StringComparison.Ordinal);
+        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        Assert.Contains("before-failure", report, StringComparison.Ordinal);
+        Assert.Contains("boom", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies scripted schedules appear in failure reports.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunAsyncReportsScriptedScheduleWhenFailureOccurs()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(
+                new BraidStep("worker-1", "after-read"),
+                new BraidStep("worker-2", "after-read")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
+                        throw new InvalidOperationException("scripted boom");
+                    });
+
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Schedule:", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1 @ after-read", report, StringComparison.Ordinal);
+        Assert.Contains("worker-2 @ after-read", report, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -162,5 +211,13 @@ public sealed class BraidTests : TestBase
         Assert.Contains(exception.Trace, static line => line.Contains("worker-2", StringComparison.Ordinal));
         Assert.Contains(exception.Trace, static line => line.Contains("after-read", StringComparison.Ordinal));
         Assert.Contains(exception.Trace, static line => line.Contains("before-write", StringComparison.Ordinal));
+
+        var report = exception.ToString();
+        Assert.Contains("Schedule:", report, StringComparison.Ordinal);
+        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        Assert.Contains("after-read", report, StringComparison.Ordinal);
+        Assert.Contains("before-write", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("worker-2", report, StringComparison.Ordinal);
     }
 }

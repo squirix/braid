@@ -28,13 +28,15 @@ internal sealed class BraidScheduler
     internal BraidRunException CreateException(string message, Exception? innerException)
     {
         IReadOnlyList<string> traceSnapshot;
+        IReadOnlyList<BraidStep> scheduleSnapshot;
 
         lock (gate)
         {
             traceSnapshot = trace.ToArray();
+            scheduleSnapshot = schedule?.ToArray() ?? Array.Empty<BraidStep>();
         }
 
-        return new BraidRunException(message, seed, iteration, traceSnapshot, innerException);
+        return new BraidRunException(message, seed, iteration, traceSnapshot, scheduleSnapshot, innerException);
     }
 
     internal void Fork(Func<Task> operation)
@@ -142,7 +144,9 @@ internal sealed class BraidScheduler
                     if (nextTask is not null)
                     {
                         nextTask.State = BraidTaskState.Running;
-                        trace.Add($"{nextTask.WorkerId} released");
+                        trace.Add(nextTask.LastProbeName is null
+                            ? $"{nextTask.WorkerId} released"
+                            : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
                     }
                 }
 
