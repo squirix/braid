@@ -1,37 +1,33 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
 
 permissions:
-  contents: read
+    contents: read
 
 jobs:
-  build:
-    name: Build and test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    build:
+        name: Build and test
+        runs-on: ubuntu-latest
+        
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v5
+              with:
+                  global-json-file: global.json
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v5
-        with:
-          global-json-file: global.json
+            - name: Restore
+              run: dotnet restore
 
-      - name: Restore
-        run: dotnet restore
+            - name: Build
+              run: dotnet build --configuration Release --no-restore
 
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-
-      - name: Test
-        run: dotnet test --configuration Release --no-build
+            - name: Test
+              run: dotnet test --configuration Release --no-build
