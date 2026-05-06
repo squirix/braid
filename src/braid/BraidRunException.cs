@@ -1,7 +1,7 @@
 namespace Braid;
 
 /// <summary>
-/// Represents a deterministic failure discovered during a Braid run.
+/// Represents a deterministic failure discovered during a braid run.
 /// </summary>
 public sealed class BraidRunException : Exception
 {

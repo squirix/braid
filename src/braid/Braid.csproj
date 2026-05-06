@@ -2,8 +2,14 @@
     <PropertyGroup>
         <AssemblyName>Braid</AssemblyName>
         <RootNamespace>Braid</RootNamespace>
-        <PackageId>Braid</PackageId>
-        <Description>Deterministic concurrency testing for .NET.</Description>
+        <PackageId>braid</PackageId>
+        <Title>braid</Title>
+        <Description>Deterministic concurrency testing for .NET using explicit async probe points.</Description>
+        <Authors>Squirix</Authors>
+        <RepositoryUrl>https://github.com/squirix/braid</RepositoryUrl>
+        <PackageProjectUrl>https://github.com/squirix/braid</PackageProjectUrl>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <IsPackable>true</IsPackable>
     </PropertyGroup>
 </Project>

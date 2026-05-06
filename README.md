@@ -1,31 +1,70 @@
-# Braid
+# braid
 
-Braid is an experimental deterministic concurrency testing library for .NET.
+braid is a deterministic concurrency testing library for .NET.
 
-The first prototype is explicit probe-based: production code can expose named scheduling points, while tests use Braid to explore reproducible interleavings.
+braid explores explicit async probe points and makes race/concurrency failures reproducible.
+
+The v0 prototype is intentionally small. Tests fork logical workers, workers hit named probes, and braid records a seed and trace when a failure occurs.
+
+## What It Is
+
+- A standalone .NET testing library.
+- A way to make explicit async interleavings reproducible.
+- A probe-based runner that works with ordinary xUnit tests.
+
+## What It Is Not
+
+- It does not replace `TaskScheduler`.
+- It does not use binary rewriting.
+- It is not an actor runtime.
+- It is not a full Coyote replacement.
+
+## Naming
+
+The package and project name are lowercase `braid`. C# namespaces and public types remain PascalCase to follow .NET conventions.
+
+## Minimal Example
 
 ```csharp
-await Braid.RunAsync(async ctx =>
+using Braid;
+
+await Braid.RunAsync(async context =>
 {
-    ctx.Fork(async () =>
+    context.Fork(async () =>
     {
-        await BraidProbe.HitAsync("before-write");
+        await BraidProbe.HitAsync("probe-name", cancellationToken);
     });
 
-    await ctx.JoinAsync();
+    await context.JoinAsync(cancellationToken);
+}, cancellationToken: cancellationToken);
+```
+
+## Probe Example
+
+```csharp
+context.Fork(async () =>
+{
+    await BraidProbe.HitAsync("after-read", cancellationToken);
+    await BraidProbe.HitAsync("before-write", cancellationToken);
 });
 ```
 
-## Goals
+Outside a braid run, `BraidProbe.HitAsync` completes immediately.
 
-- Make async race conditions reproducible.
-- Keep integration test-framework-first.
-- Start with explicit probes before attempting deep TaskScheduler integration.
-- Print seed and trace on failure.
+## Failure Reporting
+
+Failures are wrapped in `BraidRunException`. The exception includes the failing seed, iteration, and a human-readable trace:
+
+```text
+Seed: 12345
+Iteration: 0
+Trace:
+  worker-1 forked
+  worker-1 hit before-failure
+```
+
+The seed and trace are the starting point for replaying the same interleaving with a scripted schedule.
 
 ## Package shape
 
-- `Braid`
-- `Braid.Xunit` later
-- `Braid.NUnit` later
-- `Braid.MSTest` later
+- `braid`

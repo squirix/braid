@@ -3,7 +3,7 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>
-/// Provides task orchestration APIs for a Braid run.
+/// Provides task orchestration APIs for a braid run.
 /// </summary>
 public sealed class BraidContext
 {
@@ -15,7 +15,7 @@ public sealed class BraidContext
     }
 
     /// <summary>
-    /// Starts a logical concurrent operation controlled by the Braid scheduler.
+    /// Starts a logical concurrent operation controlled by the braid scheduler.
     /// </summary>
     /// <param name="operation">The operation to run.</param>
     public void Fork(Func<Task> operation)

@@ -1,5 +1,4 @@
 using Xunit;
-using BraidRunner = Braid.Braid;
 
 namespace Braid.Tests;
 
@@ -10,7 +9,7 @@ public sealed class BraidTests : TestBase
     {
         var value = 0;
 
-        await BraidRunner.RunAsync(async context =>
+        await Braid.RunAsync(async context =>
         {
             context.Fork(async () =>
             {
@@ -35,31 +34,69 @@ public sealed class BraidTests : TestBase
     {
         var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
-            await BraidRunner.RunAsync(static async context =>
+            await Braid.RunAsync(static async context =>
+            {
+                context.Fork(static async () =>
+                {
+                    await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
+                    throw new InvalidOperationException("boom");
+                });
+
+                await context.JoinAsync(DefaultCancellationToken);
+            }, new BraidOptions { Iterations = 1, Seed = 12345 }, DefaultCancellationToken);
+        });
+
+        Assert.Equal(12345, exception.Seed);
+        Assert.Contains(exception.Trace, static line => line.Contains("before-failure", StringComparison.Ordinal));
+        Assert.Contains("boom", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RunAsyncReplaysScriptedScheduleThatReproducesLostUpdate()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule =
+            [
+                new BraidScheduleStep("worker-1", "after-read"),
+                new BraidScheduleStep("worker-2", "after-read"),
+                new BraidScheduleStep("worker-1", "before-write"),
+                new BraidScheduleStep("worker-2", "before-write"),
+            ],
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(static async context =>
             {
                 var value = 0;
 
                 context.Fork(async () =>
                 {
                     var current = value;
-                    await BraidProbe.HitAsync("after-read-a", DefaultCancellationToken);
+                    await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
+                    await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
                     value = current + 1;
                 });
 
                 context.Fork(async () =>
                 {
                     var current = value;
-                    await BraidProbe.HitAsync("after-read-b", DefaultCancellationToken);
+                    await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
+                    await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
                     value = current + 1;
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
 
                 Assert.Equal(2, value);
-            }, new BraidOptions { Iterations = 1, Seed = 12345 }, DefaultCancellationToken);
+            }, options, DefaultCancellationToken);
         });
 
         Assert.Equal(12345, exception.Seed);
-        Assert.Contains(exception.Trace, static line => line.Contains("after-read", StringComparison.Ordinal));
+        Assert.Contains(exception.Trace, static line => line.Contains("worker-1 hit after-read", StringComparison.Ordinal));
+        Assert.Contains(exception.Trace, static line => line.Contains("worker-2 hit before-write", StringComparison.Ordinal));
     }
 }

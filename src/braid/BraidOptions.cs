@@ -1,12 +1,12 @@
 namespace Braid;
 
 /// <summary>
-/// Defines options for a Braid run.
+/// Defines options for a braid run.
 /// </summary>
 public sealed class BraidOptions
 {
     /// <summary>
-    /// Gets the default Braid options.
+    /// Gets the default options.
     /// </summary>
     public static BraidOptions Default { get; } = new();
 
@@ -25,6 +25,11 @@ public sealed class BraidOptions
     /// </summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Gets or initializes an optional scripted schedule used to replay a specific interleaving.
+    /// </summary>
+    public IReadOnlyList<BraidScheduleStep>? Schedule { get; init; }
+
     internal void Validate()
     {
         if (Iterations <= 0)
@@ -35,6 +40,16 @@ public sealed class BraidOptions
         if (Timeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(Timeout), Timeout, "Timeout must be positive.");
+        }
+
+        if (Schedule is null)
+        {
+            return;
+        }
+
+        foreach (var step in Schedule)
+        {
+            ArgumentNullException.ThrowIfNull(step);
         }
     }
 }

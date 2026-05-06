@@ -3,7 +3,7 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>
-/// Runs deterministic concurrency tests through an explicit probe-based scheduler.
+/// Runs braid deterministic concurrency tests through an explicit probe-based scheduler.
 /// </summary>
 public static class Braid
 {
@@ -28,7 +28,7 @@ public static class Braid
             cancellationToken.ThrowIfCancellationRequested();
 
             var seed = unchecked(baseSeed + iteration);
-            var scheduler = new BraidScheduler(seed, iteration, resolvedOptions.Timeout);
+            var scheduler = new BraidScheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule);
             var context = new BraidContext(scheduler);
 
             using var scope = BraidRunScope.Enter(scheduler);
@@ -40,11 +40,13 @@ public static class Braid
             }
             catch (BraidRunException)
             {
+                await scheduler.StopAsync().ConfigureAwait(false);
                 throw;
             }
             catch (Exception ex)
             {
-                throw scheduler.CreateException("Braid run failed.", ex);
+                await scheduler.StopAsync().ConfigureAwait(false);
+                throw scheduler.CreateException("braid run failed.", ex);
             }
         }
     }

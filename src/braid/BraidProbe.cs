@@ -3,12 +3,12 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>
-/// Provides explicit scheduling points for Braid-controlled tests.
+/// Provides explicit scheduling points for braid-controlled tests.
 /// </summary>
 public static class BraidProbe
 {
     /// <summary>
-    /// Hits a named scheduling point. Outside a Braid run this method is a no-op.
+    /// Hits a named scheduling point. Outside a braid run this method is a no-op.
     /// </summary>
     /// <param name="name">The probe name.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
