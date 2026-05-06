@@ -8,7 +8,6 @@
         <Authors>Squirix</Authors>
         <RepositoryUrl>https://github.com/squirix/braid</RepositoryUrl>
         <PackageProjectUrl>https://github.com/squirix/braid</PackageProjectUrl>
-        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <IsPackable>true</IsPackable>
     </PropertyGroup>

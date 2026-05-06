@@ -2,48 +2,65 @@ using Xunit;
 
 namespace Braid.Tests;
 
+/// <summary>
+/// Covers braid run behavior.
+/// </summary>
 public sealed class BraidTests : TestBase
 {
+    /// <summary>
+    /// Verifies a run completes after forked operations complete.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncCompletesWhenForksComplete()
     {
         var value = 0;
 
-        await Braid.RunAsync(async context =>
-        {
-            context.Fork(async () =>
+        await Braid.RunAsync(
+            async context =>
             {
-                await BraidProbe.HitAsync("first", DefaultCancellationToken);
-                _ = Interlocked.Increment(ref value);
-            });
+                context.Fork(async () =>
+                {
+                    await BraidProbe.HitAsync("first", DefaultCancellationToken);
+                    _ = Interlocked.Increment(ref value);
+                });
 
-            context.Fork(async () =>
-            {
-                await BraidProbe.HitAsync("second", DefaultCancellationToken);
-                _ = Interlocked.Increment(ref value);
-            });
+                context.Fork(async () =>
+                {
+                    await BraidProbe.HitAsync("second", DefaultCancellationToken);
+                    _ = Interlocked.Increment(ref value);
+                });
 
-            await context.JoinAsync(DefaultCancellationToken);
-        }, new BraidOptions { Iterations = 1, Seed = 12345 }, DefaultCancellationToken);
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 12345 },
+            DefaultCancellationToken);
 
         Assert.Equal(2, value);
     }
 
+    /// <summary>
+    /// Verifies failures include the seed and trace.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReportsSeedAndTraceWhenInterleavingFails()
     {
         var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
-            await Braid.RunAsync(static async context =>
-            {
-                context.Fork(static async () =>
+            await Braid.RunAsync(
+                static async context =>
                 {
-                    await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
-                    throw new InvalidOperationException("boom");
-                });
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
+                        throw new InvalidOperationException("boom");
+                    });
 
-                await context.JoinAsync(DefaultCancellationToken);
-            }, new BraidOptions { Iterations = 1, Seed = 12345 }, DefaultCancellationToken);
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = 12345 },
+                DefaultCancellationToken);
         });
 
         Assert.Equal(12345, exception.Seed);
@@ -51,6 +68,10 @@ public sealed class BraidTests : TestBase
         Assert.Contains("boom", exception.ToString(), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Verifies scripted schedules can reproduce a lost update.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReplaysScriptedScheduleThatReproducesLostUpdate()
     {
@@ -69,30 +90,33 @@ public sealed class BraidTests : TestBase
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(static async context =>
-            {
-                var value = 0;
-
-                context.Fork(async () =>
+            await Braid.RunAsync(
+                static async context =>
                 {
-                    var current = value;
-                    await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                    await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
-                    value = current + 1;
-                });
+                    var value = 0;
 
-                context.Fork(async () =>
-                {
-                    var current = value;
-                    await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                    await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
-                    value = current + 1;
-                });
+                    context.Fork(async () =>
+                    {
+                        var current = value;
+                        await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
+                        await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                        value = current + 1;
+                    });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () =>
+                    {
+                        var current = value;
+                        await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
+                        await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                        value = current + 1;
+                    });
 
-                Assert.Equal(2, value);
-            }, options, DefaultCancellationToken);
+                    await context.JoinAsync(DefaultCancellationToken);
+
+                    Assert.Equal(2, value);
+                },
+                options,
+                DefaultCancellationToken);
         });
 
         Assert.Equal(12345, exception.Seed);
