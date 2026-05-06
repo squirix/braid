@@ -16,6 +16,11 @@ public sealed class BraidOptions
     public int Iterations { get; init; } = 100;
 
     /// <summary>
+    /// Gets or initializes an optional schedule used to replay a specific interleaving.
+    /// </summary>
+    public BraidSchedule? Schedule { get; init; }
+
+    /// <summary>
     /// Gets or initializes the base seed. When unset, a process-local seed is used.
     /// </summary>
     public int? Seed { get; init; }
@@ -24,11 +29,6 @@ public sealed class BraidOptions
     /// Gets or initializes the per-iteration timeout.
     /// </summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
-
-    /// <summary>
-    /// Gets or initializes an optional schedule used to replay a specific interleaving.
-    /// </summary>
-    public BraidSchedule? Schedule { get; init; }
 
     internal void Validate()
     {

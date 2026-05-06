@@ -5,17 +5,15 @@ namespace Braid;
 /// </summary>
 public sealed class BraidSchedule
 {
-    private readonly IReadOnlyList<BraidStep> steps;
-
     private BraidSchedule(IReadOnlyList<BraidStep> steps)
     {
-        this.steps = steps;
+        Steps = steps;
     }
 
     /// <summary>
     /// Gets the replay steps in order.
     /// </summary>
-    public IReadOnlyList<BraidStep> Steps => steps;
+    public IReadOnlyList<BraidStep> Steps { get; }
 
     /// <summary>
     /// Creates a replay schedule from the supplied steps.

@@ -13,8 +13,8 @@ internal sealed class BraidScheduler
     private readonly TimeSpan timeout;
     private readonly List<string> trace = [];
     private bool joined;
-    private int nextTaskId;
     private int nextScheduleStep;
+    private int nextTaskId;
 
     internal BraidScheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<BraidStep>? schedule)
     {

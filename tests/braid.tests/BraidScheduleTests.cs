@@ -8,16 +8,6 @@ namespace Braid.Tests;
 public sealed class BraidScheduleTests : TestBase
 {
     /// <summary>
-    /// Verifies replay rejects blank worker ids.
-    /// </summary>
-    [Fact]
-    public void ReplayThrowsForBlankWorkerId()
-    {
-        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep(string.Empty, "ready")));
-        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep(" ", "ready")));
-    }
-
-    /// <summary>
     /// Verifies replay rejects blank probe names.
     /// </summary>
     [Fact]
@@ -25,5 +15,15 @@ public sealed class BraidScheduleTests : TestBase
     {
         _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep("worker-1", string.Empty)));
         _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep("worker-1", " ")));
+    }
+
+    /// <summary>
+    /// Verifies replay rejects blank worker ids.
+    /// </summary>
+    [Fact]
+    public void ReplayThrowsForBlankWorkerId()
+    {
+        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep(string.Empty, "ready")));
+        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep(" ", "ready")));
     }
 }

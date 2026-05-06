@@ -14,13 +14,7 @@ public sealed class BraidRunException : Exception
     /// <param name="trace">The recorded scheduling trace.</param>
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
-    public BraidRunException(
-        string message,
-        int seed,
-        int iteration,
-        IReadOnlyList<string> trace,
-        IReadOnlyList<BraidStep>? schedule,
-        Exception? innerException)
+    public BraidRunException(string message, int seed, int iteration, IReadOnlyList<string> trace, IReadOnlyList<BraidStep>? schedule, Exception? innerException)
         : base(message, innerException)
     {
         ArgumentNullException.ThrowIfNull(trace);
@@ -28,15 +22,18 @@ public sealed class BraidRunException : Exception
         Seed = seed;
         Iteration = iteration;
         Trace = Array.AsReadOnly(trace.ToArray());
-        Schedule = schedule is null
-            ? Array.Empty<BraidStep>()
-            : Array.AsReadOnly(schedule.ToArray());
+        Schedule = schedule is null ? Array.Empty<BraidStep>() : Array.AsReadOnly(schedule.ToArray());
     }
 
     /// <summary>
     /// Gets the failing iteration index.
     /// </summary>
     public int Iteration { get; }
+
+    /// <summary>
+    /// Gets the configured replay schedule.
+    /// </summary>
+    public IReadOnlyList<BraidStep> Schedule { get; }
 
     /// <summary>
     /// Gets the seed used for the failing iteration.
@@ -47,11 +44,6 @@ public sealed class BraidRunException : Exception
     /// Gets the recorded scheduling trace.
     /// </summary>
     public IReadOnlyList<string> Trace { get; }
-
-    /// <summary>
-    /// Gets the configured replay schedule.
-    /// </summary>
-    public IReadOnlyList<BraidStep> Schedule { get; }
 
     /// <inheritdoc />
     public override string ToString()
@@ -79,12 +71,10 @@ public sealed class BraidRunException : Exception
             lines.Add($"  {index + 1}. {Trace[index]}");
         }
 
-        if (InnerException is not null)
-        {
-            lines.Add("Inner exception:");
-            lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
-        }
-
+        if (InnerException is null)
+            return string.Join(Environment.NewLine, lines);
+        lines.Add("Inner exception:");
+        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
         return string.Join(Environment.NewLine, lines);
     }
 }
