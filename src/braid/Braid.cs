@@ -43,6 +43,11 @@ public static class Braid
                 await scheduler.StopAsync().ConfigureAwait(false);
                 throw;
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                await scheduler.StopAsync().ConfigureAwait(false);
+                throw;
+            }
             catch (Exception ex)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);

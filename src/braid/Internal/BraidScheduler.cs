@@ -106,15 +106,15 @@ internal sealed class BraidScheduler
 
     internal async Task JoinAsync(CancellationToken cancellationToken)
     {
+        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         try
         {
             lock (gate)
             {
                 joined = true;
             }
-
-            using var timeoutCts = new CancellationTokenSource(timeout);
-            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
             while (true)
             {
@@ -144,9 +144,7 @@ internal sealed class BraidScheduler
                     if (nextTask is not null)
                     {
                         nextTask.State = BraidTaskState.Running;
-                        trace.Add(nextTask.LastProbeName is null
-                            ? $"{nextTask.WorkerId} released"
-                            : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
+                        trace.Add(nextTask.LastProbeName is null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
                     }
                 }
 
@@ -161,6 +159,10 @@ internal sealed class BraidScheduler
             }
 
             await WaitForRunningTasksAsync().ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+        {
+            throw CreateException("braid run timed out.", ex);
         }
         catch
         {
@@ -208,8 +210,7 @@ internal sealed class BraidScheduler
 
         var step = schedule[nextScheduleStep];
         var task = waitingTasks.FirstOrDefault(task =>
-            string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) &&
-            string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
+            string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
 
         if (task is null)
         {
