@@ -10,6 +10,7 @@ The v0 prototype is intentionally small. Tests fork logical workers, workers hit
 
 - A standalone .NET testing library.
 - A way to make explicit async interleavings reproducible.
+- A v0 runner built around explicit probes and typed replay schedules.
 - A probe-based runner that works with ordinary xUnit tests.
 
 ## What It Is Not
@@ -50,6 +51,32 @@ context.Fork(async () =>
 ```
 
 Outside a braid run, `BraidProbe.HitAsync` completes immediately.
+
+## Replay Schedule
+
+```csharp
+var options = new BraidOptions
+{
+    Seed = 12345,
+    Iterations = 1,
+    Schedule = BraidSchedule.Replay(
+        new BraidStep("worker-1", "after-read"),
+        new BraidStep("worker-2", "after-read"),
+        new BraidStep("worker-1", "before-write"),
+        new BraidStep("worker-2", "before-write")),
+};
+
+await Braid.RunAsync(async context =>
+{
+    context.Fork(async () =>
+    {
+        await BraidProbe.HitAsync("after-read", cancellationToken);
+        await BraidProbe.HitAsync("before-write", cancellationToken);
+    });
+
+    await context.JoinAsync(cancellationToken);
+}, options, cancellationToken);
+```
 
 ## Failure Reporting
 

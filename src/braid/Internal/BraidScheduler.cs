@@ -5,7 +5,7 @@ internal sealed class BraidScheduler
     private readonly Lock gate = new();
     private readonly int iteration;
     private readonly DeterministicRandom random;
-    private readonly IReadOnlyList<BraidScheduleStep>? schedule;
+    private readonly IReadOnlyList<BraidStep>? schedule;
     private readonly int seed;
     private readonly CancellationTokenSource shutdownCts = new();
     private readonly SemaphoreSlim stateChanged = new(0);
@@ -16,7 +16,7 @@ internal sealed class BraidScheduler
     private int nextTaskId;
     private int nextScheduleStep;
 
-    internal BraidScheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<BraidScheduleStep>? schedule)
+    internal BraidScheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<BraidStep>? schedule)
     {
         this.seed = seed;
         this.iteration = iteration;
@@ -135,8 +135,9 @@ internal sealed class BraidScheduler
                     }
 
                     var waitingTasks = tasks.Where(static task => task.State == BraidTaskState.Waiting).OrderBy(static task => task.Id).ToArray();
+                    var hasRunningTasks = tasks.Any(static task => task.State == BraidTaskState.Running);
 
-                    nextTask = SelectNextTask(waitingTasks);
+                    nextTask = SelectNextTask(waitingTasks, hasRunningTasks);
 
                     if (nextTask is not null)
                     {
@@ -178,7 +179,7 @@ internal sealed class BraidScheduler
         _ = stateChanged.Release();
     }
 
-    private BraidTask? SelectNextTask(IReadOnlyList<BraidTask> waitingTasks)
+    private BraidTask? SelectNextTask(IReadOnlyList<BraidTask> waitingTasks, bool hasRunningTasks)
     {
         if (waitingTasks.Count == 0)
         {
@@ -208,6 +209,11 @@ internal sealed class BraidScheduler
 
         if (task is null)
         {
+            if (hasRunningTasks)
+            {
+                return null;
+            }
+
             throw CreateException($"Scripted schedule step {nextScheduleStep} could not be satisfied: release {step.WorkerId} at {step.ProbeName}.", null);
         }
 

@@ -26,9 +26,9 @@ public sealed class BraidOptions
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>
-    /// Gets or initializes an optional scripted schedule used to replay a specific interleaving.
+    /// Gets or initializes an optional schedule used to replay a specific interleaving.
     /// </summary>
-    public IReadOnlyList<BraidScheduleStep>? Schedule { get; init; }
+    public BraidSchedule? Schedule { get; init; }
 
     internal void Validate()
     {
@@ -42,14 +42,6 @@ public sealed class BraidOptions
             throw new ArgumentOutOfRangeException(nameof(Timeout), Timeout, "Timeout must be positive.");
         }
 
-        if (Schedule is null)
-        {
-            return;
-        }
-
-        foreach (var step in Schedule)
-        {
-            ArgumentNullException.ThrowIfNull(step);
-        }
+        _ = Schedule?.Steps;
     }
 }
