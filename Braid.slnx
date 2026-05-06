@@ -1,0 +1,4 @@
+<Solution>
+    <Project Path="src/braid/Braid.csproj"/>
+    <Project Path="tests/braid.tests/Braid.Tests.csproj"/>
+</Solution>
