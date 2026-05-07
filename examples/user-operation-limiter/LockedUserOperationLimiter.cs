@@ -7,19 +7,30 @@ public sealed class LockedUserOperationLimiter
 {
     private readonly Dictionary<string, int> activeOperations = new(StringComparer.Ordinal);
     private readonly Lock gate = new();
+    private readonly int limit;
+    private readonly string userId;
 
     /// <summary>
-    /// Attempts to enter a per-user operation slot.
+    /// Initializes a new instance of the <see cref="LockedUserOperationLimiter" /> class.
     /// </summary>
-    /// <param name="userId">The user identifier.</param>
-    /// <param name="limit">The maximum active operations allowed for the user.</param>
-    /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
-    public async Task<bool> TryEnterAsync(string userId, int limit, CancellationToken cancellationToken = default)
+    /// <param name="userId">The configured user identifier.</param>
+    /// <param name="limit">The maximum active operations allowed for the configured user.</param>
+    public LockedUserOperationLimiter(string userId, int limit)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
 
+        this.userId = userId;
+        this.limit = limit;
+    }
+
+    /// <summary>
+    /// Attempts to enter an operation slot for the configured user.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
+    public async Task<bool> TryEnterAsync(CancellationToken cancellationToken = default)
+    {
         await BraidProbe.HitAsync("before-enter", cancellationToken);
         bool allowed;
 
@@ -42,13 +53,10 @@ public sealed class LockedUserOperationLimiter
     }
 
     /// <summary>
-    /// Exits a previously entered per-user operation slot.
+    /// Exits a previously entered operation slot for the configured user.
     /// </summary>
-    /// <param name="userId">The user identifier.</param>
-    public void Exit(string userId)
+    public void Exit()
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-
         lock (gate)
         {
             if (!activeOperations.TryGetValue(userId, out var current))

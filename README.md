@@ -110,9 +110,9 @@ Trace:
 
 ## Real-world example: per-user operation limiter
 
-A per-user operation limiter is supposed to allow at most one active operation for a user. An unsafe implementation can read the active count, check the limit, and write the incremented count without synchronization. Two workers can both observe `0` and both enter.
+A per-user operation limiter is supposed to allow at most one active operation for a configured user. The example limiter stores one `userId` and one `limit`, but still uses a dictionary internally so the unsafe read/check/write sequence is visible. Two workers can both observe `0` and both enter.
 
-braid can force that interleaving through explicit probes such as `after-read` and `before-write`. The failure report includes the seed, schedule, and trace needed to reproduce the race.
+braid can force that interleaving through explicit probes such as `after-read` and `before-write`. The tests call `TryEnterAsync(cancellationToken)`, and the failure report includes the seed, schedule, and trace needed to reproduce the race.
 
 See [examples/user-operation-limiter](examples/user-operation-limiter/) for the unsafe limiter, the locked implementation, and deterministic tests.
 

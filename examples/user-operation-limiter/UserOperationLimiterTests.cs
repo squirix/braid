@@ -7,16 +7,16 @@ namespace Braid.Examples.UserOperationLimiter;
 /// </summary>
 public sealed class UserOperationLimiterTests
 {
-    private static readonly CancellationToken CancellationToken = TestContext.Current.CancellationToken;
+    private static CancellationToken TestCancellationToken => TestContext.Current.CancellationToken;
 
     /// <summary>
     /// Verifies braid can deterministically reproduce the unsafe limiter race.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task BraidReproducesLimiterRace()
+    public async Task UnsafeLimiterAllowsTwoWorkersAndBraidReportsTheRace()
     {
-        var limiter = new UserOperationLimiter();
+        var limiter = new UserOperationLimiter("user-1", 1);
         var firstAllowed = false;
         var secondAllowed = false;
         var options = new BraidOptions
@@ -37,19 +37,19 @@ public sealed class UserOperationLimiterTests
                 {
                     context.Fork(async () =>
                     {
-                        firstAllowed = await limiter.TryEnterAsync("user-1", 1, CancellationToken);
+                        firstAllowed = await limiter.TryEnterAsync(TestCancellationToken);
                     });
 
                     context.Fork(async () =>
                     {
-                        secondAllowed = await limiter.TryEnterAsync("user-1", 1, CancellationToken);
+                        secondAllowed = await limiter.TryEnterAsync(TestCancellationToken);
                     });
 
-                    await context.JoinAsync(CancellationToken);
+                    await context.JoinAsync(TestCancellationToken);
                     Assert.False(firstAllowed && secondAllowed);
                 },
                 options,
-                CancellationToken);
+                TestCancellationToken);
         });
 
         var report = exception.ToString();
@@ -60,9 +60,6 @@ public sealed class UserOperationLimiterTests
         Assert.Contains("worker-2", report, StringComparison.Ordinal);
         Assert.Contains("after-read", report, StringComparison.Ordinal);
         Assert.Contains("before-write", report, StringComparison.Ordinal);
-
-        limiter.Exit("user-1");
-        Assert.True(await limiter.TryEnterAsync("user-1", 1, CancellationToken));
     }
 
     /// <summary>
@@ -70,9 +67,9 @@ public sealed class UserOperationLimiterTests
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task BraidScheduleDoesNotBreakLockedLimiter()
+    public async Task LockedLimiterAllowsOnlyOneWorkerUnderSameSchedule()
     {
-        var limiter = new LockedUserOperationLimiter();
+        var limiter = new LockedUserOperationLimiter("user-1", 1);
         var firstAllowed = false;
         var secondAllowed = false;
         var options = new BraidOptions
@@ -91,22 +88,44 @@ public sealed class UserOperationLimiterTests
             {
                 context.Fork(async () =>
                 {
-                    firstAllowed = await limiter.TryEnterAsync("user-1", 1, CancellationToken);
+                    firstAllowed = await limiter.TryEnterAsync(TestCancellationToken);
                 });
 
                 context.Fork(async () =>
                 {
-                    secondAllowed = await limiter.TryEnterAsync("user-1", 1, CancellationToken);
+                    secondAllowed = await limiter.TryEnterAsync(TestCancellationToken);
                 });
 
-                return context.JoinAsync(CancellationToken);
+                return context.JoinAsync(TestCancellationToken);
             },
             options,
-            CancellationToken);
+            TestCancellationToken);
 
         Assert.True(firstAllowed ^ secondAllowed);
 
-        limiter.Exit("user-1");
-        Assert.True(await limiter.TryEnterAsync("user-1", 1, CancellationToken));
+        limiter.Exit();
+        Assert.True(await limiter.TryEnterAsync(TestCancellationToken));
+    }
+
+    /// <summary>
+    /// Verifies unsafe limiter constructor validation.
+    /// </summary>
+    [Fact]
+    public void UnsafeLimiterRejectsInvalidConstructorArguments()
+    {
+        _ = Assert.Throws<ArgumentException>(static () => new UserOperationLimiter(" ", 1));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => new UserOperationLimiter("user-1", 0));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => new UserOperationLimiter("user-1", -1));
+    }
+
+    /// <summary>
+    /// Verifies locked limiter constructor validation.
+    /// </summary>
+    [Fact]
+    public void LockedLimiterRejectsInvalidConstructorArguments()
+    {
+        _ = Assert.Throws<ArgumentException>(static () => new LockedUserOperationLimiter(" ", 1));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => new LockedUserOperationLimiter("user-1", 0));
+        _ = Assert.Throws<ArgumentOutOfRangeException>(static () => new LockedUserOperationLimiter("user-1", -1));
     }
 }
