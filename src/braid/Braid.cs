@@ -23,6 +23,8 @@ public static class Braid
             throw new InvalidOperationException("Nested braid runs are not supported.");
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+
         var resolvedOptions = options ?? BraidOptions.Default;
         resolvedOptions.Validate();
 
