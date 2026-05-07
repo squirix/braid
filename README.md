@@ -44,6 +44,13 @@ await Braid.RunAsync(async context =>
 
 Outside a braid run, `BraidProbe.HitAsync` completes immediately. Inside a run, it is an explicit scheduling point.
 
+## Run lifecycle
+
+- `Braid.RunAsync` always awaits `JoinAsync` after your callback returns, so an explicit `JoinAsync` at the end of the callback is optional.
+- Nested `Braid.RunAsync` calls are not supported in v0; starting a second run while a scheduler scope is active throws `InvalidOperationException`.
+- Only one logical probe wait may be in flight per forked worker. Concurrent `HitAsync` calls on the same worker fail with a clear `BraidRunException`.
+- Fork delegates must return a non-null `Task`; `null` is treated as an invalid fork result.
+
 ## Reproducing failures
 
 When a run fails, braid wraps the failure in `BraidRunException` and reports:
