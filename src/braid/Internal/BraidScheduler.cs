@@ -77,7 +77,13 @@ internal sealed class BraidScheduler : IDisposable
             try
             {
                 await braidTask.WaitForReleaseAsync(shutdownCts.Token).ConfigureAwait(false);
-                await operation().ConfigureAwait(false);
+                var opTask = operation();
+                if (opTask is null)
+                {
+                    throw new InvalidOperationException("Fork operation returned a null task.");
+                }
+
+                await opTask.ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -105,6 +111,11 @@ internal sealed class BraidScheduler : IDisposable
             if (task.State == BraidTaskState.Completed)
             {
                 return;
+            }
+
+            if (task.State == BraidTaskState.Waiting && task.LastProbeName is not null)
+            {
+                throw CreateException("Concurrent probe hit on the same worker is not supported.", null);
             }
 
             task.State = BraidTaskState.Waiting;
@@ -143,6 +154,7 @@ internal sealed class BraidScheduler : IDisposable
 
                     if (failure is not null)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         throw CreateException("A forked operation failed.", failure);
                     }
 

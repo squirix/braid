@@ -18,6 +18,11 @@ public static class Braid
     {
         ArgumentNullException.ThrowIfNull(test);
 
+        if (BraidRunScope.CurrentScheduler is not null)
+        {
+            throw new InvalidOperationException("Nested braid runs are not supported.");
+        }
+
         var resolvedOptions = options ?? BraidOptions.Default;
         resolvedOptions.Validate();
 
