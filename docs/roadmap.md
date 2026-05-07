@@ -1,34 +1,50 @@
 # braid roadmap
 
-## v0.1 — Probe-based deterministic concurrency testing
+## v0.1 - Probe-based deterministic concurrency testing
 
-The goal for v0.1 is for braid to provide a small .NET testing library that explores explicit async probe points and makes concurrency failures reproducible.
+The v0.1 goal is a small .NET testing library that explores explicit async probe points and makes concurrency failures reproducible.
 
-## Scope
+### Scope
 
 - `Braid.RunAsync`
 - `BraidContext.Fork`
 - `BraidContext.JoinAsync`
 - `BraidProbe.HitAsync`
-- deterministic seed
+- deterministic seed behavior
+- typed replay schedules
 - trace capture
 - failure reporting through `BraidRunException`
 - xUnit-compatible tests without a custom test runner
 
-## Non-goals
+### v0.1 checklist
+
+- public API polish
+- deterministic seed behavior
+- typed replay schedules
+- failure reports
+- schedule failure hardening
+- README usage guide
+- package metadata
+- CI on Ubuntu
+- stress smoke tests
+
+### Non-goals
 
 - automatic `TaskScheduler` replacement
 - binary rewriting
 - actor runtime
 - full Coyote replacement
 - distributed-system testing
+- exhaustive model checking
 - linearizability checker
 
-## Required Before v0.1
+## v0.2 ideas
 
-- stable public API names
-- cancellation-token coverage in tests
-- deterministic schedule replay
-- trace formatting
-- package metadata
-- GitHub Actions CI
+These are future ideas, not v0.1 commitments.
+
+- string schedule format
+- xUnit output helper
+- richer structured trace entries
+- optional random exploration strategies
+- probe source-generator/analyzer ideas
+- integration examples with Squirix
