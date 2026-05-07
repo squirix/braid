@@ -1,7 +1,7 @@
 namespace Braid;
 
 /// <summary>
-/// Defines options for a braid run.
+/// Defines seed, iteration, timeout, and replay options for a braid run.
 /// </summary>
 public sealed class BraidOptions
 {
@@ -11,17 +11,17 @@ public sealed class BraidOptions
     public static BraidOptions Default { get; } = new();
 
     /// <summary>
-    /// Gets or initializes the number of scheduling iterations.
+    /// Gets or initializes the number of scheduling iterations to run.
     /// </summary>
     public int Iterations { get; init; } = 100;
 
     /// <summary>
-    /// Gets or initializes an optional schedule used to replay a specific interleaving.
+    /// Gets or initializes an optional typed schedule used to replay a specific interleaving.
     /// </summary>
     public BraidSchedule? Schedule { get; init; }
 
     /// <summary>
-    /// Gets or initializes the base seed. When unset, a process-local seed is used.
+    /// Gets or initializes the base seed. Each iteration adds its zero-based index to this seed.
     /// </summary>
     public int? Seed { get; init; }
 

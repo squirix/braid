@@ -1,7 +1,7 @@
 namespace Braid;
 
 /// <summary>
-/// Represents a deterministic failure discovered during a braid run.
+/// Represents a failure discovered during a braid run with reproducibility details.
 /// </summary>
 public sealed class BraidRunException : Exception
 {
@@ -26,12 +26,12 @@ public sealed class BraidRunException : Exception
     }
 
     /// <summary>
-    /// Gets the failing iteration index.
+    /// Gets the zero-based failing iteration index.
     /// </summary>
     public int Iteration { get; }
 
     /// <summary>
-    /// Gets the configured replay schedule.
+    /// Gets the configured replay schedule, or an empty list when random scheduling was used.
     /// </summary>
     public IReadOnlyList<BraidStep> Schedule { get; }
 
@@ -41,7 +41,7 @@ public sealed class BraidRunException : Exception
     public int Seed { get; }
 
     /// <summary>
-    /// Gets the recorded scheduling trace.
+    /// Gets the recorded scheduling trace for the failing iteration.
     /// </summary>
     public IReadOnlyList<string> Trace { get; }
 
