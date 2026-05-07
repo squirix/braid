@@ -1,27 +1,29 @@
 namespace Braid.Internal;
 
-internal sealed class BraidTask
+internal sealed class BraidTask : IDisposable
 {
     private readonly SemaphoreSlim permit = new(0, 1);
 
-    internal BraidTask(int id)
+    public BraidTask(int id)
     {
         Id = id;
     }
 
-    internal Exception? Exception { get; set; }
+    public Exception? Exception { get; set; }
 
-    internal int Id { get; }
+    public int Id { get; }
 
-    internal string? LastProbeName { get; set; }
+    public string? LastProbeName { get; set; }
 
-    internal Task? RunningTask { get; set; }
+    public Task? RunningTask { get; set; }
 
-    internal BraidTaskState State { get; set; } = BraidTaskState.Waiting;
+    public BraidTaskState State { get; set; } = BraidTaskState.Waiting;
 
-    internal string WorkerId => $"worker-{Id}";
+    public string WorkerId => $"worker-{Id}";
 
-    internal void Release() => permit.Release();
+    public void Dispose() => permit.Dispose();
 
-    internal Task WaitForReleaseAsync(CancellationToken cancellationToken) => permit.WaitAsync(cancellationToken);
+    public void Release() => permit.Release();
+
+    public Task WaitForReleaseAsync(CancellationToken cancellationToken) => permit.WaitAsync(cancellationToken);
 }

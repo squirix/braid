@@ -77,12 +77,7 @@ public sealed class BraidRunTests : TestBase
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
-                    if (invocation == 2)
-                    {
-                        throw new InvalidOperationException("second iteration failed");
-                    }
-
-                    return Task.CompletedTask;
+                    return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 3, Seed = 12345 },
                 DefaultCancellationToken);
@@ -107,12 +102,7 @@ public sealed class BraidRunTests : TestBase
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
-                    if (invocation == 2)
-                    {
-                        throw new InvalidOperationException("second iteration failed");
-                    }
-
-                    return Task.CompletedTask;
+                    return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 5, Seed = 12345 },
                 DefaultCancellationToken);

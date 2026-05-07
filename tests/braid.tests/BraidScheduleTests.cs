@@ -13,8 +13,8 @@ public sealed class BraidScheduleTests : TestBase
     [Fact]
     public void ReplayThrowsForBlankProbeName()
     {
-        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep("worker-1", string.Empty)));
-        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep("worker-1", " ")));
+        _ = Assert.Throws<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep("worker-1", string.Empty)));
+        _ = Assert.Throws<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep("worker-1", " ")));
     }
 
     /// <summary>
@@ -23,7 +23,7 @@ public sealed class BraidScheduleTests : TestBase
     [Fact]
     public void ReplayThrowsForBlankWorkerId()
     {
-        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep(string.Empty, "ready")));
-        _ = Assert.Throws<ArgumentException>(() => BraidSchedule.Replay(new BraidStep(" ", "ready")));
+        _ = Assert.Throws<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep(string.Empty, "ready")));
+        _ = Assert.Throws<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep(" ", "ready")));
     }
 }

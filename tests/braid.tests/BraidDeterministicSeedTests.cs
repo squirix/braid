@@ -14,8 +14,8 @@ public sealed class BraidDeterministicSeedTests : TestBase
     [Fact]
     public async Task RunAsyncWithSameSeedProducesSameTrace()
     {
-        var first = await CaptureRandomTraceAsync(seed: 12345);
-        var second = await CaptureRandomTraceAsync(seed: 12345);
+        var first = await CaptureRandomTraceAsync(12345);
+        var second = await CaptureRandomTraceAsync(12345);
 
         Assert.Equal(first, second);
     }
@@ -50,12 +50,12 @@ public sealed class BraidDeterministicSeedTests : TestBase
             new BraidStep("worker-1", "ready"),
             new BraidStep("worker-2", "ready"));
 
-        var (firstTrace, firstReleaseOrder) = await CaptureScriptedRunAsync(seed: 12345, schedule);
-        var (secondTrace, secondReleaseOrder) = await CaptureScriptedRunAsync(seed: 67890, schedule);
+        var (trace, releaseOrder) = await CaptureScriptedRunAsync(12345, schedule);
+        var (actual, order) = await CaptureScriptedRunAsync(67890, schedule);
 
-        Assert.Equal(["worker-3", "worker-1", "worker-2"], firstReleaseOrder);
-        Assert.Equal(firstReleaseOrder, secondReleaseOrder);
-        Assert.Equal(firstTrace, secondTrace);
+        Assert.Equal(["worker-3", "worker-1", "worker-2"], releaseOrder);
+        Assert.Equal(releaseOrder, order);
+        Assert.Equal(trace, actual);
     }
 
     private static async Task<IReadOnlyList<string>> CaptureRandomTraceAsync(int seed)

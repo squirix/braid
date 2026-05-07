@@ -48,6 +48,7 @@ public sealed class BraidCancellationTests : TestBase
     public async Task RunAsyncSurfacesOperationCanceledWhenCanceledExternally()
     {
         using var cancellation = new CancellationTokenSource();
+        var cancellationToken = cancellation.Token;
         var options = new BraidOptions
         {
             Iterations = 1,
@@ -63,19 +64,19 @@ public sealed class BraidCancellationTests : TestBase
 
                 context.Fork(async () =>
                 {
-                    while (!cancellation.Token.IsCancellationRequested)
+                    while (!cancellationToken.IsCancellationRequested)
                     {
-                        await Task.Delay(TimeSpan.FromMilliseconds(5), cancellation.Token).ConfigureAwait(false);
+                        await Task.Delay(TimeSpan.FromMilliseconds(5), cancellationToken).ConfigureAwait(false);
                     }
                 });
 
-                await context.JoinAsync(cancellation.Token);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            cancellation.Token);
+            cancellationToken);
 
         await Task.Delay(TimeSpan.FromMilliseconds(30), DefaultCancellationToken);
-        cancellation.Cancel();
+        await cancellation.CancelAsync();
 
         _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runTask);
     }

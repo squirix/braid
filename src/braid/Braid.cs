@@ -28,7 +28,7 @@ public static class Braid
             cancellationToken.ThrowIfCancellationRequested();
 
             var seed = unchecked(baseSeed + iteration);
-            var scheduler = new BraidScheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps);
+            using var scheduler = new BraidScheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps);
             var context = new BraidContext(scheduler);
 
             using var scope = BraidRunScope.Enter(scheduler);

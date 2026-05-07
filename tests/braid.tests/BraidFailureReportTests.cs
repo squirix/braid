@@ -99,6 +99,7 @@ public sealed class BraidFailureReportTests : TestBase
         });
 
         var report = exception.ToString();
+        Assert.Equal(options.Schedule.Steps, exception.Schedule);
         Assert.Contains("Schedule:", report, StringComparison.Ordinal);
         Assert.Contains("worker-1 @ after-read", report, StringComparison.Ordinal);
         Assert.Contains("worker-2 @ after-read", report, StringComparison.Ordinal);

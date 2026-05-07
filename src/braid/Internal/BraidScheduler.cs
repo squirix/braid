@@ -1,6 +1,6 @@
 namespace Braid.Internal;
 
-internal sealed class BraidScheduler
+internal sealed class BraidScheduler : IDisposable
 {
     private readonly Lock gate = new();
     private readonly int iteration;
@@ -16,7 +16,7 @@ internal sealed class BraidScheduler
     private int nextScheduleStep;
     private int nextTaskId;
 
-    internal BraidScheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<BraidStep>? schedule)
+    public BraidScheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<BraidStep>? schedule)
     {
         this.seed = seed;
         this.iteration = iteration;
@@ -25,21 +25,32 @@ internal sealed class BraidScheduler
         random = new DeterministicRandom(seed);
     }
 
-    internal BraidRunException CreateException(string message, Exception? innerException)
+    public BraidRunException CreateException(string message, Exception? innerException)
     {
         IReadOnlyList<string> traceSnapshot;
         IReadOnlyList<BraidStep> scheduleSnapshot;
 
         lock (gate)
         {
-            traceSnapshot = trace.ToArray();
-            scheduleSnapshot = schedule?.ToArray() ?? Array.Empty<BraidStep>();
+            traceSnapshot = [.. trace];
+            scheduleSnapshot = schedule?.ToArray() ?? [];
         }
 
         return new BraidRunException(message, seed, iteration, traceSnapshot, scheduleSnapshot, innerException);
     }
 
-    internal void Fork(Func<Task> operation)
+    public void Dispose()
+    {
+        shutdownCts.Dispose();
+        stateChanged.Dispose();
+
+        foreach (var task in tasks)
+        {
+            task.Dispose();
+        }
+    }
+
+    public void Fork(Func<Task> operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
 
@@ -85,7 +96,7 @@ internal sealed class BraidScheduler
         });
     }
 
-    internal async ValueTask HitAsync(BraidTask task, string name, CancellationToken cancellationToken)
+    public async ValueTask HitAsync(BraidTask task, string name, CancellationToken cancellationToken)
     {
         lock (gate)
         {
@@ -104,7 +115,7 @@ internal sealed class BraidScheduler
         await task.WaitForReleaseAsync(linkedCts.Token).ConfigureAwait(false);
     }
 
-    internal async Task JoinAsync(CancellationToken cancellationToken)
+    public async Task JoinAsync(CancellationToken cancellationToken)
     {
         using var timeoutCts = new CancellationTokenSource(timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
@@ -172,7 +183,7 @@ internal sealed class BraidScheduler
         }
     }
 
-    internal async Task StopAsync()
+    public async Task StopAsync()
     {
         CancelBlockedTasks();
         await WaitForRunningTasksAsync().ConfigureAwait(false);
@@ -185,9 +196,9 @@ internal sealed class BraidScheduler
         _ = stateChanged.Release();
     }
 
-    private BraidTask? SelectNextTask(IReadOnlyList<BraidTask> waitingTasks, bool hasRunningTasks)
+    private BraidTask? SelectNextTask(BraidTask[] waitingTasks, bool hasRunningTasks)
     {
-        if (waitingTasks.Count == 0)
+        if (waitingTasks.Length == 0)
         {
             return null;
         }
@@ -200,7 +211,7 @@ internal sealed class BraidScheduler
 
         if (schedule is null)
         {
-            return waitingTasks[random.NextInt32(waitingTasks.Count)];
+            return waitingTasks[random.NextInt32(waitingTasks.Length)];
         }
 
         if (nextScheduleStep >= schedule.Count)
@@ -214,12 +225,7 @@ internal sealed class BraidScheduler
 
         if (task is null)
         {
-            if (hasRunningTasks)
-            {
-                return null;
-            }
-
-            throw CreateException($"Scripted schedule step {nextScheduleStep} could not be satisfied: release {step.WorkerId} at {step.ProbeName}.", null);
+            return hasRunningTasks ? null : throw CreateException($"Scripted schedule step {nextScheduleStep} could not be satisfied: release {step.WorkerId} at {step.ProbeName}.", null);
         }
 
         nextScheduleStep++;
@@ -232,7 +238,7 @@ internal sealed class BraidScheduler
 
         lock (gate)
         {
-            runningTasks = tasks.Select(static task => task.RunningTask).OfType<Task>().ToArray();
+            runningTasks = [.. tasks.Select(static task => task.RunningTask).OfType<Task>()];
         }
 
         await Task.WhenAll(runningTasks).ConfigureAwait(false);

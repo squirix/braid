@@ -20,11 +20,6 @@ public static class BraidProbe
         var scheduler = BraidRunScope.CurrentScheduler;
         var task = BraidRunScope.CurrentTask;
 
-        if (scheduler is null || task is null)
-        {
-            return ValueTask.CompletedTask;
-        }
-
-        return scheduler.HitAsync(task, name, cancellationToken);
+        return scheduler is null || task is null ? ValueTask.CompletedTask : scheduler.HitAsync(task, name, cancellationToken);
     }
 }

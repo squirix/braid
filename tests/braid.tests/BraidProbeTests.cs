@@ -21,7 +21,7 @@ public sealed class BraidProbeTests : TestBase
     [Fact]
     public async Task HitAsyncOutsideRunStillCompletesAfterFailedRun()
     {
-        _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        _ = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
             await Braid.RunAsync(
                 static async context =>
