@@ -3,12 +3,19 @@
         <AssemblyName>Braid</AssemblyName>
         <RootNamespace>Braid</RootNamespace>
         <PackageId>braid</PackageId>
+        <Version>0.1.0</Version>
         <Title>braid</Title>
         <Description>Deterministic concurrency testing for .NET using explicit async probe points.</Description>
         <Authors>Squirix</Authors>
         <RepositoryUrl>https://github.com/squirix/braid</RepositoryUrl>
         <PackageProjectUrl>https://github.com/squirix/braid</PackageProjectUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageTags>testing;concurrency;deterministic;async;dotnet</PackageTags>
+        <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <IsPackable>true</IsPackable>
     </PropertyGroup>
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="\"/>
+    </ItemGroup>
 </Project>
