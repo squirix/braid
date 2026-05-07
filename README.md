@@ -98,6 +98,40 @@ Trace:
 
 This report is meant to be copyable into test logs and issue reports so a failing interleaving can be replayed quickly.
 
+## Reproducing failures
+
+braid reports `Seed`, `Iteration`, an optional `Schedule`, and `Trace` when a run fails. Use the same seed and replay schedule to reproduce the failure. Random seed mode is useful while exploring, but once a bug is understood, prefer a scripted schedule for stable regression tests.
+
+```csharp
+var options = new BraidOptions
+{
+    Seed = 12345,
+    Iterations = 10,
+    Schedule = BraidSchedule.Replay(
+        new BraidStep("worker-1", "after-read"),
+        new BraidStep("worker-2", "after-read"),
+        new BraidStep("worker-1", "before-write"),
+        new BraidStep("worker-2", "before-write")),
+};
+
+await Braid.RunAsync(async context =>
+{
+    context.Fork(async () =>
+    {
+        await BraidProbe.HitAsync("after-read", cancellationToken);
+        await BraidProbe.HitAsync("before-write", cancellationToken);
+    });
+
+    context.Fork(async () =>
+    {
+        await BraidProbe.HitAsync("after-read", cancellationToken);
+        await BraidProbe.HitAsync("before-write", cancellationToken);
+    });
+
+    await context.JoinAsync(cancellationToken);
+}, options, cancellationToken);
+```
+
 ## Package shape
 
 - `braid`
