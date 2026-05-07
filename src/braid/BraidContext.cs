@@ -8,6 +8,7 @@ namespace Braid;
 public sealed class BraidContext
 {
     private readonly BraidScheduler scheduler;
+    private int isActive = 1;
 
     internal BraidContext(BraidScheduler scheduler)
     {
@@ -21,6 +22,7 @@ public sealed class BraidContext
     public void Fork(Func<Task> operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
+        ThrowIfInactive();
         scheduler.Fork(operation);
     }
 
@@ -29,5 +31,19 @@ public sealed class BraidContext
     /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all forked operations complete.</returns>
-    public Task JoinAsync(CancellationToken cancellationToken = default) => scheduler.JoinAsync(cancellationToken);
+    public Task JoinAsync(CancellationToken cancellationToken = default)
+    {
+        ThrowIfInactive();
+        return scheduler.JoinAsync(cancellationToken);
+    }
+
+    internal void Complete() => _ = Interlocked.Exchange(ref isActive, 0);
+
+    private void ThrowIfInactive()
+    {
+        if (Volatile.Read(ref isActive) == 0)
+        {
+            throw new InvalidOperationException("BraidContext can only be used during the Braid.RunAsync callback.");
+        }
+    }
 }

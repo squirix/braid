@@ -42,7 +42,13 @@ public static class Braid
 
             try
             {
-                await test(context).ConfigureAwait(false);
+                var callbackTask = test(context);
+                if (callbackTask is null)
+                {
+                    throw new InvalidOperationException("Braid run callback returned a null task.");
+                }
+
+                await callbackTask.ConfigureAwait(false);
                 await context.JoinAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (BraidRunException)
@@ -59,6 +65,10 @@ public static class Braid
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
                 throw scheduler.CreateException("braid run failed.", ex);
+            }
+            finally
+            {
+                context.Complete();
             }
         }
     }
