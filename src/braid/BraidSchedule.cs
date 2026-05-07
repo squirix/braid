@@ -33,4 +33,12 @@ public sealed class BraidSchedule
 
         return new BraidSchedule(Array.AsReadOnly(copy));
     }
+
+    internal void Validate()
+    {
+        foreach (var step in Steps)
+        {
+            step.Validate();
+        }
+    }
 }

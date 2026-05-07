@@ -42,6 +42,6 @@ public sealed class BraidOptions
             throw new ArgumentOutOfRangeException(nameof(Timeout), Timeout, "Timeout must be positive.");
         }
 
-        _ = Schedule?.Steps;
+        Schedule?.Validate();
     }
 }
