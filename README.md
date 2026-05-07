@@ -47,9 +47,12 @@ Outside a braid run, `BraidProbe.HitAsync` completes immediately. Inside a run, 
 ## Run lifecycle
 
 - `Braid.RunAsync` always awaits `JoinAsync` after your callback returns, so an explicit `JoinAsync` at the end of the callback is optional.
+- A canceled `CancellationToken` passed to `Braid.RunAsync` is honored before the callback runs (and before options validation).
+- An empty callback with no forks completes when no replay schedule is configured; if a schedule is provided, every step must be consumed or the run fails with unused-step reporting.
 - Nested `Braid.RunAsync` calls are not supported in v0; starting a second run while a scheduler scope is active throws `InvalidOperationException`.
-- Only one logical probe wait may be in flight per forked worker. Concurrent `HitAsync` calls on the same worker fail with a clear `BraidRunException`.
+- Only one logical probe wait may be in flight per forked worker. Concurrent `HitAsync` calls on the same worker fail with a clear `BraidRunException`. A child `Task.Run` may call `HitAsync` after the parent probe completes; overlapping parent/child probes are rejected.
 - Fork delegates must return a non-null `Task`; `null` is treated as an invalid fork result.
+- Failure reports snapshot trace and schedule; mutating caller arrays after a failure does not change `BraidRunException` contents.
 
 ## Reproducing failures
 
