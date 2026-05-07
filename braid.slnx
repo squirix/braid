@@ -5,4 +5,7 @@
     <Folder Name="/tests/">
         <Project Path="tests/braid.tests/Braid.Tests.csproj"/>
     </Folder>
+    <Folder Name="/examples/">
+        <Project Path="examples/user-operation-limiter/Braid.Examples.UserOperationLimiter.csproj"/>
+    </Folder>
 </Solution>

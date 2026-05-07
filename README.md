@@ -108,6 +108,14 @@ Trace:
 - CAS, TTL, and state-machine style code.
 - Small deterministic async scenarios with clear probe points.
 
+## Real-world example: per-user operation limiter
+
+A per-user operation limiter is supposed to allow at most one active operation for a user. An unsafe implementation can read the active count, check the limit, and write the incremented count without synchronization. Two workers can both observe `0` and both enter.
+
+braid can force that interleaving through explicit probes such as `after-read` and `before-write`. The failure report includes the seed, schedule, and trace needed to reproduce the race.
+
+See [examples/user-operation-limiter](examples/user-operation-limiter/) for the unsafe limiter, the locked implementation, and deterministic tests.
+
 ## Current limitations
 
 - Explicit probes are required.
