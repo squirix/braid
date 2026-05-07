@@ -9,6 +9,7 @@ internal sealed class BraidScheduler : IDisposable
     private readonly int seed;
     private readonly CancellationTokenSource shutdownCts = new();
     private readonly SemaphoreSlim stateChanged = new(0);
+    private readonly SemaphoreSlim joinMutex = new(1, 1);
     private readonly List<BraidTask> tasks = [];
     private readonly TimeSpan timeout;
     private readonly List<string> trace = [];
@@ -43,6 +44,7 @@ internal sealed class BraidScheduler : IDisposable
     {
         shutdownCts.Dispose();
         stateChanged.Dispose();
+        joinMutex.Dispose();
 
         foreach (var task in tasks)
         {
@@ -117,6 +119,8 @@ internal sealed class BraidScheduler : IDisposable
 
     public async Task JoinAsync(CancellationToken cancellationToken)
     {
+        await joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+
         using var timeoutCts = new CancellationTokenSource(timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
@@ -144,6 +148,11 @@ internal sealed class BraidScheduler : IDisposable
 
                     if (tasks.Count == 0 || tasks.All(static task => task.State == BraidTaskState.Completed))
                     {
+                        if (schedule is not null && nextScheduleStep < schedule.Count)
+                        {
+                            throw CreateException("Scripted schedule contained unused steps after all workers completed.", null);
+                        }
+
                         break;
                     }
 
@@ -180,6 +189,10 @@ internal sealed class BraidScheduler : IDisposable
             CancelBlockedTasks();
             await WaitForRunningTasksAsync().ConfigureAwait(false);
             throw;
+        }
+        finally
+        {
+            _ = joinMutex.Release();
         }
     }
 
@@ -241,6 +254,23 @@ internal sealed class BraidScheduler : IDisposable
             runningTasks = [.. tasks.Select(static task => task.RunningTask).OfType<Task>()];
         }
 
-        await Task.WhenAll(runningTasks).ConfigureAwait(false);
+        if (runningTasks.Length == 0)
+        {
+            return;
+        }
+
+        var all = Task.WhenAll(runningTasks);
+        if (shutdownCts.IsCancellationRequested)
+        {
+            var completed = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None)).ConfigureAwait(false);
+            if (completed == all)
+            {
+                await all.ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        await all.ConfigureAwait(false);
     }
 }
