@@ -114,3 +114,9 @@ Trace:
 - Await interception is not automatic.
 - Exhaustive search is not implemented.
 - String schedule parsing is not implemented yet.
+
+## Package status
+
+braid is currently a preview package candidate. v0.1 is explicit-probe-based, and package publication is manual for now.
+
+There is no stable API compatibility promise yet, but the v0.1 public surface is intentionally small.
