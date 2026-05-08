@@ -6,10 +6,10 @@ braid helps small async concurrency tests make interleavings reproducible. Tests
 
 ## Install from NuGet
 
-braid targets **.NET 10** and is published as a **preview** package (`0.1.0-preview.1`). The public API may still change before stable `0.1.0`.
+braid targets **.NET 10** and is published on NuGet as `0.1.0`.
 
 ```bash
-dotnet add package braid --version 0.1.0-preview.1 --prerelease
+dotnet add package braid --version 0.1.0
 ```
 
 For a one-off consumer check, see [Consumer smoke test](https://github.com/squirix/braid/blob/main/docs/release-process.md#consumer-smoke-test) in the release process doc.
@@ -191,6 +191,6 @@ This example is generic domain code (not tied to any product beyond the MIT samp
 
 ## Package status
 
-braid is currently published as a preview package on NuGet. There is no stable API compatibility promise yet, but the v0.1 public surface is intentionally small.
+braid `0.1.0` is published on NuGet. Minor releases may still evolve the public surface, but `0.1.x` updates are intended to stay source-compatible when practical.
 
 Manual release steps for maintainers: [docs/release-process.md](https://github.com/squirix/braid/blob/main/docs/release-process.md).

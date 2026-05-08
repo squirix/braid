@@ -8,6 +8,25 @@
 - Clarify preview package status and lifecycle contracts.
 - Add manual release process and consumer smoke-test steps.
 
+## 0.1.0
+
+Stable release of braid.
+
+### Added
+
+* Deterministic explicit-probe concurrency testing for .NET with `Braid.RunAsync`.
+* Fork/join orchestration through `BraidContext`.
+* Probe control with `BraidProbe.HitAsync`.
+* Typed replay schedules through `BraidSchedule` and `BraidStep`.
+* Failure reports with seed, iteration, schedule, and trace.
+
+### Known limitations
+
+* Explicit probes are required.
+* No automatic `await` interception.
+* No `TaskScheduler` replacement.
+* No exhaustive state-space search.
+
 ## 0.1.0-preview.1
 
 Initial preview of braid.

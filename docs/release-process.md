@@ -5,7 +5,7 @@ Compact checklist for publishing a new `braid` preview or stable version. NuGet 
 ## Preconditions
 
 - Working tree clean (`git status`).
-- Version in `src/braid/Braid.csproj` (`VersionPrefix` / `VersionSuffix`) matches the intended NuGet version.
+- Version in `src/braid/Braid.csproj` matches the intended NuGet version.
 - No secrets committed; API keys stay in user or CI secret storage only.
 
 ## Build and pack
@@ -32,7 +32,7 @@ From an empty directory (uses .NET 10 xUnit template):
 mkdir braid-consume-test
 cd braid-consume-test
 dotnet new xunit -f net10.0
-dotnet add package braid --version 0.1.0-preview.1 --prerelease
+dotnet add package braid --version 0.1.0
 ```
 
 Add a tiny test (for example `SmokeTest.cs`):
@@ -71,13 +71,13 @@ dotnet test --configuration Release
 
 ## GitHub release
 
-1. Create an annotated or lightweight tag for the version (for example `v0.1.0-preview.1`) after validation.
-2. Push the tag: `git push origin v0.1.0-preview.1`.
-3. Create a GitHub **Release** from that tag (pre-release for previews). Attach notes that match `CHANGELOG.md` for that version.
+1. Create an annotated or lightweight tag for the version (for example `v0.1.0`) after validation.
+2. Push the tag: `git push origin v0.1.0`.
+3. Create a GitHub **Release** from that tag. Attach notes that match `CHANGELOG.md` for that version.
 
 ## NuGet.org
 
-1. Push the `.nupkg`: `dotnet nuget push path\to\braid.0.1.0-preview.1.nupkg --api-key <scoped-key> --source https://api.nuget.org/v3/index.json`
+1. Push the `.nupkg`: `dotnet nuget push path\to\braid.0.1.0.nupkg --api-key <scoped-key> --source https://api.nuget.org/v3/index.json`
 2. Push the `.snupkg` the same way (same API key is typical).
 3. Open the package page on NuGet and verify metadata, README rendering, dependencies, and target framework.
 4. Confirm **owners** on the package; use a **scoped** API key with push-only permissions where possible.
