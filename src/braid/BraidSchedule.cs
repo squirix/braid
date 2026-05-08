@@ -16,7 +16,7 @@ public sealed class BraidSchedule
     public IReadOnlyList<BraidStep> Steps { get; }
 
     /// <summary>
-    /// Creates a replay schedule from the supplied steps.
+    /// Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.
     /// </summary>
     /// <param name="steps">The worker release steps.</param>
     /// <returns>A replay schedule.</returns>

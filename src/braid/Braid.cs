@@ -9,6 +9,9 @@ public static class Braid
 {
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
+    /// After the callback task completes successfully, forked workers are joined automatically; an explicit
+    /// <see cref="BraidContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
+    /// The callback must not return null.
     /// </summary>
     /// <param name="test">The test callback to execute.</param>
     /// <param name="options">The run options.</param>

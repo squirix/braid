@@ -4,6 +4,16 @@ braid is a deterministic concurrency testing library for .NET using explicit asy
 
 braid helps small async concurrency tests make interleavings reproducible. Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next.
 
+## Install from NuGet
+
+braid targets **.NET 10** and is published as a **preview** package (`0.1.0-preview.1`). The public API may still change before stable `0.1.0`.
+
+```bash
+dotnet add package braid --version 0.1.0-preview.1 --prerelease
+```
+
+For a one-off consumer check, see [Consumer smoke test](https://github.com/squirix/braid/blob/main/docs/release-process.md#consumer-smoke-test) in the release process doc.
+
 ## What braid is
 
 - Explicit-probe-based concurrency testing for ordinary .NET code.
@@ -18,6 +28,46 @@ braid helps small async concurrency tests make interleavings reproducible. Tests
 - Not a Coyote replacement.
 - Not distributed-system testing.
 - Not exhaustive model checking yet.
+
+## Quick start (xUnit)
+
+After adding the package, a minimal test can fork one worker, hit a probe under a typed replay schedule, join, and assert the worker finished:
+
+```csharp
+using Braid;
+using Xunit;
+
+public sealed class BraidQuickStartTests
+{
+    [Fact]
+    public async Task Fork_probe_join_completes_under_replay()
+    {
+        var workerCompleted = false;
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+        };
+
+        await Braid.RunAsync(
+            async context =>
+            {
+                context.Fork(async () =>
+                {
+                    await BraidProbe.HitAsync("ready");
+                    workerCompleted = true;
+                });
+
+                await context.JoinAsync();
+            },
+            options);
+
+        Assert.True(workerCompleted);
+    }
+}
+```
+
+For a larger pattern (unsafe vs fixed limiter, failure assertions), see the [user operation limiter example](https://github.com/squirix/braid/tree/main/examples/user-operation-limiter) and [example walkthrough](https://github.com/squirix/braid/blob/main/docs/examples/user-operation-limiter.md).
 
 ## Minimal example
 
@@ -46,29 +96,30 @@ Outside a braid run, `BraidProbe.HitAsync` completes immediately. Inside a run, 
 
 ## Run lifecycle
 
-- `Braid.RunAsync` always awaits `JoinAsync` after your callback returns, so an explicit `JoinAsync` at the end of the callback is optional.
+- `Braid.RunAsync` always awaits `JoinAsync` after your callback's task completes, so an explicit `JoinAsync` at the end of the callback is optional.
 - `BraidContext` is only valid during the active `Braid.RunAsync` callback/run; using it after the run completes fails clearly.
 - A canceled `CancellationToken` passed to `Braid.RunAsync` is honored before the callback runs (and before options validation).
-- An empty callback with no forks completes when no replay schedule is configured; if a schedule is provided, every step must be consumed or the run fails with unused-step reporting.
-- An explicitly empty replay schedule (`BraidSchedule.Replay()`) is allowed for empty or probe-free runs.
+- An empty callback with no forks completes when no replay schedule is configured; if a non-empty schedule is provided, every step must be consumed or the run fails with unused-step reporting.
+- An explicitly empty replay schedule (`BraidSchedule.Replay()` with no steps) is allowed for empty or probe-free runs.
 - Replay matching is ordinal and case-sensitive for both worker ids and probe names.
 - Nested `Braid.RunAsync` calls are not supported in v0; starting a second run while a scheduler scope is active throws `InvalidOperationException`.
-- Only one logical probe wait may be in flight per forked worker. Concurrent `HitAsync` calls on the same worker fail with a clear `BraidRunException`. A child `Task.Run` may call `HitAsync` after the parent probe completes; overlapping parent/child probes are rejected.
-- Fork delegates must return a non-null `Task`; `null` is treated as an invalid fork result. Probe names may contain diagnostic punctuation, but cannot be null/empty/whitespace.
-- Failure reports snapshot trace and schedule; mutating caller arrays after a failure does not change `BraidRunException` contents.
+- Only one logical probe wait may be in flight per forked worker. Concurrent `HitAsync` calls on the same worker fail with a clear `BraidRunException` when the scheduler detects them; serialized child-task probes after the parent probe completes are allowed when the current runtime accepts that pattern. Overlapping parent/child probes are rejected.
+- Fork delegates must return a non-null `Task`; `null` is treated as an invalid callback result. Probe names may contain diagnostic punctuation, but cannot be null, empty, or whitespace.
+- Callback faults and scheduler-detected failures are surfaced as `BraidRunException` (or cancellation) as described below; mutating caller arrays after a failure does not change captured report data.
 - Reusing one `BraidOptions` instance (including replay schedules) across independent runs is supported.
 - Failure reports are scoped to the current run and iteration only.
 
 ## Reproducing failures
 
-When a run fails, braid wraps the failure in `BraidRunException` and reports:
+When a run fails, braid wraps many failures in `BraidRunException` and reports:
 
-- `Seed`: the seed used by the failing iteration.
+- `Seed`: the seed used by the failing iteration (use the same seed to reproduce random scheduling for that iteration).
 - `Iteration`: the zero-based failing iteration index.
-- `Schedule`: the typed replay schedule when one was configured.
+- `Schedule`: the typed replay schedule when one was configured (empty when only random scheduling was used).
 - `Trace`: the recorded worker/probe/release trace.
+- `InnerException`: the original fault when braid wraps an underlying exception; `ToString()` on `BraidRunException` appends inner details when present.
 
-Use the same seed to reproduce random scheduling behavior. Once a bug is understood, prefer a typed replay schedule for stable regression tests.
+Use the same seed to reproduce random scheduling behavior. Once a race is understood, prefer a typed replay schedule for stable regression tests instead of relying on random exploration.
 
 ```csharp
 var options = new BraidOptions
@@ -129,7 +180,7 @@ A per-user operation limiter is supposed to allow at most one active operation f
 
 braid can force that interleaving through explicit probes such as `after-read` and `before-write`. The tests call `TryEnterAsync(cancellationToken)`, and the failure report includes the seed, schedule, and trace needed to reproduce the race.
 
-See [examples/user-operation-limiter](examples/user-operation-limiter/) for the unsafe limiter, the locked implementation, and deterministic tests.
+This example is generic domain code (not tied to any product beyond the MIT sample); see [examples/user-operation-limiter](https://github.com/squirix/braid/tree/main/examples/user-operation-limiter) on GitHub.
 
 ## Current limitations
 
@@ -140,6 +191,6 @@ See [examples/user-operation-limiter](examples/user-operation-limiter/) for the 
 
 ## Package status
 
-braid is currently a preview package candidate. v0.1 is explicit-probe-based, and package publication is manual for now.
+braid is currently published as a preview package on NuGet. There is no stable API compatibility promise yet, but the v0.1 public surface is intentionally small.
 
-There is no stable API compatibility promise yet, but the v0.1 public surface is intentionally small.
+Manual release steps for maintainers: [docs/release-process.md](https://github.com/squirix/braid/blob/main/docs/release-process.md).

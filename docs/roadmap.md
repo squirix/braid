@@ -24,7 +24,7 @@ The v0.1 goal is a small .NET testing library that explores explicit async probe
 - failure reports
 - schedule failure hardening
 - README usage guide
-- package metadata
+- package metadata and NuGet preview publication
 - CI on Ubuntu
 - stress smoke tests
 

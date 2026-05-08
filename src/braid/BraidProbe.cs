@@ -10,7 +10,7 @@ public static class BraidProbe
     /// <summary>
     /// Hits a named scheduling point. Outside a braid run this method completes immediately.
     /// </summary>
-    /// <param name="name">The probe name.</param>
+    /// <param name="name">The probe name; null, empty, and whitespace-only values are rejected.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="ValueTask" /> that completes when the scheduler releases the current operation.</returns>
     public static ValueTask HitAsync(string name, CancellationToken cancellationToken = default)

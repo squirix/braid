@@ -3,7 +3,8 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>
-/// Provides task orchestration APIs for a braid run.
+/// Provides task orchestration APIs for a braid run. Only use members while the active
+/// <see cref="Braid" /> run callback is executing.
 /// </summary>
 public sealed class BraidContext
 {

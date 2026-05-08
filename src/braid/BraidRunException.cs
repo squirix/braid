@@ -2,6 +2,7 @@ namespace Braid;
 
 /// <summary>
 /// Represents a failure discovered during a braid run with reproducibility details.
+/// Inner exceptions are preserved on the base <see cref="Exception" /> and summarized in <see cref="ToString" />.
 /// </summary>
 public sealed class BraidRunException : Exception
 {

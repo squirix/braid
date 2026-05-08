@@ -1,5 +1,7 @@
 # Release checklist
 
+For NuGet push, symbols, API keys, and a consumer smoke test, see [release-process.md](release-process.md).
+
 ## v0.1 preview
 
 1. Ensure working tree is clean.

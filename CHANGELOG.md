@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Document NuGet installation for `0.1.0-preview.1`.
+- Clarify preview package status and lifecycle contracts.
+- Add manual release process and consumer smoke-test steps.
+
 ## 0.1.0-preview.1
 
 Initial preview of braid.
