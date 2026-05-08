@@ -167,6 +167,34 @@ Trace:
   4. worker-1 released at after-read
 ```
 
+## True interleaving replay (arrive/hold/release)
+
+`BraidStep(worker, probe)` (or `BraidStep.Hit`) keeps the original behavior: release a worker when it is blocked at that probe.
+
+For stricter interleaving assertions, replay also supports a two-phase probe flow:
+
+- `BraidStep.Arrive(worker, probe)` waits until the worker reaches the probe and keeps it blocked.
+- `BraidStep.Release(worker, probe)` releases a worker that was previously held by `Arrive`.
+
+This lets you express "worker-1 is already blocked at probe A, then worker-2 mutates, then worker-1 resumes" without adding extra probes:
+
+```csharp
+var options = new BraidOptions
+{
+    Iterations = 1,
+    Schedule = BraidSchedule.Replay(
+        BraidStep.Arrive("worker-1", "cache-hit"),
+        BraidStep.Hit("worker-2", "mutation-done"),
+        BraidStep.Release("worker-1", "cache-hit")),
+};
+```
+
+Semantic difference:
+
+- `release worker at probe`: worker is released as soon as that schedule step is matched.
+- `wait until arrived and hold`: worker arrival is asserted first, but execution stays blocked.
+- `true interleaving test`: a competing step runs while the first worker is provably held.
+
 ## When to use
 
 - Cache and library concurrency tests.

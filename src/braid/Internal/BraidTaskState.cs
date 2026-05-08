@@ -8,6 +8,11 @@ internal enum BraidTaskState
     Waiting,
 
     /// <summary>
+    /// The worker is blocked at a probe and explicitly held by a scripted arrival step.
+    /// </summary>
+    Held,
+
+    /// <summary>
     /// The worker is currently executing user code.
     /// </summary>
     Running,

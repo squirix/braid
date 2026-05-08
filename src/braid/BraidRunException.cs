@@ -62,7 +62,7 @@ public sealed class BraidRunException : Exception
             for (var index = 0; index < Schedule.Count; index++)
             {
                 var step = Schedule[index];
-                lines.Add($"  {index + 1}. {step.WorkerId} @ {step.ProbeName}");
+                lines.Add(step.Kind == BraidStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
             }
         }
 

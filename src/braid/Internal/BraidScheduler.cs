@@ -142,6 +142,7 @@ internal sealed class BraidScheduler : IDisposable
                 linkedCts.Token.ThrowIfCancellationRequested();
 
                 BraidTask? nextTask;
+                var advancedWithoutRelease = false;
 
                 lock (gate)
                 {
@@ -166,7 +167,7 @@ internal sealed class BraidScheduler : IDisposable
                     var waitingTasks = tasks.Where(static task => task.State == BraidTaskState.Waiting).OrderBy(static task => task.Id).ToArray();
                     var hasRunningTasks = tasks.Any(static task => task.State == BraidTaskState.Running);
 
-                    nextTask = SelectNextTask(waitingTasks, hasRunningTasks);
+                    nextTask = SelectNextTask(waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
 
                     if (nextTask is not null)
                     {
@@ -177,6 +178,11 @@ internal sealed class BraidScheduler : IDisposable
 
                 if (nextTask is null)
                 {
+                    if (advancedWithoutRelease)
+                    {
+                        continue;
+                    }
+
                     await stateChanged.WaitAsync(linkedCts.Token).ConfigureAwait(false);
                     continue;
                 }
@@ -216,22 +222,20 @@ internal sealed class BraidScheduler : IDisposable
         _ = stateChanged.Release();
     }
 
-    private BraidTask? SelectNextTask(BraidTask[] waitingTasks, bool hasRunningTasks)
+    private BraidTask? SelectNextTask(BraidTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
     {
-        if (waitingTasks.Length == 0)
+        if (waitingTasks.Length > 0)
         {
-            return null;
-        }
-
-        var startupTasks = waitingTasks.Where(static task => task.LastProbeName is null).ToArray();
-        if (startupTasks.Length > 0)
-        {
-            return startupTasks[0];
+            var startupTasks = waitingTasks.Where(static task => task.LastProbeName is null).ToArray();
+            if (startupTasks.Length > 0)
+            {
+                return startupTasks[0];
+            }
         }
 
         if (schedule is null)
         {
-            return waitingTasks[random.NextInt32(waitingTasks.Length)];
+            return waitingTasks.Length == 0 ? null : waitingTasks[random.NextInt32(waitingTasks.Length)];
         }
 
         if (nextScheduleStep >= schedule.Count)
@@ -240,16 +244,82 @@ internal sealed class BraidScheduler : IDisposable
         }
 
         var step = schedule[nextScheduleStep];
-        var task = waitingTasks.FirstOrDefault(task =>
+        var waitingTask = waitingTasks.FirstOrDefault(task =>
             string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
+        var heldTask = tasks
+            .Where(static task => task.State == BraidTaskState.Held)
+            .FirstOrDefault(task =>
+                string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
+        var sameWorkerBlockedTask = tasks.FirstOrDefault(task =>
+            string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) &&
+            (task.State == BraidTaskState.Waiting || task.State == BraidTaskState.Held) &&
+            task.LastProbeName is not null);
 
-        if (task is null)
+        switch (step.Kind)
         {
-            return hasRunningTasks ? null : throw CreateException($"Scripted schedule step {nextScheduleStep} could not be satisfied: release {step.WorkerId} at {step.ProbeName}.", null);
+            case BraidStepKind.Hit:
+            {
+                var releasableTask = heldTask ?? waitingTask;
+                if (releasableTask is null)
+                {
+                    return hasRunningTasks
+                        ? null
+                        : throw CreateException(
+                            BuildStepMismatchMessage(nextScheduleStep, "release", step, sameWorkerBlockedTask),
+                            null);
+                }
+
+                nextScheduleStep++;
+                return releasableTask;
+            }
+
+            case BraidStepKind.Arrive:
+            {
+                if (waitingTask is null)
+                {
+                    return hasRunningTasks
+                        ? null
+                        : throw CreateException(
+                            BuildStepMismatchMessage(nextScheduleStep, "arrive", step, sameWorkerBlockedTask),
+                            null);
+                }
+
+                waitingTask.State = BraidTaskState.Held;
+                nextScheduleStep++;
+                advancedWithoutRelease = true;
+                trace.Add($"{waitingTask.WorkerId} arrival observed at {waitingTask.LastProbeName} (held)");
+                return null;
+            }
+
+            case BraidStepKind.Release:
+            {
+                if (heldTask is null)
+                {
+                    return hasRunningTasks
+                        ? null
+                        : throw CreateException(
+                            BuildStepMismatchMessage(nextScheduleStep, "release held", step, sameWorkerBlockedTask),
+                            null);
+                }
+
+                nextScheduleStep++;
+                return heldTask;
+            }
+
+            default:
+                throw CreateException($"Scripted schedule step {nextScheduleStep} has unknown step kind {step.Kind}.", null);
+        }
+    }
+
+    private string BuildStepMismatchMessage(int stepIndex, string action, BraidStep expectedStep, BraidTask? sameWorkerBlockedTask)
+    {
+        _ = iteration;
+        if (sameWorkerBlockedTask?.LastProbeName is null)
+        {
+            return $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}.";
         }
 
-        nextScheduleStep++;
-        return task;
+        return $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
     }
 
     private async Task WaitForRunningTasksAsync()

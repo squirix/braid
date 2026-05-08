@@ -18,7 +18,7 @@ public sealed class BraidSchedule
     /// <summary>
     /// Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.
     /// </summary>
-    /// <param name="steps">The worker release steps.</param>
+    /// <param name="steps">The worker replay steps.</param>
     /// <returns>A replay schedule.</returns>
     public static BraidSchedule Replay(params BraidStep[] steps)
     {
