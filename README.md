@@ -206,6 +206,8 @@ Trace:
 
 See:
 
+- [examples/cache-cas-race](examples/cache-cas-race)
+- [docs/examples/cache-cas-race.md](docs/examples/cache-cas-race.md)
 - [examples/user-operation-limiter](examples/user-operation-limiter)
 - [docs/examples/user-operation-limiter.md](docs/examples/user-operation-limiter.md)
 
