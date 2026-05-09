@@ -64,6 +64,24 @@ public sealed class BraidRunException : Exception
                 var step = Schedule[index];
                 lines.Add(step.Kind == BraidStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
             }
+
+            lines.Add("Replay text:");
+            try
+            {
+                var replaySchedule = BraidSchedule.Replay([.. Schedule]);
+                var replayText = replaySchedule.ToReplayText();
+                if (replayText.Length > 0)
+                {
+                    foreach (var segment in replayText.Split(Environment.NewLine, StringSplitOptions.None))
+                    {
+                        lines.Add(segment);
+                    }
+                }
+            }
+            catch (InvalidOperationException)
+            {
+                lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
+            }
         }
 
         lines.Add("Trace:");

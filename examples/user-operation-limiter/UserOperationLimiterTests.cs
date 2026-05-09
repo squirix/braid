@@ -61,6 +61,11 @@ public sealed class UserOperationLimiterTests
               2. worker-2 @ after-read
               3. worker-1 @ before-write
               4. worker-2 @ before-write
+            Replay text:
+            hit worker-1 after-read
+            hit worker-2 after-read
+            hit worker-1 before-write
+            hit worker-2 before-write
             Trace:
             """;
 

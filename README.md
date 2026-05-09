@@ -152,6 +152,7 @@ Failure reports include:
 - seed;
 - iteration;
 - replay schedule;
+- replay text (canonical lines accepted by `BraidSchedule.Parse(...)`, when the configured schedule can be exported; not synthesized for random-only runs);
 - execution trace;
 - original inner exception, when present.
 
@@ -166,6 +167,9 @@ Iteration: 0
 Schedule:
   1. worker-1 @ after-read
   2. worker-2 @ after-read
+Replay text:
+hit worker-1 after-read
+hit worker-2 after-read
 Trace:
   1. worker-1 forked
   2. worker-2 forked
