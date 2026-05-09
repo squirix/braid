@@ -88,6 +88,30 @@ var options = new BraidOptions
 
 Replay matching is ordinal and case-sensitive for both worker ids and probe names.
 
+### Text replay schedules
+
+Replay schedules can also be parsed from text:
+
+```csharp
+var schedule = BraidSchedule.Parse("""
+hit worker-1 after-read
+hit worker-2 after-read
+arrive worker-1 before-write
+hit worker-2 updated
+release worker-1 before-write
+""");
+```
+
+The text format is line based:
+
+```text
+hit <worker> <probe>
+arrive <worker> <probe>
+release <worker> <probe>
+```
+
+Empty lines and full-line `#` comments are ignored.
+
 ## True interleaving replay
 
 `BraidStep.Hit(worker, probe)` releases a worker when it is blocked at that probe.
@@ -176,4 +200,3 @@ The user operation limiter example demonstrates an unsafe read/check/write inter
 - Explicit probes are required.
 - Await interception is not automatic.
 - Exhaustive search is not implemented.
-- String schedule parsing is not implemented yet.
