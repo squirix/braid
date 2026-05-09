@@ -50,18 +50,19 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncCanHoldArrivalUntilAnotherWorkerStepRuns()
+    public async Task ReplayArriveHoldsWorkerUntilRelease()
     {
-        var state = new int[2];
+        var sync = new object();
+        var observed = new List<string>();
 
         var options = new BraidOptions
         {
             Iterations = 1,
             Seed = 12345,
             Schedule = BraidSchedule.Replay(
-                BraidStep.Arrive("worker-1", "A"),
-                BraidStep.Hit("worker-2", "B"),
-                BraidStep.Release("worker-1", "A")),
+                BraidStep.Arrive("worker-1", "before-write"),
+                BraidStep.Hit("worker-2", "mutated"),
+                BraidStep.Release("worker-1", "before-write")),
         };
 
         await Braid.RunAsync(
@@ -69,16 +70,27 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    _ = Interlocked.Exchange(ref state[0], 1);
-                    await BraidProbe.HitAsync("A", DefaultCancellationToken);
-                    _ = Interlocked.Exchange(ref state[1], 1);
+                    lock (sync)
+                    {
+                        observed.Add("worker-1-before-probe");
+                    }
+
+                    await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+
+                    lock (sync)
+                    {
+                        observed.Add("worker-1-after-release");
+                    }
                 });
 
                 context.Fork(async () =>
                 {
-                    Assert.Equal(1, Volatile.Read(ref state[0]));
-                    Assert.Equal(0, Volatile.Read(ref state[1]));
-                    await BraidProbe.HitAsync("B", DefaultCancellationToken);
+                    await BraidProbe.HitAsync("mutated", DefaultCancellationToken);
+
+                    lock (sync)
+                    {
+                        observed.Add("worker-2-mutated");
+                    }
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
@@ -86,7 +98,16 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             options,
             DefaultCancellationToken);
 
-        Assert.Equal(1, Volatile.Read(ref state[1]));
+        lock (sync)
+        {
+            Assert.Equal(
+                [
+                    "worker-1-before-probe",
+                    "worker-2-mutated",
+                    "worker-1-after-release",
+                ],
+                observed);
+        }
     }
 
     /// <summary>
@@ -166,7 +187,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncFailsClearlyWhenReleaseHasNoArrivedWorker()
+    public async Task ReplayReleaseWithoutArriveFailsClearly()
     {
         var options = new BraidOptions
         {
@@ -187,7 +208,219 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
                 DefaultCancellationToken);
         });
 
-        Assert.Contains("could not be satisfied: release held worker-1 at A", exception.ToString(), StringComparison.Ordinal);
+        var report = exception.ToString();
+        Assert.Contains("release held worker-1 at A", report, StringComparison.Ordinal);
+        Assert.Contains("Release worker-1 @ A", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies release cannot target a different worker than the held arrival.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ReplayReleaseForDifferentWorkerFailsClearly()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Release("worker-2", "A")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("A", DefaultCancellationToken); });
+                    context.Fork(static async () => { await BraidProbe.HitAsync("A", DefaultCancellationToken); });
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("release held worker-2 at A", report, StringComparison.Ordinal);
+        Assert.Contains("Release worker-2 @ A", report, StringComparison.Ordinal);
+        Assert.Contains("Held workers: worker-1 at A", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies release cannot target a different probe than the held arrival.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ReplayReleaseForDifferentProbeFailsClearly()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Release("worker-1", "B")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("A", DefaultCancellationToken); });
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("release held worker-1 at B", report, StringComparison.Ordinal);
+        Assert.Contains("actual probe is A", report, StringComparison.Ordinal);
+        Assert.Contains("Release worker-1 @ B", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies a held worker/probe cannot be arrived twice without release.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ReplayDuplicateArriveForHeldProbeFailsClearly()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Arrive("worker-1", "A")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("A", DefaultCancellationToken); });
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("duplicate Arrive for held worker-1 at A", report, StringComparison.Ordinal);
+        Assert.Contains("Held workers: worker-1 at A", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies external cancellation releases held workers instead of deadlocking teardown.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task CancellationWhileWorkerIsHeldDoesNotDeadlock()
+    {
+        using var cts = new CancellationTokenSource();
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(
+                BraidStep.Arrive("worker-1", "A"),
+                BraidStep.Hit("worker-2", "cancel"),
+                BraidStep.Release("worker-1", "A")),
+        };
+
+        var runTask = Braid.RunAsync(
+            async context =>
+            {
+                context.Fork(static async () => { await BraidProbe.HitAsync("A"); });
+
+                context.Fork(async () =>
+                {
+                    await BraidProbe.HitAsync("cancel");
+                    await cts.CancelAsync();
+                });
+
+                await context.JoinAsync(cts.Token);
+            },
+            options,
+            cts.Token);
+
+        var completed = await Task.WhenAny(runTask, Task.Delay(TimeSpan.FromSeconds(5), DefaultCancellationToken));
+
+        Assert.Same(runTask, completed);
+        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runTask);
+    }
+
+    /// <summary>
+    /// Verifies callback faults release held workers instead of deadlocking teardown.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task CallbackFaultWhileWorkerIsHeldDoesNotDeadlock()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(
+                BraidStep.Arrive("worker-1", "A"),
+                BraidStep.Hit("worker-2", "fault"),
+                BraidStep.Release("worker-1", "A")),
+        };
+
+        var runTask = Braid.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () => { await BraidProbe.HitAsync("A", DefaultCancellationToken); });
+
+                context.Fork(static async () =>
+                {
+                    await BraidProbe.HitAsync("fault", DefaultCancellationToken);
+                    throw new InvalidOperationException("callback boom");
+                });
+
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            options,
+            DefaultCancellationToken);
+
+        var completed = await Task.WhenAny(runTask, Task.Delay(TimeSpan.FromSeconds(5), DefaultCancellationToken));
+
+        Assert.Same(runTask, completed);
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () => await runTask);
+        var report = exception.ToString();
+        Assert.Contains("A forked operation failed.", report, StringComparison.Ordinal);
+        Assert.Contains("callback boom", report, StringComparison.Ordinal);
+        Assert.Contains("Held workers: worker-1 at A", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies replay steps left after run completion are reported with step details.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task UnusedReplayStepsAreReported()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Unused replay steps: 1", report, StringComparison.Ordinal);
+        Assert.Contains("Hit worker-1 at ready", report, StringComparison.Ordinal);
     }
 
     /// <summary>
