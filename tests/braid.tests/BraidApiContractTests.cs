@@ -175,6 +175,7 @@ public sealed class BraidApiContractTests : TestBase
 
         Assert.Equal(["worker-1 forked"], exception.Trace);
         Assert.Equal([new BraidStep("worker-1", "ready")], exception.Schedule);
+        Assert.Null(exception.SchedulerDiagnostics);
     }
 
     /// <summary>

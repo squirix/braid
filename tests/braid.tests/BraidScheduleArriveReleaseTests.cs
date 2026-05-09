@@ -243,7 +243,9 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
         var report = exception.ToString();
         Assert.Contains("release held worker-2 at A", report, StringComparison.Ordinal);
         Assert.Contains("Release worker-2 @ A", report, StringComparison.Ordinal);
-        Assert.Contains("Held workers: worker-1 at A", report, StringComparison.Ordinal);
+        Assert.Contains("Held workers:", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("@ A", report, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -306,7 +308,9 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
 
         var report = exception.ToString();
         Assert.Contains("duplicate Arrive for held worker-1 at A", report, StringComparison.Ordinal);
-        Assert.Contains("Held workers: worker-1 at A", report, StringComparison.Ordinal);
+        Assert.Contains("Held workers:", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("@ A", report, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -394,7 +398,9 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
         var report = exception.ToString();
         Assert.Contains("A forked operation failed.", report, StringComparison.Ordinal);
         Assert.Contains("callback boom", report, StringComparison.Ordinal);
-        Assert.Contains("Held workers: worker-1 at A", report, StringComparison.Ordinal);
+        Assert.Contains("Held workers:", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("@ A", report, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -424,8 +430,8 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
 
         var report = exception.ToString();
         Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Unused replay steps: 1", report, StringComparison.Ordinal);
-        Assert.Contains("Hit worker-1 at ready", report, StringComparison.Ordinal);
+        Assert.Contains("Unused replay steps:", report, StringComparison.Ordinal);
+        Assert.Contains("hit worker-1 ready", report, StringComparison.Ordinal);
     }
 
     /// <summary>

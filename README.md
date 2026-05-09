@@ -153,6 +153,7 @@ Failure reports include:
 - iteration;
 - replay schedule;
 - replay text (canonical lines accepted by `BraidSchedule.Parse(...)`, when the configured schedule can be exported; not synthesized for random-only runs);
+- scheduler-state diagnostics (for example last matched replay step, workers waiting at probes, workers held after `Arrive`, and unused replay steps) when available;
 - execution trace;
 - original inner exception, when present.
 
@@ -170,6 +171,8 @@ Schedule:
 Replay text:
 hit worker-1 after-read
 hit worker-2 after-read
+Last matched replay step:
+  2. hit worker-2 after-read
 Trace:
   1. worker-1 forked
   2. worker-2 forked

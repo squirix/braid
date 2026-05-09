@@ -84,8 +84,8 @@ public sealed class BraidSchedule
             }
 
             var step = Steps[index];
-            EnsureReplayTextRepresentable(step.WorkerId, isWorkerId: true);
-            EnsureReplayTextRepresentable(step.ProbeName, isWorkerId: false);
+            EnsureReplayTextRepresentable(step.WorkerId, true);
+            EnsureReplayTextRepresentable(step.ProbeName, false);
 
             var operation = step.Kind switch
             {

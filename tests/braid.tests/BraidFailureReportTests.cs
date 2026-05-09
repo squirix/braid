@@ -329,11 +329,232 @@ public sealed class BraidFailureReportTests : TestBase
                 DefaultCancellationToken);
         });
 
-        var reportEx = Record.Exception(() => exception.ToString());
+        var reportEx = Record.Exception(exception.ToString);
         Assert.Null(reportEx);
 
         var report = exception.ToString();
         Assert.Contains("Replay text unavailable", report, StringComparison.Ordinal);
         Assert.Contains("cannot be represented", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies unused replay steps appear in scheduler diagnostics.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportIncludesUnusedReplaySteps()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready"), BraidStep.Hit("worker-2", "never-hit")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Unused replay steps:", report, StringComparison.Ordinal);
+        Assert.Contains("hit worker-2 never-hit", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies the last matched replay step is listed when a later step cannot run.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportIncludesLastMatchedReplayStep()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready"), BraidStep.Hit("worker-2", "later")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Last matched replay step:", report, StringComparison.Ordinal);
+        Assert.Contains("hit worker-1 ready", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies waiting workers blocked at probes appear in diagnostics when another worker fails.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportIncludesWaitingWorkers()
+    {
+        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("blocked", DefaultCancellationToken); });
+
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("before-boom", DefaultCancellationToken);
+                        throw new InvalidOperationException("boom");
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = 1 },
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Waiting workers:", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("blocked", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies held workers appear in diagnostics for arrive/hold/release schedules.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportIncludesHeldWorkers()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(
+                BraidStep.Arrive("worker-1", "cache-hit"),
+                BraidStep.Hit("worker-2", "boom-point"),
+                BraidStep.Release("worker-1", "cache-hit")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken); });
+
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
+                        throw new InvalidOperationException("boom");
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Held workers:", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("cache-hit", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies arrive-held state is visible before a worker throws at a later scripted hit.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportIncludesArriveHeldWorkerBeforeRelease()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(
+                BraidStep.Arrive("worker-1", "cache-hit"),
+                BraidStep.Hit("worker-2", "boom-point"),
+                BraidStep.Release("worker-1", "cache-hit")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken); });
+
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
+                        throw new InvalidOperationException("boom");
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Held workers:", report, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("cache-hit", report, StringComparison.Ordinal);
+        Assert.Contains("boom", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies scheduler diagnostics do not hide the inner exception message.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportSchedulerStateDoesNotHideInnerException()
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(
+                BraidStep.Arrive("worker-1", "cache-hit"),
+                BraidStep.Hit("worker-2", "boom-point"),
+                BraidStep.Release("worker-1", "cache-hit")),
+        };
+
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => { await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken); });
+
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
+                        throw new InvalidOperationException("inner-boom");
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+        Assert.Contains("Last matched replay step:", report, StringComparison.Ordinal);
+        Assert.Contains("inner-boom", report, StringComparison.Ordinal);
+        Assert.Contains("Inner exception:", report, StringComparison.Ordinal);
     }
 }

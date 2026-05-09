@@ -1,3 +1,5 @@
+using Braid.Internal;
+
 namespace Braid;
 
 /// <summary>
@@ -15,7 +17,15 @@ public sealed class BraidRunException : Exception
     /// <param name="trace">The recorded scheduling trace.</param>
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
-    public BraidRunException(string message, int seed, int iteration, IReadOnlyList<string> trace, IReadOnlyList<BraidStep>? schedule, Exception? innerException)
+    /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
+    public BraidRunException(
+        string message,
+        int seed,
+        int iteration,
+        IReadOnlyList<string> trace,
+        IReadOnlyList<BraidStep>? schedule,
+        Exception? innerException,
+        BraidSchedulerDiagnostics? schedulerDiagnostics = null)
         : base(message, innerException)
     {
         ArgumentNullException.ThrowIfNull(trace);
@@ -24,6 +34,7 @@ public sealed class BraidRunException : Exception
         Iteration = iteration;
         Trace = Array.AsReadOnly(trace.ToArray());
         Schedule = schedule is null ? Array.Empty<BraidStep>() : Array.AsReadOnly(schedule.ToArray());
+        SchedulerDiagnostics = schedulerDiagnostics;
     }
 
     /// <summary>
@@ -45,6 +56,11 @@ public sealed class BraidRunException : Exception
     /// Gets the recorded scheduling trace for the failing iteration.
     /// </summary>
     public IReadOnlyList<string> Trace { get; }
+
+    /// <summary>
+    /// Gets scheduler diagnostics captured when the failure was recorded, when available.
+    /// </summary>
+    public BraidSchedulerDiagnostics? SchedulerDiagnostics { get; }
 
     /// <inheritdoc />
     public override string ToString()
@@ -72,7 +88,7 @@ public sealed class BraidRunException : Exception
                 var replayText = replaySchedule.ToReplayText();
                 if (replayText.Length > 0)
                 {
-                    foreach (var segment in replayText.Split(Environment.NewLine, StringSplitOptions.None))
+                    foreach (var segment in replayText.Split(Environment.NewLine))
                     {
                         lines.Add(segment);
                     }
@@ -83,6 +99,8 @@ public sealed class BraidRunException : Exception
                 lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
             }
         }
+
+        AppendSchedulerDiagnosticsLines(lines, SchedulerDiagnostics);
 
         lines.Add("Trace:");
         for (var index = 0; index < Trace.Count; index++)
@@ -95,5 +113,55 @@ public sealed class BraidRunException : Exception
         lines.Add("Inner exception:");
         lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
         return string.Join(Environment.NewLine, lines);
+    }
+
+    private static void AppendSchedulerDiagnosticsLines(List<string> lines, BraidSchedulerDiagnostics? diagnostics)
+    {
+        if (diagnostics is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (diagnostics.HasReplaySchedule)
+            {
+                lines.Add("Last matched replay step:");
+                lines.Add(
+                    diagnostics is { LastMatchedReplayStep: { } lastStep, LastMatchedReplayStepOneBased: { } stepNumber }
+                        ? $"  {stepNumber}. {BraidReplayFormat.CanonicalStepLine(lastStep)}"
+                        : "  none");
+            }
+
+            if (diagnostics.WaitingWorkers.Count > 0)
+            {
+                lines.Add("Waiting workers:");
+                foreach (var worker in diagnostics.WaitingWorkers)
+                {
+                    lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
+                }
+            }
+
+            if (diagnostics.HeldWorkers.Count > 0)
+            {
+                lines.Add("Held workers:");
+                foreach (var worker in diagnostics.HeldWorkers)
+                {
+                    lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
+                }
+            }
+
+            if (diagnostics.UnusedReplaySteps.Count <= 0)
+                return;
+            lines.Add("Unused replay steps:");
+            foreach (var (oneBasedIndex, step) in diagnostics.UnusedReplaySteps)
+            {
+                lines.Add($"  {oneBasedIndex}. {BraidReplayFormat.CanonicalStepLine(step)}");
+            }
+        }
+        catch (Exception)
+        {
+            lines.Add("Scheduler diagnostics unavailable.");
+        }
     }
 }

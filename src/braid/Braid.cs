@@ -57,12 +57,7 @@ public static class Braid
 
             try
             {
-                var callbackTask = test(context);
-                if (callbackTask is null)
-                {
-                    throw new InvalidOperationException("Braid run callback returned a null task.");
-                }
-
+                var callbackTask = test(context) ?? throw new InvalidOperationException("Braid run callback returned a null task.");
                 await callbackTask.ConfigureAwait(false);
                 await context.JoinAsync(cancellationToken).ConfigureAwait(false);
             }

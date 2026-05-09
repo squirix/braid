@@ -31,15 +31,17 @@ internal sealed class BraidScheduler : IDisposable
         IReadOnlyList<string> traceSnapshot;
         IReadOnlyList<BraidStep> scheduleSnapshot;
         string resolvedMessage;
+        BraidSchedulerDiagnostics diagnostics;
 
         lock (_gate)
         {
             traceSnapshot = [.. _trace];
             scheduleSnapshot = _schedule?.ToArray() ?? [];
             resolvedMessage = AppendReplayState(message);
+            diagnostics = BuildDiagnosticSnapshot();
         }
 
-        return new BraidRunException(resolvedMessage, _seed, _iteration, traceSnapshot, scheduleSnapshot, innerException);
+        return new BraidRunException(resolvedMessage, _seed, _iteration, traceSnapshot, scheduleSnapshot, innerException, diagnostics);
     }
 
     public void Dispose()
@@ -333,26 +335,6 @@ internal sealed class BraidScheduler : IDisposable
             details.Add($"Next replay operation: {FormatStep(_schedule[_nextScheduleStep])}");
         }
 
-        var unusedSteps = _schedule.Count - _nextScheduleStep;
-        if (unusedSteps > 0)
-        {
-            details.Add($"Unused replay steps: {unusedSteps}");
-        }
-
-        var heldWorkers = _tasks.Where(static task => task is { State: BraidTaskState.Held, LastProbeName: not null }).OrderBy(static task => task.Id)
-                                .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
-        if (heldWorkers.Length > 0)
-        {
-            details.Add($"Held workers: {string.Join(", ", heldWorkers)}");
-        }
-
-        var waitingWorkers = _tasks.Where(static task => task is { State: BraidTaskState.Waiting, LastProbeName: not null }).OrderBy(static task => task.Id)
-                                   .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
-        if (waitingWorkers.Length > 0)
-        {
-            details.Add($"Waiting workers: {string.Join(", ", waitingWorkers)}");
-        }
-
         return string.Join(Environment.NewLine, details);
     }
 
@@ -383,5 +365,48 @@ internal sealed class BraidScheduler : IDisposable
         }
 
         await all.ConfigureAwait(false);
+    }
+
+    private BraidSchedulerDiagnostics BuildDiagnosticSnapshot()
+    {
+        var hasReplay = _schedule is not null && _schedule.Count > 0;
+
+        BraidStep? lastMatched = null;
+        int? lastMatchedOneBased = null;
+        if (hasReplay && _nextScheduleStep > 0)
+        {
+            lastMatched = _schedule![_nextScheduleStep - 1];
+            lastMatchedOneBased = _nextScheduleStep;
+        }
+
+        var waiting = _tasks
+            .Where(static task => task is { State: BraidTaskState.Waiting, LastProbeName: not null })
+            .OrderBy(static task => task.Id)
+            .Select(static task => new BraidProbeWaitDiagnostic(task.WorkerId, task.LastProbeName!))
+            .ToArray();
+
+        var held = _tasks
+            .Where(static task => task is { State: BraidTaskState.Held, LastProbeName: not null })
+            .OrderBy(static task => task.Id)
+            .Select(static task => new BraidProbeWaitDiagnostic(task.WorkerId, task.LastProbeName!))
+            .ToArray();
+
+        (int OneBasedIndex, BraidStep Step)[] unused;
+        if (hasReplay && _schedule is not null && _nextScheduleStep < _schedule.Count)
+        {
+            var remaining = _schedule.Count - _nextScheduleStep;
+            unused = new (int, BraidStep)[remaining];
+            for (var index = 0; index < remaining; index++)
+            {
+                var scheduleIndex = _nextScheduleStep + index;
+                unused[index] = (scheduleIndex + 1, _schedule[scheduleIndex]);
+            }
+        }
+        else
+        {
+            unused = [];
+        }
+
+        return new BraidSchedulerDiagnostics(hasReplay, lastMatched, lastMatchedOneBased, waiting, held, unused);
     }
 }
