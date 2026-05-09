@@ -2,11 +2,19 @@
 
 ## Unreleased
 
-### Documentation
+## 0.2.1
 
-- Document NuGet installation for `0.1.0-preview.1`.
-- Clarify preview package status and lifecycle contracts.
-- Add manual release process and consumer smoke-test steps.
+### Fixed
+
+- Kept package version references consistent across README and release documentation.
+- Hardened replay scheduler behavior around arrive/hold/release schedules.
+- Improved diagnostics for invalid or incomplete replay schedules.
+
+## 0.2.0
+
+### Added
+
+- Added typed arrive/hold/release replay steps for true interleaving assertions.
 
 ## 0.1.0
 

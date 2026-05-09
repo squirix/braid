@@ -32,13 +32,22 @@ From an empty directory (uses .NET 10 xUnit template):
 mkdir braid-consume-test
 cd braid-consume-test
 dotnet new xunit -f net10.0
-dotnet add package braid --version 0.1.0
+dotnet add package braid --version 0.2.1
+```
+
+If the installed xUnit template does not support `-f net10.0`, run `dotnet new xunit`, set `<TargetFramework>net10.0</TargetFramework>` in the generated project, and add a `global.json` that selects the .NET 10 SDK.
+
+Before NuGet publishing, validate the locally packed package instead:
+
+```powershell
+dotnet add package braid --version 0.2.1 --source <repo>\src\braid\bin\Release
 ```
 
 Add a tiny test (for example `SmokeTest.cs`):
 
 ```csharp
 using Braid;
+using BraidRunner = Braid.Braid;
 using Xunit;
 
 public sealed class SmokeTest
@@ -47,7 +56,7 @@ public sealed class SmokeTest
     public async Task Package_resolves_and_braid_runs()
     {
         var done = false;
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
@@ -58,7 +67,11 @@ public sealed class SmokeTest
 
                 await context.JoinAsync();
             },
-            new BraidOptions { Iterations = 1, Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "x")) });
+            new BraidOptions
+            {
+                Iterations = 1,
+                Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "x")),
+            });
 
         Assert.True(done);
     }
@@ -71,13 +84,13 @@ dotnet test --configuration Release
 
 ## GitHub release
 
-1. Create an annotated or lightweight tag for the version (for example `v0.1.0`) after validation.
-2. Push the tag: `git push origin v0.1.0`.
+1. Create an annotated or lightweight tag for the version (for example `v0.2.1`) after validation.
+2. Push the tag: `git push origin v0.2.1`.
 3. Create a GitHub **Release** from that tag. Attach notes that match `CHANGELOG.md` for that version.
 
 ## NuGet.org
 
-1. Push the `.nupkg`: `dotnet nuget push path\to\braid.0.1.0.nupkg --api-key <scoped-key> --source https://api.nuget.org/v3/index.json`
+1. Push the `.nupkg`: `dotnet nuget push path\to\braid.0.2.1.nupkg --api-key <scoped-key> --source https://api.nuget.org/v3/index.json`
 2. Push the `.snupkg` the same way (same API key is typical).
 3. Open the package page on NuGet and verify metadata, README rendering, dependencies, and target framework.
 4. Confirm **owners** on the package; use a **scoped** API key with push-only permissions where possible.
