@@ -21,13 +21,15 @@ BraidSchedule.Replay(
     BraidStep.Release("worker-1", "before-cas"))
 ```
 
-The same schedule as text:
+The same schedule as text (see [README](../../README.md#text-replay-schedules) for formatting rules):
 
 ```text
 arrive worker-1 before-cas
 hit worker-2 updated
 release worker-1 before-cas
 ```
+
+Load it with `BraidSchedule.Parse(...)` or paste equivalent lines from a failure report’s **Replay text** block when debugging.
 
 Meaning:
 

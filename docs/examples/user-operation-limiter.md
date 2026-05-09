@@ -20,9 +20,11 @@ worker-1 @ before-write
 worker-2 @ before-write
 ```
 
+You can express the same steps as [text replay](../../README.md#text-replay-schedules) (for example `hit worker-1 after-read`, …) if you prefer `BraidSchedule.Parse`. When a run fails under a configured replay schedule, [`BraidRunException`](../../README.md#failure-reproduction) can include **replay text** and **scheduler-state diagnostics** in addition to the human-readable schedule and trace.
+
 ## Unsafe limiter: the test passes by expecting the bug
 
-The unsafe implementation is **intentionally wrong**: both workers can be granted entry under that schedule. The xUnit test does **not** expect the braid run to succeed quietly. It uses `Assert.ThrowsAsync<BraidRunException>`: braid reproduces the race, the invariant breaks inside the run, and braid surfaces a `BraidRunException` with seed, schedule, and trace so you can regress the failure. A "green" test here means **"we reliably detected the broken behavior"**, not **"the limiter is correct"**.
+The unsafe implementation is **intentionally wrong**: both workers can be granted entry under that schedule. The xUnit test does **not** expect the braid run to succeed quietly. It uses `Assert.ThrowsAsync<BraidRunException>`: braid reproduces the race, the invariant breaks inside the run, and braid surfaces a `BraidRunException` with seed, schedule, trace, and (when exportable) replay text so you can regress the failure. A "green" test here means **"we reliably detected the broken behavior"**, not **"the limiter is correct"**.
 
 ## Locked limiter: the test passes by completing the run
 

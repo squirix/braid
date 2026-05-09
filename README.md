@@ -19,8 +19,8 @@ For release validation and consumer smoke-test instructions, see [docs/release-p
 - Runs ordinary async .NET code under a deterministic scheduler.
 - Uses explicit probe points instead of runtime rewriting.
 - Supports seeded random scheduling for reproducing failures.
-- Supports typed replay schedules with `BraidSchedule` and `BraidStep`.
-- Reports failures with seed, iteration, schedule, trace, and inner exception details.
+- Supports typed replay schedules with `BraidSchedule` and `BraidStep`, and **text** replay schedules via `BraidSchedule.Parse` / `TryParse`.
+- Reports failures with seed, iteration, schedule, trace, inner exception details, and—when a replay schedule was configured—copyable replay text plus scheduler-state diagnostics.
 
 ## What braid does not do
 
@@ -110,16 +110,18 @@ arrive <worker> <probe>
 release <worker> <probe>
 ```
 
-Empty lines and full-line `#` comments are ignored.
+Operation names (`hit`, `arrive`, `release`) are **case-insensitive**. Worker ids and probe names stay **case-sensitive**. Empty lines and full-line `#` comments (after trimming) are ignored; **inline** `#` comments are not supported—extra tokens are rejected.
 
-`ToReplayText()` writes the canonical line-based format accepted by `BraidSchedule.Parse(...)`.
+Use `BraidSchedule.TryParse` when you need a non-throwing parse attempt.
+
+`ToReplayText()` writes the canonical lower-case format accepted by `BraidSchedule.Parse(...)` for schedules that can be represented (no whitespace inside worker or probe tokens).
 
 ```csharp
 var text = schedule.ToReplayText();
 var replay = BraidSchedule.Parse(text);
 ```
 
-An empty schedule exports to an empty string; `BraidSchedule.Parse` still requires at least one step for non-empty text.
+An empty typed schedule exports to an empty string; `BraidSchedule.Parse` still requires at least one step for non-empty text.
 
 ## True interleaving replay
 
@@ -147,17 +149,22 @@ This expresses: worker-1 is already blocked at `cache-hit`, worker-2 mutates sta
 
 When a run fails, braid wraps scheduler and callback failures in `BraidRunException` where appropriate.
 
-Failure reports include:
+**When a typed replay schedule was configured**, failure reports include **canonical replay text** you can paste into `BraidSchedule.Parse(...)` for a stable regression test—unless the schedule cannot be exported to text (for example worker or probe names containing whitespace).
+
+Reports also include **scheduler-state diagnostics** when the scheduler captured them: last matched replay step, workers waiting at probes, workers held after `Arrive`, and unused replay steps. Sections are omitted when empty.
+
+For **random scheduling only** (no replay schedule in options), failure reports do **not** synthesize a full replay schedule or replay text; use the seed and trace to investigate, then capture a typed or text schedule once you understand the interleaving.
+
+Failure reports always aim to include:
 
 - seed;
 - iteration;
-- replay schedule;
-- replay text (canonical lines accepted by `BraidSchedule.Parse(...)`, when the configured schedule can be exported; not synthesized for random-only runs);
-- scheduler-state diagnostics (for example last matched replay step, workers waiting at probes, workers held after `Arrive`, and unused replay steps) when available;
+- replay schedule (when configured);
+- replay text and diagnostics as described above;
 - execution trace;
 - original inner exception, when present.
 
-Use the reported seed to reproduce random scheduling behavior. Once a race is understood, prefer a typed replay schedule for stable regression tests.
+Use the reported seed to reproduce random scheduling behavior. Once a race is understood, prefer a typed or text replay schedule for stable regression tests.
 
 Example report:
 
@@ -204,17 +211,12 @@ Trace:
 
 ## Examples
 
-See:
-
-- [examples/cache-cas-race](examples/cache-cas-race)
-- [docs/examples/cache-cas-race.md](docs/examples/cache-cas-race.md)
-- [examples/user-operation-limiter](examples/user-operation-limiter)
-- [docs/examples/user-operation-limiter.md](docs/examples/user-operation-limiter.md)
-
-The user operation limiter example demonstrates an unsafe read/check/write interleaving and a fixed implementation.
+- **User operation limiter** — unsafe read/check/write interleaving vs lock-protected fix; see [examples/user-operation-limiter](examples/user-operation-limiter) and [docs/examples/user-operation-limiter.md](docs/examples/user-operation-limiter.md).
+- **Cache / CAS race** — versioned cell where a stale compare-and-set must return `VersionMismatch`; uses `Arrive` / `Hit` / `Release`; see [examples/cache-cas-race](examples/cache-cas-race) and [docs/examples/cache-cas-race.md](docs/examples/cache-cas-race.md).
 
 ## Current limitations
 
 - Explicit probes are required.
 - Await interception is not automatic.
 - Exhaustive search is not implemented.
+- Random-run failures do not automatically include a complete replay schedule unless you configured one in `BraidOptions.Schedule`.

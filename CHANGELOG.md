@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 0.3.0
+
+### Added
+
+- Added textual replay schedule parsing with `BraidSchedule.Parse(...)`.
+- Added non-throwing textual replay parsing with `BraidSchedule.TryParse(...)`.
+- Added canonical replay text export with `BraidSchedule.ToReplayText()`.
+- Added replay text to failure reports when a typed replay schedule was configured and can be exported.
+- Added scheduler-state diagnostics to failure reports (last matched replay step, waiting workers, held workers, unused replay steps) when available.
+- Added `examples/cache-cas-race` with walkthrough for versioned compare-and-set under `Arrive` / `Hit` / `Release` replay.
+
+### Documentation
+
+- Documented text replay schedules, formatting rules, and round-trip via `ToReplayText()` / `Parse`.
+- Documented failure-report replay text and scheduler diagnostics; noted limits for random-only runs.
+- Linked cache/CAS example from the README.
+
 ## 0.2.1
 
 ### Fixed

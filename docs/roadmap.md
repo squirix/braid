@@ -42,7 +42,6 @@ The v0.1 goal is a small .NET testing library that explores explicit async probe
 
 These are future ideas, not v0.1 commitments.
 
-- string schedule format
 - xUnit output helper
 - richer structured trace entries
 - optional random exploration strategies
