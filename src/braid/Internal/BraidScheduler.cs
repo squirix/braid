@@ -30,14 +30,16 @@ internal sealed class BraidScheduler : IDisposable
     {
         IReadOnlyList<string> traceSnapshot;
         IReadOnlyList<BraidStep> scheduleSnapshot;
+        string resolvedMessage;
 
         lock (gate)
         {
             traceSnapshot = [.. trace];
             scheduleSnapshot = schedule?.ToArray() ?? [];
+            resolvedMessage = AppendReplayState(message);
         }
 
-        return new BraidRunException(message, seed, iteration, traceSnapshot, scheduleSnapshot, innerException);
+        return new BraidRunException(resolvedMessage, seed, iteration, traceSnapshot, scheduleSnapshot, innerException);
     }
 
     public void Dispose()
@@ -215,6 +217,9 @@ internal sealed class BraidScheduler : IDisposable
         await WaitForRunningTasksAsync().ConfigureAwait(false);
     }
 
+    private static string FormatStep(BraidStep step) =>
+        step.Kind == BraidStepKind.Hit ? $"Hit {step.WorkerId} at {step.ProbeName}" : $"{step.Kind} {step.WorkerId} at {step.ProbeName}";
+
     private void CancelBlockedTasks()
     {
         if (shutdownCts.IsCancellationRequested) return;
@@ -275,6 +280,13 @@ internal sealed class BraidScheduler : IDisposable
 
             case BraidStepKind.Arrive:
             {
+                if (heldTask is not null)
+                {
+                    throw CreateException(
+                        $"Scripted schedule step {nextScheduleStep} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
+                        null);
+                }
+
                 if (waitingTask is null)
                 {
                     return hasRunningTasks
@@ -320,6 +332,47 @@ internal sealed class BraidScheduler : IDisposable
         }
 
         return $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
+    }
+
+    private string AppendReplayState(string message)
+    {
+        if (schedule is null)
+        {
+            return message;
+        }
+
+        var details = new List<string>
+        {
+            message,
+            $"Next replay step: {nextScheduleStep + 1} of {schedule.Count}",
+        };
+
+        if (nextScheduleStep < schedule.Count)
+        {
+            details.Add($"Next replay operation: {FormatStep(schedule[nextScheduleStep])}");
+        }
+
+        var unusedSteps = schedule.Count - nextScheduleStep;
+        if (unusedSteps > 0)
+        {
+            details.Add($"Unused replay steps: {unusedSteps}");
+        }
+
+        var heldWorkers = tasks.Where(static task => task is { State: BraidTaskState.Held, LastProbeName: not null }).OrderBy(static task => task.Id)
+                               .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
+        if (heldWorkers.Length > 0)
+        {
+            details.Add($"Held workers: {string.Join(", ", heldWorkers)}");
+        }
+
+        var waitingWorkers = tasks.Where(static task => task is { State: BraidTaskState.Waiting, LastProbeName: not null }).OrderBy(static task => task.Id)
+                                  .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
+        if (waitingWorkers.Length > 0)
+        {
+            details.Add($"Waiting workers: {string.Join(", ", waitingWorkers)}");
+        }
+
+        return string.Join(Environment.NewLine, details);
     }
 
     private async Task WaitForRunningTasksAsync()
