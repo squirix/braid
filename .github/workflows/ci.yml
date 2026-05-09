@@ -3,8 +3,33 @@ name: CI
 on:
     push:
         branches: [main]
+        paths-ignore:
+            - 'docs/**'
+            - '**/*.md'
+            - 'README.md'
+            - 'CHANGELOG.md'
+            - 'SECURITY.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.gitattributes'
+            - '.editorconfig'
     pull_request:
         branches: [main]
+        paths-ignore:
+            - 'docs/**'
+            - '**/*.md'
+            - 'README.md'
+            - 'CHANGELOG.md'
+            - 'SECURITY.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.gitattributes'
+            - '.editorconfig'
+    workflow_dispatch:
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 permissions:
     contents: read
@@ -13,7 +38,7 @@ jobs:
     build:
         name: Build and test
         runs-on: ubuntu-latest
-        
+
         steps:
             - name: Checkout
               uses: actions/checkout@v5
@@ -22,6 +47,10 @@ jobs:
               uses: actions/setup-dotnet@v5
               with:
                   global-json-file: global.json
+                  cache: true
+                  cache-dependency-path: |
+                      **/*.csproj
+                      Directory.Build.props
 
             - name: Restore
               run: dotnet restore

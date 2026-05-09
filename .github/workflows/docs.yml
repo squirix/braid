@@ -1,0 +1,39 @@
+name: Docs
+
+on:
+    pull_request:
+        branches: [main]
+        paths:
+            - 'docs/**'
+            - '**/*.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.gitattributes'
+            - '.editorconfig'
+    push:
+        branches: [main]
+        paths:
+            - 'docs/**'
+            - '**/*.md'
+            - 'LICENSE'
+            - '.gitignore'
+            - '.gitattributes'
+            - '.editorconfig'
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    metadata:
+        name: Docs and metadata gate
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Validate paths
+              run: echo "Docs or metadata-only change; full build skipped by CI paths-ignore."
