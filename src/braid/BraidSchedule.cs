@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using Braid.Internal;
 
 namespace Braid;
@@ -48,7 +49,7 @@ public sealed class BraidSchedule
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        return !BraidScheduleTextParser.TryParse(text, out var schedule, out var error) ? throw new FormatException(error) : schedule;
+        return BraidScheduleTextParser.TryParse(text, out var schedule, out var error) ? schedule : throw new FormatException(error);
     }
 
     /// <summary>
@@ -58,17 +59,66 @@ public sealed class BraidSchedule
     /// <param name="schedule">The parsed schedule when this method returns <see langword="true"/>.</param>
     /// <param name="error">A diagnostic message when this method returns <see langword="false"/>.</param>
     /// <returns><see langword="true"/> if parsing succeeded; otherwise <see langword="false"/>.</returns>
-    public static bool TryParse(
-        string? text,
-        [NotNullWhen(true)] out BraidSchedule? schedule,
-        [NotNullWhen(false)] out string? error)
-        => BraidScheduleTextParser.TryParse(text, out schedule, out error);
+    public static bool TryParse(string? text, [NotNullWhen(true)] out BraidSchedule? schedule, [NotNullWhen(false)] out string? error) =>
+        BraidScheduleTextParser.TryParse(text, out schedule, out error);
+
+    /// <summary>
+    /// Returns a canonical line-based replay schedule using lower-case operation names and <see cref="Environment.NewLine"/> between steps.
+    /// The format matches <see cref="Parse(string)"/> for non-empty results. An empty schedule yields <see cref="string.Empty"/>, which <see cref="Parse(string)"/> does not accept.
+    /// </summary>
+    /// <returns>Replay text, or <see cref="string.Empty"/> when there are no steps.</returns>
+    /// <exception cref="InvalidOperationException">A worker id or probe name contains whitespace and cannot be represented in this format.</exception>
+    public string ToReplayText()
+    {
+        if (Steps.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var builder = new StringBuilder();
+        for (var index = 0; index < Steps.Count; index++)
+        {
+            if (index > 0)
+            {
+                _ = builder.Append(Environment.NewLine);
+            }
+
+            var step = Steps[index];
+            EnsureReplayTextRepresentable(step.WorkerId, isWorkerId: true);
+            EnsureReplayTextRepresentable(step.ProbeName, isWorkerId: false);
+
+            var operation = step.Kind switch
+            {
+                BraidStepKind.Hit => "hit",
+                BraidStepKind.Arrive => "arrive",
+                BraidStepKind.Release => "release",
+                _ => throw new InvalidOperationException($"Braid step kind '{step.Kind}' cannot be exported to replay text."),
+            };
+
+            _ = builder.Append(operation).Append(' ').Append(step.WorkerId).Append(' ').Append(step.ProbeName);
+        }
+
+        return builder.ToString();
+    }
 
     internal void Validate()
     {
         foreach (var step in Steps)
         {
             step.Validate();
+        }
+    }
+
+    private static void EnsureReplayTextRepresentable(string value, bool isWorkerId)
+    {
+        foreach (var ch in value)
+        {
+            if (!char.IsWhiteSpace(ch))
+                continue;
+            throw new InvalidOperationException(
+                isWorkerId
+                    ? "Worker id cannot be exported to replay text because it contains whitespace."
+                    : "Probe name cannot be exported to replay text because it contains whitespace.");
         }
     }
 }

@@ -112,6 +112,15 @@ release <worker> <probe>
 
 Empty lines and full-line `#` comments are ignored.
 
+`ToReplayText()` writes the canonical line-based format accepted by `BraidSchedule.Parse(...)`.
+
+```csharp
+var text = schedule.ToReplayText();
+var replay = BraidSchedule.Parse(text);
+```
+
+An empty schedule exports to an empty string; `BraidSchedule.Parse` still requires at least one step for non-empty text.
+
 ## True interleaving replay
 
 `BraidStep.Hit(worker, probe)` releases a worker when it is blocked at that probe.
