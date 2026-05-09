@@ -5,10 +5,10 @@ namespace Braid.Examples.UserOperationLimiter;
 /// </summary>
 public sealed class LockedUserOperationLimiter
 {
-    private readonly Dictionary<string, int> activeOperations = new(StringComparer.Ordinal);
-    private readonly Lock gate = new();
-    private readonly int limit;
-    private readonly string userId;
+    private readonly Dictionary<string, int> _activeOperations = new(StringComparer.Ordinal);
+    private readonly Lock _gate = new();
+    private readonly int _limit;
+    private readonly string _userId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="LockedUserOperationLimiter" /> class.
@@ -20,8 +20,8 @@ public sealed class LockedUserOperationLimiter
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
 
-        this.userId = userId;
-        this.limit = limit;
+        _userId = userId;
+        _limit = limit;
     }
 
     /// <summary>
@@ -34,16 +34,16 @@ public sealed class LockedUserOperationLimiter
         await BraidProbe.HitAsync("before-enter", cancellationToken);
         bool allowed;
 
-        lock (gate)
+        lock (_gate)
         {
-            _ = activeOperations.TryGetValue(userId, out var current);
-            if (current >= limit)
+            _ = _activeOperations.TryGetValue(_userId, out var current);
+            if (current >= _limit)
             {
                 allowed = false;
             }
             else
             {
-                activeOperations[userId] = current + 1;
+                _activeOperations[_userId] = current + 1;
                 allowed = true;
             }
         }
@@ -57,20 +57,20 @@ public sealed class LockedUserOperationLimiter
     /// </summary>
     public void Exit()
     {
-        lock (gate)
+        lock (_gate)
         {
-            if (!activeOperations.TryGetValue(userId, out var current))
+            if (!_activeOperations.TryGetValue(_userId, out var current))
             {
                 return;
             }
 
             if (current <= 1)
             {
-                _ = activeOperations.Remove(userId);
+                _ = _activeOperations.Remove(_userId);
                 return;
             }
 
-            activeOperations[userId] = current - 1;
+            _activeOperations[_userId] = current - 1;
         }
     }
 }

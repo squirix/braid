@@ -2,15 +2,15 @@ namespace Braid.Internal;
 
 internal sealed class DeterministicRandom
 {
-    private uint state;
+    private uint _state;
 
     internal DeterministicRandom(int seed)
     {
-        state = unchecked((uint)seed);
+        _state = unchecked((uint)seed);
 
-        if (state == 0)
+        if (_state == 0)
         {
-            state = 0x9E3779B9;
+            _state = 0x9E3779B9;
         }
     }
 
@@ -24,11 +24,11 @@ internal sealed class DeterministicRandom
 
     private uint NextUInt32()
     {
-        var value = state;
+        var value = _state;
         value ^= value << 13;
         value ^= value >> 17;
         value ^= value << 5;
-        state = value;
+        _state = value;
         return value;
     }
 }

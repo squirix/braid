@@ -5,9 +5,9 @@ namespace Braid.Examples.UserOperationLimiter;
 /// </summary>
 public sealed class UserOperationLimiter
 {
-    private readonly Dictionary<string, int> activeOperations = new(StringComparer.Ordinal);
-    private readonly int limit;
-    private readonly string userId;
+    private readonly Dictionary<string, int> _activeOperations = new(StringComparer.Ordinal);
+    private readonly int _limit;
+    private readonly string _userId;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UserOperationLimiter" /> class.
@@ -19,8 +19,8 @@ public sealed class UserOperationLimiter
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(limit);
 
-        this.userId = userId;
-        this.limit = limit;
+        _userId = userId;
+        _limit = limit;
     }
 
     /// <summary>
@@ -30,16 +30,16 @@ public sealed class UserOperationLimiter
     /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
     public async Task<bool> TryEnterAsync(CancellationToken cancellationToken = default)
     {
-        _ = activeOperations.TryGetValue(userId, out var current);
+        _ = _activeOperations.TryGetValue(_userId, out var current);
         await BraidProbe.HitAsync("after-read", cancellationToken);
 
-        if (current >= limit)
+        if (current >= _limit)
         {
             return false;
         }
 
         await BraidProbe.HitAsync("before-write", cancellationToken);
-        activeOperations[userId] = current + 1;
+        _activeOperations[_userId] = current + 1;
         return true;
     }
 }

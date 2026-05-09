@@ -2,28 +2,28 @@ namespace Braid.Internal;
 
 internal sealed class BraidScheduler : IDisposable
 {
-    private readonly Lock gate = new();
-    private readonly int iteration;
-    private readonly DeterministicRandom random;
-    private readonly IReadOnlyList<BraidStep>? schedule;
-    private readonly int seed;
-    private readonly CancellationTokenSource shutdownCts = new();
-    private readonly SemaphoreSlim stateChanged = new(0);
-    private readonly SemaphoreSlim joinMutex = new(1, 1);
-    private readonly List<BraidTask> tasks = [];
-    private readonly TimeSpan timeout;
-    private readonly List<string> trace = [];
-    private bool joined;
-    private int nextScheduleStep;
-    private int nextTaskId;
+    private readonly Lock _gate = new();
+    private readonly int _iteration;
+    private readonly DeterministicRandom _random;
+    private readonly IReadOnlyList<BraidStep>? _schedule;
+    private readonly int _seed;
+    private readonly CancellationTokenSource _shutdownCts = new();
+    private readonly SemaphoreSlim _stateChanged = new(0);
+    private readonly SemaphoreSlim _joinMutex = new(1, 1);
+    private readonly List<BraidTask> _tasks = [];
+    private readonly TimeSpan _timeout;
+    private readonly List<string> _trace = [];
+    private bool _joined;
+    private int _nextScheduleStep;
+    private int _nextTaskId;
 
     public BraidScheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<BraidStep>? schedule)
     {
-        this.seed = seed;
-        this.iteration = iteration;
-        this.timeout = timeout;
-        this.schedule = schedule;
-        random = new DeterministicRandom(seed);
+        _seed = seed;
+        _iteration = iteration;
+        _timeout = timeout;
+        _schedule = schedule;
+        _random = new DeterministicRandom(seed);
     }
 
     public BraidRunException CreateException(string message, Exception? innerException)
@@ -32,23 +32,23 @@ internal sealed class BraidScheduler : IDisposable
         IReadOnlyList<BraidStep> scheduleSnapshot;
         string resolvedMessage;
 
-        lock (gate)
+        lock (_gate)
         {
-            traceSnapshot = [.. trace];
-            scheduleSnapshot = schedule?.ToArray() ?? [];
+            traceSnapshot = [.. _trace];
+            scheduleSnapshot = _schedule?.ToArray() ?? [];
             resolvedMessage = AppendReplayState(message);
         }
 
-        return new BraidRunException(resolvedMessage, seed, iteration, traceSnapshot, scheduleSnapshot, innerException);
+        return new BraidRunException(resolvedMessage, _seed, _iteration, traceSnapshot, scheduleSnapshot, innerException);
     }
 
     public void Dispose()
     {
-        shutdownCts.Dispose();
-        stateChanged.Dispose();
-        joinMutex.Dispose();
+        _shutdownCts.Dispose();
+        _stateChanged.Dispose();
+        _joinMutex.Dispose();
 
-        foreach (var task in tasks)
+        foreach (var task in _tasks)
         {
             task.Dispose();
         }
@@ -60,16 +60,16 @@ internal sealed class BraidScheduler : IDisposable
 
         BraidTask braidTask;
 
-        lock (gate)
+        lock (_gate)
         {
-            if (joined)
+            if (_joined)
             {
                 throw CreateException("Cannot fork after JoinAsync has started.", null);
             }
 
-            braidTask = new BraidTask(++nextTaskId);
-            tasks.Add(braidTask);
-            trace.Add($"{braidTask.WorkerId} forked");
+            braidTask = new BraidTask(++_nextTaskId);
+            _tasks.Add(braidTask);
+            _trace.Add($"{braidTask.WorkerId} forked");
         }
 
         braidTask.RunningTask = Task.Run(async () =>
@@ -78,7 +78,7 @@ internal sealed class BraidScheduler : IDisposable
 
             try
             {
-                await braidTask.WaitForReleaseAsync(shutdownCts.Token).ConfigureAwait(false);
+                await braidTask.WaitForReleaseAsync(_shutdownCts.Token).ConfigureAwait(false);
                 var opTask = operation() ?? throw new InvalidOperationException("Fork operation returned a null task.");
                 await opTask.ConfigureAwait(false);
             }
@@ -90,20 +90,20 @@ internal sealed class BraidScheduler : IDisposable
             {
                 BraidRunScope.CurrentTask = null;
 
-                lock (gate)
+                lock (_gate)
                 {
                     braidTask.State = BraidTaskState.Completed;
-                    trace.Add($"{braidTask.WorkerId} completed");
+                    _trace.Add($"{braidTask.WorkerId} completed");
                 }
 
-                _ = stateChanged.Release();
+                _ = _stateChanged.Release();
             }
         });
     }
 
     public async ValueTask HitAsync(BraidTask task, string name, CancellationToken cancellationToken)
     {
-        lock (gate)
+        lock (_gate)
         {
             if (task.State == BraidTaskState.Completed)
             {
@@ -117,26 +117,26 @@ internal sealed class BraidScheduler : IDisposable
 
             task.State = BraidTaskState.Waiting;
             task.LastProbeName = name;
-            trace.Add($"{task.WorkerId} hit {name}");
+            _trace.Add($"{task.WorkerId} hit {name}");
         }
 
-        _ = stateChanged.Release();
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, shutdownCts.Token);
+        _ = _stateChanged.Release();
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCts.Token);
         await task.WaitForReleaseAsync(linkedCts.Token).ConfigureAwait(false);
     }
 
     public async Task JoinAsync(CancellationToken cancellationToken)
     {
-        await joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        using var timeoutCts = new CancellationTokenSource(timeout);
+        using var timeoutCts = new CancellationTokenSource(_timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
         try
         {
-            lock (gate)
+            lock (_gate)
             {
-                joined = true;
+                _joined = true;
             }
 
             while (true)
@@ -146,9 +146,9 @@ internal sealed class BraidScheduler : IDisposable
                 BraidTask? nextTask;
                 var advancedWithoutRelease = false;
 
-                lock (gate)
+                lock (_gate)
                 {
-                    var failure = tasks.FirstOrDefault(static task => task.Exception is not null)?.Exception;
+                    var failure = _tasks.FirstOrDefault(static task => task.Exception is not null)?.Exception;
 
                     if (failure is not null)
                     {
@@ -156,9 +156,9 @@ internal sealed class BraidScheduler : IDisposable
                         throw CreateException("A forked operation failed.", failure);
                     }
 
-                    if (tasks.Count == 0 || tasks.All(static task => task.State == BraidTaskState.Completed))
+                    if (_tasks.Count == 0 || _tasks.All(static task => task.State == BraidTaskState.Completed))
                     {
-                        if (schedule is not null && nextScheduleStep < schedule.Count)
+                        if (_schedule is not null && _nextScheduleStep < _schedule.Count)
                         {
                             throw CreateException("Scripted schedule contained unused steps after all workers completed.", null);
                         }
@@ -166,15 +166,15 @@ internal sealed class BraidScheduler : IDisposable
                         break;
                     }
 
-                    var waitingTasks = tasks.Where(static task => task.State == BraidTaskState.Waiting).OrderBy(static task => task.Id).ToArray();
-                    var hasRunningTasks = tasks.Any(static task => task.State == BraidTaskState.Running);
+                    var waitingTasks = _tasks.Where(static task => task.State == BraidTaskState.Waiting).OrderBy(static task => task.Id).ToArray();
+                    var hasRunningTasks = _tasks.Any(static task => task.State == BraidTaskState.Running);
 
                     nextTask = SelectNextTask(waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
 
                     if (nextTask is not null)
                     {
                         nextTask.State = BraidTaskState.Running;
-                        trace.Add(nextTask.LastProbeName is null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
+                        _trace.Add(nextTask.LastProbeName is null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
                     }
                 }
 
@@ -185,12 +185,12 @@ internal sealed class BraidScheduler : IDisposable
                         continue;
                     }
 
-                    await stateChanged.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                    await _stateChanged.WaitAsync(linkedCts.Token).ConfigureAwait(false);
                     continue;
                 }
 
                 nextTask.Release();
-                await stateChanged.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+                await _stateChanged.WaitAsync(linkedCts.Token).ConfigureAwait(false);
             }
 
             await WaitForRunningTasksAsync().ConfigureAwait(false);
@@ -207,7 +207,7 @@ internal sealed class BraidScheduler : IDisposable
         }
         finally
         {
-            _ = joinMutex.Release();
+            _ = _joinMutex.Release();
         }
     }
 
@@ -222,9 +222,9 @@ internal sealed class BraidScheduler : IDisposable
 
     private void CancelBlockedTasks()
     {
-        if (shutdownCts.IsCancellationRequested) return;
-        shutdownCts.Cancel();
-        _ = stateChanged.Release();
+        if (_shutdownCts.IsCancellationRequested) return;
+        _shutdownCts.Cancel();
+        _ = _stateChanged.Release();
     }
 
     private BraidTask? SelectNextTask(BraidTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
@@ -238,27 +238,23 @@ internal sealed class BraidScheduler : IDisposable
             }
         }
 
-        if (schedule is null)
+        if (_schedule is null)
         {
-            return waitingTasks.Length == 0 ? null : waitingTasks[random.NextInt32(waitingTasks.Length)];
+            return waitingTasks.Length == 0 ? null : waitingTasks[_random.NextInt32(waitingTasks.Length)];
         }
 
-        if (nextScheduleStep >= schedule.Count)
+        if (_nextScheduleStep >= _schedule.Count)
         {
             throw CreateException("Scripted schedule was exhausted before all workers completed.", null);
         }
 
-        var step = schedule[nextScheduleStep];
+        var step = _schedule[_nextScheduleStep];
         var waitingTask = waitingTasks.FirstOrDefault(task =>
             string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
-        var heldTask = tasks
-            .Where(static task => task.State == BraidTaskState.Held)
-            .FirstOrDefault(task =>
-                string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
-        var sameWorkerBlockedTask = tasks.FirstOrDefault(task =>
-            string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) &&
-            (task.State == BraidTaskState.Waiting || task.State == BraidTaskState.Held) &&
-            task.LastProbeName is not null);
+        var heldTask = _tasks.Where(static task => task.State == BraidTaskState.Held).FirstOrDefault(task =>
+            string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && string.Equals(task.LastProbeName, step.ProbeName, StringComparison.Ordinal));
+        var sameWorkerBlockedTask = _tasks.FirstOrDefault(task =>
+            string.Equals(task.WorkerId, step.WorkerId, StringComparison.Ordinal) && task.State is BraidTaskState.Waiting or BraidTaskState.Held && task.LastProbeName is not null);
 
         switch (step.Kind)
         {
@@ -267,14 +263,10 @@ internal sealed class BraidScheduler : IDisposable
                 var releasableTask = heldTask ?? waitingTask;
                 if (releasableTask is null)
                 {
-                    return hasRunningTasks
-                        ? null
-                        : throw CreateException(
-                            BuildStepMismatchMessage(nextScheduleStep, "release", step, sameWorkerBlockedTask),
-                            null);
+                    return hasRunningTasks ? null : throw CreateException(BuildStepMismatchMessage(_nextScheduleStep, "release", step, sameWorkerBlockedTask), null);
                 }
 
-                nextScheduleStep++;
+                _nextScheduleStep++;
                 return releasableTask;
             }
 
@@ -283,23 +275,19 @@ internal sealed class BraidScheduler : IDisposable
                 if (heldTask is not null)
                 {
                     throw CreateException(
-                        $"Scripted schedule step {nextScheduleStep} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
+                        $"Scripted schedule step {_nextScheduleStep} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
                         null);
                 }
 
                 if (waitingTask is null)
                 {
-                    return hasRunningTasks
-                        ? null
-                        : throw CreateException(
-                            BuildStepMismatchMessage(nextScheduleStep, "arrive", step, sameWorkerBlockedTask),
-                            null);
+                    return hasRunningTasks ? null : throw CreateException(BuildStepMismatchMessage(_nextScheduleStep, "arrive", step, sameWorkerBlockedTask), null);
                 }
 
                 waitingTask.State = BraidTaskState.Held;
-                nextScheduleStep++;
+                _nextScheduleStep++;
                 advancedWithoutRelease = true;
-                trace.Add($"{waitingTask.WorkerId} arrival observed at {waitingTask.LastProbeName} (held)");
+                _trace.Add($"{waitingTask.WorkerId} arrival observed at {waitingTask.LastProbeName} (held)");
                 return null;
             }
 
@@ -307,36 +295,29 @@ internal sealed class BraidScheduler : IDisposable
             {
                 if (heldTask is null)
                 {
-                    return hasRunningTasks
-                        ? null
-                        : throw CreateException(
-                            BuildStepMismatchMessage(nextScheduleStep, "release held", step, sameWorkerBlockedTask),
-                            null);
+                    return hasRunningTasks ? null : throw CreateException(BuildStepMismatchMessage(_nextScheduleStep, "release held", step, sameWorkerBlockedTask), null);
                 }
 
-                nextScheduleStep++;
+                _nextScheduleStep++;
                 return heldTask;
             }
 
             default:
-                throw CreateException($"Scripted schedule step {nextScheduleStep} has unknown step kind {step.Kind}.", null);
+                throw CreateException($"Scripted schedule step {_nextScheduleStep} has unknown step kind {step.Kind}.", null);
         }
     }
 
     private string BuildStepMismatchMessage(int stepIndex, string action, BraidStep expectedStep, BraidTask? sameWorkerBlockedTask)
     {
-        _ = iteration;
-        if (sameWorkerBlockedTask?.LastProbeName is null)
-        {
-            return $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}.";
-        }
-
-        return $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
+        _ = _iteration;
+        return sameWorkerBlockedTask?.LastProbeName is null
+            ? $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}."
+            : $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
     }
 
     private string AppendReplayState(string message)
     {
-        if (schedule is null)
+        if (_schedule is null)
         {
             return message;
         }
@@ -344,29 +325,29 @@ internal sealed class BraidScheduler : IDisposable
         var details = new List<string>
         {
             message,
-            $"Next replay step: {nextScheduleStep + 1} of {schedule.Count}",
+            $"Next replay step: {_nextScheduleStep + 1} of {_schedule.Count}",
         };
 
-        if (nextScheduleStep < schedule.Count)
+        if (_nextScheduleStep < _schedule.Count)
         {
-            details.Add($"Next replay operation: {FormatStep(schedule[nextScheduleStep])}");
+            details.Add($"Next replay operation: {FormatStep(_schedule[_nextScheduleStep])}");
         }
 
-        var unusedSteps = schedule.Count - nextScheduleStep;
+        var unusedSteps = _schedule.Count - _nextScheduleStep;
         if (unusedSteps > 0)
         {
             details.Add($"Unused replay steps: {unusedSteps}");
         }
 
-        var heldWorkers = tasks.Where(static task => task is { State: BraidTaskState.Held, LastProbeName: not null }).OrderBy(static task => task.Id)
-                               .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
+        var heldWorkers = _tasks.Where(static task => task is { State: BraidTaskState.Held, LastProbeName: not null }).OrderBy(static task => task.Id)
+                                .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
         if (heldWorkers.Length > 0)
         {
             details.Add($"Held workers: {string.Join(", ", heldWorkers)}");
         }
 
-        var waitingWorkers = tasks.Where(static task => task is { State: BraidTaskState.Waiting, LastProbeName: not null }).OrderBy(static task => task.Id)
-                                  .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
+        var waitingWorkers = _tasks.Where(static task => task is { State: BraidTaskState.Waiting, LastProbeName: not null }).OrderBy(static task => task.Id)
+                                   .Select(static task => $"{task.WorkerId} at {task.LastProbeName}").ToArray();
         if (waitingWorkers.Length > 0)
         {
             details.Add($"Waiting workers: {string.Join(", ", waitingWorkers)}");
@@ -379,9 +360,9 @@ internal sealed class BraidScheduler : IDisposable
     {
         Task[] runningTasks;
 
-        lock (gate)
+        lock (_gate)
         {
-            runningTasks = [.. tasks.Select(static task => task.RunningTask).OfType<Task>()];
+            runningTasks = [.. _tasks.Select(static task => task.RunningTask).OfType<Task>()];
         }
 
         if (runningTasks.Length == 0)
@@ -390,7 +371,7 @@ internal sealed class BraidScheduler : IDisposable
         }
 
         var all = Task.WhenAll(runningTasks);
-        if (shutdownCts.IsCancellationRequested)
+        if (_shutdownCts.IsCancellationRequested)
         {
             var completed = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(1), CancellationToken.None)).ConfigureAwait(false);
             if (completed == all)

@@ -8,12 +8,12 @@ namespace Braid;
 /// </summary>
 public sealed class BraidContext
 {
-    private readonly BraidScheduler scheduler;
-    private int isActive = 1;
+    private readonly BraidScheduler _scheduler;
+    private int _isActive = 1;
 
     internal BraidContext(BraidScheduler scheduler)
     {
-        this.scheduler = scheduler;
+        _scheduler = scheduler;
     }
 
     /// <summary>
@@ -24,7 +24,7 @@ public sealed class BraidContext
     {
         ArgumentNullException.ThrowIfNull(operation);
         ThrowIfInactive();
-        scheduler.Fork(operation);
+        _scheduler.Fork(operation);
     }
 
     /// <summary>
@@ -35,14 +35,14 @@ public sealed class BraidContext
     public Task JoinAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfInactive();
-        return scheduler.JoinAsync(cancellationToken);
+        return _scheduler.JoinAsync(cancellationToken);
     }
 
-    internal void Complete() => _ = Interlocked.Exchange(ref isActive, 0);
+    internal void Complete() => _ = Interlocked.Exchange(ref _isActive, 0);
 
     private void ThrowIfInactive()
     {
-        if (Volatile.Read(ref isActive) == 0)
+        if (Volatile.Read(ref _isActive) == 0)
         {
             throw new InvalidOperationException("BraidContext can only be used during the Braid.RunAsync callback.");
         }

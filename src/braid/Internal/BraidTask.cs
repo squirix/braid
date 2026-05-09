@@ -2,7 +2,7 @@ namespace Braid.Internal;
 
 internal sealed class BraidTask : IDisposable
 {
-    private readonly SemaphoreSlim permit = new(0, 1);
+    private readonly SemaphoreSlim _permit = new(0, 1);
 
     public BraidTask(int id)
     {
@@ -21,9 +21,9 @@ internal sealed class BraidTask : IDisposable
 
     public string WorkerId => $"worker-{Id}";
 
-    public void Dispose() => permit.Dispose();
+    public void Dispose() => _permit.Dispose();
 
-    public void Release() => permit.Release();
+    public void Release() => _permit.Release();
 
-    public Task WaitForReleaseAsync(CancellationToken cancellationToken) => permit.WaitAsync(cancellationToken);
+    public Task WaitForReleaseAsync(CancellationToken cancellationToken) => _permit.WaitAsync(cancellationToken);
 }

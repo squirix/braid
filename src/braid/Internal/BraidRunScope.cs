@@ -5,11 +5,11 @@ internal sealed class BraidRunScope : IDisposable
     private static readonly AsyncLocal<BraidScheduler?> SchedulerSlot = new();
     private static readonly AsyncLocal<BraidTask?> TaskSlot = new();
 
-    private readonly BraidScheduler? previousScheduler;
+    private readonly BraidScheduler? _previousScheduler;
 
     private BraidRunScope(BraidScheduler scheduler)
     {
-        previousScheduler = SchedulerSlot.Value;
+        _previousScheduler = SchedulerSlot.Value;
         SchedulerSlot.Value = scheduler;
     }
 
@@ -23,7 +23,7 @@ internal sealed class BraidRunScope : IDisposable
 
     public void Dispose()
     {
-        SchedulerSlot.Value = previousScheduler;
+        SchedulerSlot.Value = _previousScheduler;
         TaskSlot.Value = null;
     }
 
