@@ -317,6 +317,8 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     public async Task CancellationWhileWorkerIsHeldDoesNotDeadlock()
     {
         using var cts = new CancellationTokenSource();
+        var cancellationToken = cts.Token;
+        var cancelProbeReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var options = new BraidOptions
         {
             Iterations = 1,
@@ -330,19 +332,22 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
         var runTask = Braid.RunAsync(
             async context =>
             {
-                context.Fork(static async () => { await BraidProbe.HitAsync("A"); });
+                context.Fork(async () => { await BraidProbe.HitAsync("A", cancellationToken); });
 
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("cancel");
-                    await cts.CancelAsync();
+                    await BraidProbe.HitAsync("cancel", cancellationToken);
+                    cancelProbeReleased.SetResult();
                 });
 
-                await context.JoinAsync(cts.Token);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            cts.Token);
+            cancellationToken);
 
+        var signal = await Task.WhenAny(cancelProbeReleased.Task, Task.Delay(TimeSpan.FromSeconds(5), DefaultCancellationToken));
+        Assert.Same(cancelProbeReleased.Task, signal);
+        await cts.CancelAsync();
         var completed = await Task.WhenAny(runTask, Task.Delay(TimeSpan.FromSeconds(5), DefaultCancellationToken));
 
         Assert.Same(runTask, completed);

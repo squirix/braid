@@ -9,6 +9,8 @@
 - Kept package version references consistent across README and release documentation.
 - Hardened replay scheduler behavior around arrive/hold/release schedules.
 - Improved diagnostics for invalid or incomplete replay schedules.
+- Required explicit cancellation tokens on public async entry points and examples.
+- Aligned private field naming across core scheduler code and examples.
 
 ## 0.2.0
 

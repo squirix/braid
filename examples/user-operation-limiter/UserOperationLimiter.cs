@@ -28,7 +28,7 @@ public sealed class UserOperationLimiter
     /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
-    public async Task<bool> TryEnterAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> TryEnterAsync(CancellationToken cancellationToken)
     {
         _ = _activeOperations.TryGetValue(_userId, out var current);
         await BraidProbe.HitAsync("after-read", cancellationToken);

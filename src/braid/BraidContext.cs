@@ -32,7 +32,7 @@ public sealed class BraidContext
     /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all forked operations complete.</returns>
-    public Task JoinAsync(CancellationToken cancellationToken = default)
+    public Task JoinAsync(CancellationToken cancellationToken)
     {
         ThrowIfInactive();
         return _scheduler.JoinAsync(cancellationToken);

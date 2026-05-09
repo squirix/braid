@@ -29,7 +29,7 @@ public sealed class LockedUserOperationLimiter
     /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
-    public async Task<bool> TryEnterAsync(CancellationToken cancellationToken = default)
+    public async Task<bool> TryEnterAsync(CancellationToken cancellationToken)
     {
         await BraidProbe.HitAsync("before-enter", cancellationToken);
         bool allowed;

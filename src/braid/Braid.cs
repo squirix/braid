@@ -14,10 +14,22 @@ public static class Braid
     /// The callback must not return null.
     /// </summary>
     /// <param name="test">The test callback to execute.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
+    public static Task RunAsync(Func<BraidContext, Task> test, CancellationToken cancellationToken)
+        => RunAsync(test, null, cancellationToken);
+
+    /// <summary>
+    /// Runs the supplied test callback across one or more deterministic scheduling iterations.
+    /// After the callback task completes successfully, forked workers are joined automatically; an explicit
+    /// <see cref="BraidContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
+    /// The callback must not return null.
+    /// </summary>
+    /// <param name="test">The test callback to execute.</param>
     /// <param name="options">The run options.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
-    public static async Task RunAsync(Func<BraidContext, Task> test, BraidOptions? options = null, CancellationToken cancellationToken = default)
+    public static async Task RunAsync(Func<BraidContext, Task> test, BraidOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(test);
 
