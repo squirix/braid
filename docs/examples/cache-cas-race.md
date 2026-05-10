@@ -41,6 +41,8 @@ So worker 2’s update happens **while worker 1 is held** at `before-cas`. When 
 
 ## Running the example tests
 
+Example projects inherit **`net10.0`** from the repository root [`Directory.Build.props`](../../Directory.Build.props), consistent with the main [README](../../README.md).
+
 ```powershell
 dotnet test examples/cache-cas-race/Braid.Examples.CacheCasRace.csproj --configuration Release
 ```

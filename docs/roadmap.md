@@ -4,9 +4,9 @@ braid is a deterministic concurrency testing library for .NET (currently **.NET 
 
 The project intentionally focuses on small, reproducible async interleavings. It does not try to replace Coyote, intercept every `await`, rewrite binaries, become a distributed-system test framework, or provide exhaustive model checking.
 
-**Recommended next release:** **v0.3.1** — documentation, roadmap alignment, and hardening only (no public API changes).
+**Recommended next release:** **v0.4.0** — test-framework integration and diagnostics polish (see below).
 
-This roadmap matches [CHANGELOG.md](../CHANGELOG.md) through **v0.3.0** for completed work.
+This roadmap matches [CHANGELOG.md](../CHANGELOG.md) through **v0.3.1** for completed work.
 
 ## Release policy
 
@@ -62,29 +62,18 @@ Delivered:
 - `examples/cache-cas-race` with walkthrough for versioned compare-and-set under `Arrive` / `Hit` / `Release` replay
 - README documentation for text replay schedules, failure-report replay text, scheduler diagnostics, and limits for random-only runs; README links the cache/CAS example
 
-## Planned releases
-
 ### v0.3.1 — Documentation, roadmap, and hardening
 
-Goal: documentation-only alignment plus patch-sized hardening (packaging, release docs, error clarity, or scheduler fixes) with **no new user-facing testing features** and **no public API changes**.
+Goal: documentation-only alignment plus packaging/release-doc examples and test hygiene, with **no new user-facing testing features** and **no public API changes**.
 
-Scope:
+Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.3.1**):
 
-- roadmap, README, changelog, examples, and release-process cross-checks for contradictions
-- packaging or release-metadata fixes when they are narrative or build hygiene only
-- optional patch-sized scheduler or failure-report hardening that preserves existing semantics
+- cross-checked README, roadmap, release process/checklist, and example docs for **.NET 10**, text replay, **Arrive / Hit / Release**, random-only failure limits, and explicit non-goals
+- README **Current limitations** explicitly calls out **no `TaskScheduler` replacement** and **no binary rewriting** (still probe-driven)
+- package version **0.3.1** in `src/braid/Braid.csproj`; release docs use **0.3.1** as the illustrative `$Version`
+- stabilized cancellation teardown test assertion (`CancellationWhileWorkerIsHeldDoesNotDeadlock`) so replay completion vs cancellation ordering does not flake
 
-Out of scope for v0.3.1 (defer to v0.4.0 or later):
-
-- new test-framework adapters, new diagnostic types, or expanded export surfaces
-- behavior changes that require README sections aimed at “how to use new capability”
-
-Exit criteria:
-
-- roadmap and changelog describe the same shipped capabilities through v0.3.0
-- completed vs planned vs future work stays clearly separated
-- no public API changes
-- test suite remains green
+## Planned releases
 
 ### v0.4.0 — Test-framework integration and diagnostics polish
 

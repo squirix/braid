@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.3.1
+
+### Documentation
+
+- Aligned README, roadmap, release checklist/process examples, and example walkthroughs with **.NET 10**, **v0.3.0** text replay schedules, **Arrive / Hit / Release** semantics, **random-only failure** limits (no synthesized full replay schedule), and explicit **non-goals** (`TaskScheduler` replacement, await interception, binary rewriting, exhaustive model checking).
+
+### Fixed
+
+- Stabilized `CancellationWhileWorkerIsHeldDoesNotDeadlock`: assertion now allows either cancellation propagation or normal replay completion before cancellation, matching the intent “no deadlock on teardown.”
+
 ## 0.3.0
 
 ### Added

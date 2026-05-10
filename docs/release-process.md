@@ -15,7 +15,7 @@ $Repo = "<absolute-path-to-this-repository>"
 Example (illustration only—do not commit these lines with real numbers into the repo):
 
 ```powershell
-$Version = "0.3.0"
+$Version = "0.3.1"
 $Tag = "v$Version"
 $Repo = "C:\Source\braid"
 ```

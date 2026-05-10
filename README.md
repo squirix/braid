@@ -218,5 +218,6 @@ Trace:
 
 - Explicit probes are required.
 - Await interception is not automatic.
+- Braid is not a `TaskScheduler` replacement, does not rewrite binaries, and is not a distributed-system test framework; determinism stays probe-driven (see **What braid does not do** above).
 - Exhaustive search is not implemented.
 - Random-run failures do not automatically include a complete replay schedule unless you configured one in `BraidOptions.Schedule`.

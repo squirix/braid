@@ -15,7 +15,7 @@ PowerShell:
 
 Example:
 
-    $Version = "0.3.0"
+    $Version = "0.3.1"
     $Tag = "v$Version"
 
 Do not commit these values into this checklist.
