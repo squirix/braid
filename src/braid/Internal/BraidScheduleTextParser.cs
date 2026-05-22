@@ -63,6 +63,11 @@ internal static class BraidScheduleTextParser
                 case 2:
                     error = $"Line {lineNumber}: Missing probe name.";
                     return false;
+                case 3:
+                    break;
+                default:
+                    error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
+                    return false;
             }
 
             var workerId = tokens[1];
