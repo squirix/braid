@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0
+
 ### Added
 
 - Added `BraidRunException.TryGetReplayText` for non-throwing canonical replay-text export when a typed schedule is present.
@@ -9,6 +11,11 @@
 ### Fixed
 
 - Rejected overlapping probe waits from flowing child tasks on the same logical worker instead of allowing silent completion, serialization, or deadlock.
+
+### Documentation
+
+- Added per-version design roadmaps (`docs/design/roadmap.md` index), replay-token workflow, and runtime-boundary docs.
+- README: replay token terminology, `TryGetReplayText`, product tagline; aligned [docs/roadmap.md](docs/roadmap.md) (xUnit package deferred to v0.8.0).
 
 ## 0.3.1
 

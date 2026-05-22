@@ -1,8 +1,10 @@
 # braid
 
-Deterministic concurrency testing for .NET using explicit async probe points.
+Deterministic concurrency testing for .NET libraries using explicit async probe points.
 
-braid helps make small async interleavings reproducible. Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next.
+**Find the interleaving. Copy the replay token. Keep the race fixed forever.**
+
+Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. Roadmap: [docs/design/roadmap.md](docs/design/roadmap.md).
 
 ## Install
 
@@ -20,7 +22,7 @@ For release validation and consumer smoke-test instructions, see [docs/release-p
 - Uses explicit probe points instead of runtime rewriting.
 - Supports seeded random scheduling for reproducing failures.
 - Supports typed replay schedules with `BraidSchedule` and `BraidStep`, and **text** replay schedules via `BraidSchedule.Parse` / `TryParse`.
-- Reports failures with seed, iteration, schedule, trace, inner exception details, and—when a replay schedule was configured—copyable replay text plus scheduler-state diagnostics.
+- Reports failures with seed, iteration, schedule, trace, inner exception details, and—when a replay schedule was configured—a copyable **replay token** (canonical replay text) plus scheduler-state diagnostics.
 
 ## What braid does not do
 
@@ -123,6 +125,30 @@ var replay = BraidSchedule.Parse(text);
 
 An empty typed schedule exports to an empty string; `BraidSchedule.Parse` still requires at least one step for non-empty text.
 
+## Replay token
+
+A **replay token** is the canonical replay text Braid emits and `BraidSchedule.Parse` accepts—the same format as [text replay schedules](#text-replay-schedules) above. There is no separate syntax.
+
+```text
+hit worker-1 after-read
+hit worker-2 after-read
+```
+
+From a failing run with a typed schedule configured, export without parsing `ToString()`:
+
+```csharp
+catch (BraidRunException ex)
+{
+    if (ex.TryGetReplayText(out var token, out _))
+    {
+        var regression = BraidSchedule.Parse(token);
+        // use regression in BraidOptions.Schedule
+    }
+}
+```
+
+Workflow (random failure → probes → token → regression test): [docs/replay-token-workflow.md](docs/replay-token-workflow.md).
+
 ## True interleaving replay
 
 `BraidStep.Hit(worker, probe)` releases a worker when it is blocked at that probe.
@@ -149,11 +175,11 @@ This expresses: worker-1 is already blocked at `cache-hit`, worker-2 mutates sta
 
 When a run fails, braid wraps scheduler and callback failures in `BraidRunException` where appropriate.
 
-**When a typed replay schedule was configured**, failure reports include **canonical replay text** you can paste into `BraidSchedule.Parse(...)` for a stable regression test—unless the schedule cannot be exported to text (for example worker or probe names containing whitespace).
+**When a typed replay schedule was configured**, failure reports include a **replay token** (canonical replay text) you can paste into `BraidSchedule.Parse(...)` for a stable regression test—unless the schedule cannot be exported (for example worker or probe names containing whitespace). Prefer `BraidRunException.TryGetReplayText`.
 
 Reports also include **scheduler-state diagnostics** when the scheduler captured them: last matched replay step, workers waiting at probes, workers held after `Arrive`, and unused replay steps. Sections are omitted when empty.
 
-For **random scheduling only** (no replay schedule in options), failure reports do **not** synthesize a full replay schedule or replay text; use the seed and trace to investigate, then capture a typed or text schedule once you understand the interleaving.
+For **random scheduling only** (no replay schedule in options), failure reports do **not** synthesize a full replay token; use the seed and trace to investigate, then capture a typed or text schedule once you understand the interleaving.
 
 Failure reports always aim to include:
 
@@ -196,7 +222,7 @@ Trace:
 - Non-empty replay schedules must be fully consumed.
 - `BraidSchedule.Replay()` with no steps is allowed for empty or probe-free runs.
 - Nested `Braid.RunAsync` calls are not supported.
-- Only one logical probe wait may be in flight per forked worker.
+- Only one logical probe wait may be in flight per forked worker (including flowing child tasks on that worker); see [docs/runtime-boundaries.md](docs/runtime-boundaries.md).
 - Fork delegates must return a non-null `Task`.
 - Probe names cannot be null, empty, or whitespace.
 - Reusing one `BraidOptions` instance across independent runs is supported.

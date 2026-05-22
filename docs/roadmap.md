@@ -1,12 +1,14 @@
 # braid roadmap
 
-braid is a deterministic concurrency testing library for .NET (currently **.NET 10**) using explicit async probe points.
+braid is deterministic concurrency testing for .NET libraries (currently **.NET 10**) using explicit async probe points.
 
 The project intentionally focuses on small, reproducible async interleavings. It does not try to replace Coyote, intercept every `await`, rewrite binaries, become a distributed-system test framework, or provide exhaustive model checking.
 
-**Recommended next release:** **v0.4.0** — test-framework integration and diagnostics polish (see below).
+**Recommended next release:** **v0.5.0** — product packaging and featured examples (v0.4.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
-This roadmap matches [CHANGELOG.md](../CHANGELOG.md) through **v0.3.1** for completed work.
+**Detailed plans:** [design/roadmap.md](design/roadmap.md) (index) · [v0.5.0](design/v0.5.0-roadmap.md)
+
+This roadmap matches [CHANGELOG.md](../CHANGELOG.md) through **v0.3.1** for completed work, with **Unreleased** treated as the v0.4.0 base per the design doc above.
 
 ## Release policy
 
@@ -75,45 +77,47 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.3.1**):
 
 ## Planned releases
 
-### v0.4.0 — Test-framework integration and diagnostics polish
+See [design/roadmap.md](design/roadmap.md) for the version index, PR breakdown, risks, and version table.
 
-Goal: make braid easier to use in real test suites when a race fails—without expanding scope into a full test framework or new scheduling semantics.
+### v0.4.0 — Replay token, diagnostics, runtime boundaries
 
-Scope (intentionally bounded):
+Goal: make failures copy-paste friendly and document runtime probe rules—**without** new scheduling semantics or a test-framework package. Plan: [design/v0.4.0-roadmap.md](design/v0.4.0-roadmap.md).
 
-- clearer failure report formatting and trace/report export cleanup where it helps copy-paste workflows
-- optional xUnit-oriented helper(s) for attaching braid diagnostics (implementation may be an optional package if keeping xUnit out of the core package is preferable)
-- documentation for turning flaky failures into explicit replay schedules (including honest limits: random-only runs do not synthesize a full replay schedule unless one was configured)
-- one additional realistic library-concurrency example if it fits without API creep
+Scope (see CHANGELOG **Unreleased** + design doc):
 
-Candidate API ideas (not committed until designed):
+- `BraidRunException.TryGetReplayText`
+- reject overlapping probe waits on the same logical worker (flowing child tasks)
+- replay-token terminology and [replay-token-workflow.md](replay-token-workflow.md)
+- README replay-token section; runtime-boundary documentation
+- doc-only xUnit guidance (`ITestOutputHelper` + `ToString()` / `TryGetReplayText`) — **no** `Braid.Xunit` package in v0.4.0
 
-- `BraidReport`, `BraidTraceEntry`, `BraidSchedulerSnapshot`
-- `BraidXunit.WriteFailure(...)` or similar
+Deferred from earlier roadmap drafts: `BraidFailureReport`, `Braid.Xunit` → **v0.8.0** preview.
 
-Exit criteria:
+### v0.5.0 — Product packaging and examples
 
-- failure output is easier to paste into bug reports and regression tests
-- xUnit users can attach useful braid diagnostics without bespoke plumbing
-- diagnostics remain deterministic and scoped to the current run
-- no automatic await interception, no binary rewriting, no new implicit scheduling model
+Goal: README restructure, three featured examples, when-to-use guidance. Plan: [design/v0.5.0-roadmap.md](design/v0.5.0-roadmap.md).
 
-## Future ideas (not scheduled)
+Examples: lost update, cache/CAS (existing), cancellation before observation. Stable API; no `ExploreAsync` yet.
 
-### Exploration and ergonomics (e.g. v0.5.x)
+### v0.6.0 — Bounded exploration (design + optional ship)
 
-- additional random exploration strategies
-- configurable probe selection policies
-- bounded fairness options
-- better seed corpus workflows; persisted failing seeds
+Goal: `ExploreAsync` RFC and optional bounded search with replay token on failure. Explicit probes only. Plan: [design/v0.6.0-roadmap.md](design/v0.6.0-roadmap.md).
 
-### Analyzer / source-generator experiments (e.g. v0.6.x)
+## Future preview (not scheduled in detail)
 
-- analyzer for suspicious probe names or missing cancellation tokens in tests/examples
+| Version | Direction |
+|---------|-----------|
+| v0.7.0 | [Schedule shrinking](design/v0.7.0-roadmap.md) |
+| v0.8.0 | [`Braid.Xunit`](design/v0.8.0-roadmap.md) (optional package) |
+| v0.9.0 | [API hardening / RC](design/v0.9.0-roadmap.md) |
+| v1.0.0 | [Stable 1.0](design/v1.0.0-roadmap.md) |
+
+### Other ideas (experimental)
+
+- analyzer for probe naming or missing cancellation tokens
 - source-generator helpers for strongly named probes
-- opt-in diagnostics around probe naming consistency
 
-These should stay experimental until the core runtime and diagnostics story stays simple.
+Stay experimental until the core replay-token and exploration story is stable.
 
 ## Explicit non-goals
 
@@ -125,5 +129,6 @@ braid will not aim to become:
 - a distributed-system test framework
 - an exhaustive model checker (no exhaustive state-space search as the default product story)
 - a complete Coyote replacement, a general actor runtime, or a built-in linearizability checker
+- a Rider plugin or UI before core 1.0-quality story
 
 Related: braid does not hide races behind sleeps, delays, or timing assumptions; probes stay explicit. This mirrors [README.md](../README.md) (“What braid does not do”) in spirit and detail.
