@@ -6,6 +6,10 @@
 
 - Added `BraidRunException.TryGetReplayText` for non-throwing canonical replay-text export when a typed schedule is present.
 
+### Fixed
+
+- Rejected overlapping probe waits from flowing child tasks on the same logical worker instead of allowing silent completion, serialization, or deadlock.
+
 ## 0.3.1
 
 ### Documentation

@@ -112,11 +112,12 @@ internal sealed class BraidScheduler : IDisposable
                 return;
             }
 
-            if (task is { State: BraidTaskState.Waiting, LastProbeName: not null })
+            if (task.ProbeWaitInFlight)
             {
                 throw CreateException("Concurrent probe hit on the same worker is not supported.", null);
             }
 
+            task.ProbeWaitInFlight = true;
             task.State = BraidTaskState.Waiting;
             task.LastProbeName = name;
             _trace.Add($"{task.WorkerId} hit {name}");
@@ -124,7 +125,17 @@ internal sealed class BraidScheduler : IDisposable
 
         _ = _stateChanged.Release();
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCts.Token);
-        await task.WaitForReleaseAsync(linkedCts.Token).ConfigureAwait(false);
+        try
+        {
+            await task.WaitForReleaseAsync(linkedCts.Token).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                task.ProbeWaitInFlight = false;
+            }
+        }
     }
 
     public async Task JoinAsync(CancellationToken cancellationToken)

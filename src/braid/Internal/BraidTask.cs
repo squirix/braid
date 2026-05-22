@@ -15,6 +15,8 @@ internal sealed class BraidTask : IDisposable
 
     public string? LastProbeName { get; set; }
 
+    public bool ProbeWaitInFlight { get; set; }
+
     public Task? RunningTask { get; set; }
 
     public BraidTaskState State { get; set; } = BraidTaskState.Waiting;

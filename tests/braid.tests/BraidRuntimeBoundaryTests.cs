@@ -764,10 +764,156 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncCompletesWhenNoWorkersForkedAndNoSchedule() => await Braid.RunAsync(
-        static _ => Task.CompletedTask,
-        new BraidOptions { Iterations = 1, Seed = 12345 },
-        DefaultCancellationToken);
+    public async Task RunAsyncCompletesWhenNoWorkersForkedAndNoSchedule() =>
+        await Braid.RunAsync(
+            static _ => Task.CompletedTask,
+            new BraidOptions { Iterations = 1, Seed = 12345 },
+            DefaultCancellationToken);
+
+    /// <summary>
+    /// Verifies concurrent probe waits on the same logical worker are rejected instead of being serialized.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ConcurrentProbeHitsOnSameWorkerMustFailClearly()
+    {
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await Braid.RunAsync(
+                async context =>
+                {
+                    context.Fork(async () =>
+                    {
+                        var token = DefaultCancellationToken;
+                        var executionContext = ExecutionContext.Capture()
+                                               ?? throw new InvalidOperationException("ExecutionContext.Capture returned null.");
+
+                        var readyCount = 0;
+                        Exception? threadFailure = null;
+
+                        await Task.Run(
+                            () =>
+                            {
+                                var first = new Thread(() => HitProbe("first"));
+                                var second = new Thread(() => HitProbe("second"));
+
+                                first.Start();
+                                second.Start();
+
+                                first.Join();
+                                second.Join();
+
+                                if (threadFailure is not null)
+                                {
+                                    ExceptionDispatchInfo.Capture(threadFailure).Throw();
+                                }
+                            },
+                            DefaultCancellationToken);
+
+                        return;
+
+                        void HitProbe(string probe)
+                        {
+                            ExecutionContext.Run(
+                                executionContext,
+                                __ =>
+                                {
+                                    try
+                                    {
+                                        WaitUntilBothThreadsAreReady(ref readyCount, token);
+                                        BraidProbe.HitAsync(probe, token).AsTask().GetAwaiter().GetResult();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        _ = Interlocked.CompareExchange(ref threadFailure, ex, null);
+                                    }
+                                },
+                                null);
+                        }
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions
+                {
+                    Iterations = 1,
+                    Seed = 12345,
+                    Timeout = TimeSpan.FromSeconds(2),
+                },
+                DefaultCancellationToken);
+        });
+
+        Assert.Contains(
+            "Concurrent probe hit on the same worker is not supported.",
+            exception.ToString(),
+            StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Verifies a worker cannot re-enter probe waiting through a flowing child task
+    /// before the previous logical probe completes.
+    /// </summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FlowingChildProbeOverlappingParentProbeFailsClearly()
+    {
+        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
+        {
+            await Braid.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () =>
+                    {
+                        var childProbeEntered = new TaskCompletionSource(
+                            TaskCreationOptions.RunContinuationsAsynchronously);
+
+                        var childTask = Task.Run(async () =>
+                        {
+                            var childProbeTask = BraidProbe
+                                                 .HitAsync("child", DefaultCancellationToken)
+                                                 .AsTask();
+
+                            childProbeEntered.SetResult();
+
+                            await childProbeTask;
+                        });
+
+                        await childProbeEntered.Task.WaitAsync(DefaultCancellationToken);
+
+                        await BraidProbe.HitAsync(
+                            "parent",
+                            DefaultCancellationToken);
+
+                        await childTask;
+                    });
+
+                    context.Fork(static async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), DefaultCancellationToken);
+                        await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions
+                {
+                    Iterations = 1,
+                    Seed = 12345,
+                    Schedule = BraidSchedule.Replay(
+                        BraidStep.Arrive("worker-1", "child"),
+                        BraidStep.Hit("worker-2", "other")),
+                    Timeout = TimeSpan.FromSeconds(2),
+                },
+                DefaultCancellationToken);
+        });
+
+        var report = exception.ToString();
+
+        Assert.Contains(
+            "Concurrent probe hit on the same worker is not supported.",
+            report,
+            StringComparison.Ordinal);
+    }
 
     private static async Task AssertCompletesBeforeWatchdogAsync(Task runTask, string failureMessage)
     {
