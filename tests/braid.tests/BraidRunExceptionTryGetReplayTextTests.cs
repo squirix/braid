@@ -11,7 +11,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     /// Verifies a typed exportable schedule yields canonical replay text.
     /// </summary>
     [Fact]
-    public void TryGetReplayText_returns_true_for_exportable_typed_schedule()
+    public void TryGetReplayTextReturnsTrueForExportableTypedSchedule()
     {
         var steps = new[]
         {
@@ -31,7 +31,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     /// Verifies random-only (empty schedule) yields false with no export error.
     /// </summary>
     [Fact]
-    public void TryGetReplayText_returns_false_when_schedule_is_empty()
+    public void TryGetReplayTextReturnsFalseWhenScheduleIsEmpty()
     {
         var exception = new BraidRunException("failed", 1, 0, [], [], null);
 
@@ -44,7 +44,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     /// Verifies whitespace in worker id prevents replay-text export with a diagnostic error.
     /// </summary>
     [Fact]
-    public void TryGetReplayText_returns_false_when_worker_id_has_whitespace()
+    public void TryGetReplayTextReturnsFalseWhenWorkerIdHasWhitespace()
     {
         var exception = new BraidRunException(
             "failed",
@@ -65,7 +65,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     /// Verifies whitespace in probe name prevents replay-text export with a diagnostic error.
     /// </summary>
     [Fact]
-    public void TryGetReplayText_returns_false_when_probe_name_has_whitespace()
+    public void TryGetReplayTextReturnsFalseWhenProbeNameHasWhitespace()
     {
         var exception = new BraidRunException(
             "failed",
@@ -86,7 +86,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     /// Verifies <see cref="BraidRunException.ToString"/> still embeds replay lines when export succeeds.
     /// </summary>
     [Fact]
-    public void ToString_includes_replay_text_when_exportable()
+    public void ToStringIncludesReplayTextWhenExportable()
     {
         var steps = new[] { BraidStep.Hit("worker-1", "ready") };
         var exception = new BraidRunException("failed", 1, 0, ["worker-1 forked"], steps, null);
@@ -105,7 +105,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     /// Verifies <see cref="BraidRunException.ToString"/> keeps the generic unavailable line when export fails.
     /// </summary>
     [Fact]
-    public void ToString_reports_unavailable_replay_text_when_not_exportable()
+    public void ToStringReportsUnavailableReplayTextWhenNotExportable()
     {
         var exception = new BraidRunException(
             "failed",
