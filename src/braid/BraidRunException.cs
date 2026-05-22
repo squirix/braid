@@ -62,6 +62,40 @@ public sealed class BraidRunException : Exception
     /// </summary>
     public BraidSchedulerDiagnostics? SchedulerDiagnostics { get; }
 
+    /// <summary>
+    /// Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="BraidSchedule.Parse(string)"/> accepts).
+    /// </summary>
+    /// <param name="text">When this method returns <see langword="true"/>, the exportable replay text. Otherwise <see cref="string.Empty"/>.</param>
+    /// <param name="error">
+    /// When this method returns <see langword="false"/> because the schedule cannot be exported (for example whitespace in worker id or probe name),
+    /// a diagnostic message; otherwise <see langword="null"/> (including when no typed schedule was configured).
+    /// </param>
+    /// <returns>
+    /// <see langword="true"/> if <see cref="Schedule"/> is non-empty and <see cref="BraidSchedule.ToReplayText"/> succeeds; otherwise <see langword="false"/>.
+    /// </returns>
+    public bool TryGetReplayText(out string text, out string? error)
+    {
+        text = string.Empty;
+        error = null;
+
+        if (Schedule.Count == 0)
+        {
+            return false;
+        }
+
+        try
+        {
+            var replaySchedule = BraidSchedule.Replay([.. Schedule]);
+            text = replaySchedule.ToReplayText();
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
     /// <inheritdoc />
     public override string ToString()
     {
@@ -82,10 +116,8 @@ public sealed class BraidRunException : Exception
             }
 
             lines.Add("Replay text:");
-            try
+            if (TryGetReplayText(out var replayText, out var replayError))
             {
-                var replaySchedule = BraidSchedule.Replay([.. Schedule]);
-                var replayText = replaySchedule.ToReplayText();
                 if (replayText.Length > 0)
                 {
                     foreach (var segment in replayText.Split(Environment.NewLine))
@@ -94,7 +126,7 @@ public sealed class BraidRunException : Exception
                     }
                 }
             }
-            catch (InvalidOperationException)
+            else if (replayError is not null)
             {
                 lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
             }

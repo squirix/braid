@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Added
+
+- Added `BraidRunException.TryGetReplayText` for non-throwing canonical replay-text export when a typed schedule is present.
+
 ## 0.3.1
 
 ### Documentation
