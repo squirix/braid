@@ -7,6 +7,8 @@
     </Folder>
     <Folder Name="/examples/">
         <Project Path="examples/cache-cas-race/Braid.Examples.CacheCasRace.csproj"/>
+        <Project Path="examples/cancellation-before-observation/Braid.Examples.CancellationBeforeObservation.csproj"/>
+        <Project Path="examples/lost-update/Braid.Examples.LostUpdate.csproj"/>
         <Project Path="examples/user-operation-limiter/Braid.Examples.UserOperationLimiter.csproj"/>
     </Folder>
 </Solution>

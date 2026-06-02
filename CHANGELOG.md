@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 0.5.0
+
+### Added
+
+- Added `examples/lost-update` with a walkthrough for turning a read-modify-write race into a replay-token regression.
+- Added `examples/cancellation-before-observation` with a walkthrough for replaying cancellation before an operation becomes observed.
+
+### Documentation
+
+- Reworked the README around install, quick start, replay tokens, when-to-use guidance, and three featured examples.
+- Promoted `examples/cache-cas-race` alongside the new featured examples and kept `examples/user-operation-limiter` as a supplementary pattern.
+
+### Packaging
+
+- Updated package metadata for the v0.5.0 product-positioning pass.
+
 ## 0.4.0
 
 ### Added

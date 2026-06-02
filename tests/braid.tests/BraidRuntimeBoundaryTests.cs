@@ -777,59 +777,18 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
     [Fact]
     public async Task ConcurrentProbeHitsOnSameWorkerMustFailClearly()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
             await Braid.RunAsync(
-                async context =>
+                static async context =>
                 {
-                    context.Fork(async () =>
+                    context.Fork(static async () =>
                     {
                         var token = DefaultCancellationToken;
-                        var executionContext = ExecutionContext.Capture()
-                                               ?? throw new InvalidOperationException("ExecutionContext.Capture returned null.");
 
-                        var readyCount = 0;
-                        Exception? threadFailure = null;
-
-                        await Task.Run(
-                            () =>
-                            {
-                                var first = new Thread(() => HitProbe("first"));
-                                var second = new Thread(() => HitProbe("second"));
-
-                                first.Start();
-                                second.Start();
-
-                                first.Join();
-                                second.Join();
-
-                                if (threadFailure is not null)
-                                {
-                                    ExceptionDispatchInfo.Capture(threadFailure).Throw();
-                                }
-                            },
-                            DefaultCancellationToken);
-
-                        return;
-
-                        void HitProbe(string probe)
-                        {
-                            ExecutionContext.Run(
-                                executionContext,
-                                __ =>
-                                {
-                                    try
-                                    {
-                                        WaitUntilBothThreadsAreReady(ref readyCount, token);
-                                        BraidProbe.HitAsync(probe, token).AsTask().GetAwaiter().GetResult();
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _ = Interlocked.CompareExchange(ref threadFailure, ex, null);
-                                    }
-                                },
-                                null);
-                        }
+                        var firstHit = BraidProbe.HitAsync("first", token).AsTask();
+                        await BraidProbe.HitAsync("second", token);
+                        await firstHit;
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
