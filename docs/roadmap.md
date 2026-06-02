@@ -4,7 +4,7 @@ braid is deterministic concurrency testing for .NET libraries (currently **.NET 
 
 The current stable product intentionally focuses on small, reproducible async interleavings. Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control, binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
-**Recommended next release:** **v0.5.0** — product packaging and featured examples (v0.4.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
+**Recommended next release:** **v0.6.0** — bounded exploration design and optional implementation (v0.5.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
 This roadmap matches [CHANGELOG.md](../CHANGELOG.md) for completed work and keeps future direction intentionally high level.
 
@@ -73,29 +73,32 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.3.1**):
 - package version **0.3.1** in `src/braid/Braid.csproj`; release docs use **0.3.1** as the illustrative `$Version`
 - stabilized cancellation teardown test assertion (`CancellationWhileWorkerIsHeldDoesNotDeadlock`) so replay completion vs cancellation ordering does not flake
 
-## Planned releases
-
-This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
-
 ### v0.4.0 — Replay token, diagnostics, runtime boundaries
 
-Goal: make failures copy-paste friendly and document runtime probe rules—**without** new scheduling semantics or a test-framework package.
+Goal: make failures copy-paste friendly and document runtime probe rules without new scheduling semantics or a test-framework package.
 
-Scope (see CHANGELOG **Unreleased** + design doc):
+Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.4.0**):
 
 - `BraidRunException.TryGetReplayText`
-- reject overlapping probe waits on the same logical worker (flowing child tasks)
+- rejection for overlapping probe waits on the same logical worker
 - replay-token terminology and [replay-token-workflow.md](replay-token-workflow.md)
-- README replay-token section; runtime-boundary documentation
-- doc-only xUnit guidance (`ITestOutputHelper` + `ToString()` / `TryGetReplayText`) — **no** `Braid.Xunit` package in v0.4.0
-
-Deferred from earlier roadmap drafts: `BraidFailureReport`, `Braid.Xunit` → **v0.8.0** preview.
+- runtime-boundary documentation
+- doc-only xUnit guidance through `ToString()` / `TryGetReplayText`
 
 ### v0.5.0 — Product packaging and examples
 
-Goal: README restructure, three featured examples, and when-to-use guidance.
+Goal: make the current explicit-probe product easier to understand and try.
 
-Examples: lost update, cache/CAS (existing), cancellation before observation. Stable API; no `ExploreAsync` yet.
+Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.5.0**):
+
+- README restructure around install, quick start, replay tokens, and when-to-use guidance
+- three featured examples: lost update, cache/CAS, and cancellation before observation
+- walkthrough docs for the new featured examples
+- package metadata alignment
+
+## Planned releases
+
+This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
 
 ### v0.6.0 — Bounded exploration (design + optional ship)
 

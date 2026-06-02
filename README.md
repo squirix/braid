@@ -1,10 +1,10 @@
 # braid
 
-Deterministic concurrency testing for .NET libraries using explicit async probe points.
+Deterministic concurrency testing for .NET libraries using explicit async probe points and replay tokens.
 
 **Find the interleaving. Copy the replay token. Keep the race fixed forever.**
 
-Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. Roadmap: [docs/roadmap.md](docs/roadmap.md).
+Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. When a race is understood, keep the reproducing interleaving as a copyable replay token. Roadmap: [docs/roadmap.md](docs/roadmap.md).
 
 ## Install
 
@@ -20,9 +20,9 @@ For release validation and consumer smoke-test instructions, see [docs/release-p
 
 - Runs ordinary async .NET code under a deterministic scheduler.
 - Uses explicit probe points instead of runtime rewriting.
-- Supports seeded random scheduling for reproducing failures.
+- Supports seeded random scheduling while you search for useful interleavings.
 - Supports typed replay schedules with `BraidSchedule` and `BraidStep`, and **text** replay schedules via `BraidSchedule.Parse` / `TryParse`.
-- Reports failures with seed, iteration, schedule, trace, inner exception details, and—when a replay schedule was configured—a copyable **replay token** (canonical replay text) plus scheduler-state diagnostics.
+- Reports failures with seed, iteration, schedule, trace, inner exception details, and, when a replay schedule was configured, a copyable **replay token** (canonical replay text) plus scheduler-state diagnostics.
 
 ## What braid does not do
 
@@ -41,7 +41,7 @@ using Xunit;
 public sealed class BraidQuickStartTests
 {
     [Fact]
-    public async Task Fork_probe_join_completes_under_replay()
+    public async Task ForkProbeJoinCompletesUnderReplay()
     {
         var workerCompleted = false;
 
@@ -230,15 +230,24 @@ Trace:
 
 ## When to use braid
 
-- Cache and library concurrency tests.
-- CAS, TTL, and state-machine style code.
-- Race reproduction after a flaky failure is understood.
-- Small deterministic async scenarios with clear probe points.
+Use braid when the bug is about the order of a small number of async operations and you can name the important scheduling points:
 
-## Examples
+- cache, CAS, TTL, and state-machine library tests;
+- race reproduction after a flaky failure is understood;
+- regression tests where a specific interleaving should stay fixed;
+- small async scenarios where explicit probes are acceptable.
 
-- **User operation limiter** — unsafe read/check/write interleaving vs lock-protected fix; see [examples/user-operation-limiter](examples/user-operation-limiter) and [docs/examples/user-operation-limiter.md](docs/examples/user-operation-limiter.md).
-- **Cache / CAS race** — versioned cell where a stale compare-and-set must return `VersionMismatch`; uses `Arrive` / `Hit` / `Release`; see [examples/cache-cas-race](examples/cache-cas-race) and [docs/examples/cache-cas-race.md](docs/examples/cache-cas-race.md).
+Stress tests are still useful for discovering that something is flaky. Braid is useful when you want the failure to become deterministic, explainable, and replayable.
+
+Implicit scheduling or runtime interception can cover code without manual probes, but it is harder to explain and is not braid's current model. Braid keeps the boundary explicit: code reaches a named `BraidProbe.HitAsync`, then the replay schedule decides which worker continues.
+
+## Featured examples
+
+- **Lost update** — a read-modify-write race that fails under a four-step replay token; see [examples/lost-update](examples/lost-update) and [docs/examples/lost-update.md](docs/examples/lost-update.md).
+- **Cache / CAS race** — a versioned cell where a stale compare-and-set must return `VersionMismatch`; uses `Arrive` / `Hit` / `Release`; see [examples/cache-cas-race](examples/cache-cas-race) and [docs/examples/cache-cas-race.md](docs/examples/cache-cas-race.md).
+- **Cancellation before observation** — cancellation wins before an operation is recorded as observed; see [examples/cancellation-before-observation](examples/cancellation-before-observation) and [docs/examples/cancellation-before-observation.md](docs/examples/cancellation-before-observation.md).
+
+Supplementary example: [user operation limiter](examples/user-operation-limiter) shows an unsafe read/check/write interleaving next to a lock-protected fix.
 
 ## Current limitations
 
