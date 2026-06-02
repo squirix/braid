@@ -10,7 +10,7 @@ release <worker> <probe>
 
 **Product goal:** find the interleaving, copy the token, keep the race fixed forever.
 
-See also: [design/roadmap.md](design/roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md), [README.md](../README.md).
+See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md), [README.md](../README.md).
 
 ---
 

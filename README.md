@@ -4,7 +4,7 @@ Deterministic concurrency testing for .NET libraries using explicit async probe 
 
 **Find the interleaving. Copy the replay token. Keep the race fixed forever.**
 
-Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. Roadmap: [docs/design/roadmap.md](docs/design/roadmap.md).
+Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. Roadmap: [docs/roadmap.md](docs/roadmap.md).
 
 ## Install
 

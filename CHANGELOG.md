@@ -14,7 +14,7 @@
 
 ### Documentation
 
-- Added per-version design roadmaps (`docs/design/roadmap.md` index), replay-token workflow, and runtime-boundary docs.
+- Added replay-token workflow, runtime-boundary docs, and public roadmap updates.
 - README: replay token terminology, `TryGetReplayText`, product tagline; aligned [docs/roadmap.md](docs/roadmap.md) (xUnit package deferred to v0.8.0).
 
 ## 0.3.1
