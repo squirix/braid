@@ -2,13 +2,11 @@
 
 braid is deterministic concurrency testing for .NET libraries (currently **.NET 10**) using explicit async probe points.
 
-The project intentionally focuses on small, reproducible async interleavings. It does not try to replace Coyote, intercept every `await`, rewrite binaries, become a distributed-system test framework, or provide exhaustive model checking.
+The current stable product intentionally focuses on small, reproducible async interleavings. Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control, binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
 **Recommended next release:** **v0.5.0** — product packaging and featured examples (v0.4.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
-**Detailed plans:** [design/roadmap.md](design/roadmap.md) (index) · [v0.5.0](design/v0.5.0-roadmap.md)
-
-This roadmap matches [CHANGELOG.md](../CHANGELOG.md) through **v0.3.1** for completed work, with **Unreleased** treated as the v0.4.0 base per the design doc above.
+This roadmap matches [CHANGELOG.md](../CHANGELOG.md) for completed work and keeps future direction intentionally high level.
 
 ## Release policy
 
@@ -77,11 +75,11 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.3.1**):
 
 ## Planned releases
 
-See [design/roadmap.md](design/roadmap.md) for the version index, PR breakdown, risks, and version table.
+This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
 
 ### v0.4.0 — Replay token, diagnostics, runtime boundaries
 
-Goal: make failures copy-paste friendly and document runtime probe rules—**without** new scheduling semantics or a test-framework package. Plan: [design/v0.4.0-roadmap.md](design/v0.4.0-roadmap.md).
+Goal: make failures copy-paste friendly and document runtime probe rules—**without** new scheduling semantics or a test-framework package.
 
 Scope (see CHANGELOG **Unreleased** + design doc):
 
@@ -95,22 +93,17 @@ Deferred from earlier roadmap drafts: `BraidFailureReport`, `Braid.Xunit` → **
 
 ### v0.5.0 — Product packaging and examples
 
-Goal: README restructure, three featured examples, when-to-use guidance. Plan: [design/v0.5.0-roadmap.md](design/v0.5.0-roadmap.md).
+Goal: README restructure, three featured examples, and when-to-use guidance.
 
 Examples: lost update, cache/CAS (existing), cancellation before observation. Stable API; no `ExploreAsync` yet.
 
 ### v0.6.0 — Bounded exploration (design + optional ship)
 
-Goal: `ExploreAsync` RFC and optional bounded search with replay token on failure. Explicit probes only. Plan: [design/v0.6.0-roadmap.md](design/v0.6.0-roadmap.md).
+Goal: `ExploreAsync` RFC and optional bounded search with replay token on failure. Explicit probes only.
 
-## Future preview (not scheduled in detail)
+## Future preview
 
-| Version | Direction |
-|---------|-----------|
-| v0.7.0 | [Schedule shrinking](design/v0.7.0-roadmap.md) |
-| v0.8.0 | [`Braid.Xunit`](design/v0.8.0-roadmap.md) (optional package) |
-| v0.9.0 | [API hardening / RC](design/v0.9.0-roadmap.md) |
-| v1.0.0 | [Stable 1.0](design/v1.0.0-roadmap.md) |
+Future releases may include schedule shrinking, optional test-framework integration, API hardening, and a stable 1.0 explicit-probe story.
 
 ### Other ideas (experimental)
 
@@ -119,16 +112,20 @@ Goal: `ExploreAsync` RFC and optional bounded search with replay token on failur
 
 Stay experimental until the core replay-token and exploration story is stable.
 
+### Controlled runtime track
+
+Longer-term automatic scheduling work remains experimental and opt-in. Public docs should describe it only after the design is stable enough for contributor-facing discussion.
+
 ## Explicit non-goals
 
 braid will not aim to become:
 
-- a `TaskScheduler` replacement
-- a system that automatically intercepts every `await`
+- an unrestricted CLR-wide scheduler without opt-in boundaries
+- a system that silently intercepts every `await` in arbitrary code
 - a binary rewriter (no IL rewriting of user assemblies for concurrency testing)
 - a distributed-system test framework
 - an exhaustive model checker (no exhaustive state-space search as the default product story)
-- a complete Coyote replacement, a general actor runtime, or a built-in linearizability checker
+- a general actor runtime or a built-in linearizability checker
 - a Rider plugin or UI before core 1.0-quality story
 
 Related: braid does not hide races behind sleeps, delays, or timing assumptions; probes stay explicit. This mirrors [README.md](../README.md) (“What braid does not do”) in spirit and detail.

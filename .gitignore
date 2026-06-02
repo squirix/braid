@@ -7,3 +7,5 @@ obj/
 TestResults/
 coverage/
 artifacts/
+.cursor/
+docs/private/
