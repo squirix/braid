@@ -17,15 +17,13 @@ internal sealed class BraidTask : IDisposable
 
     public bool ProbeWaitInFlight { get; set; }
 
-    public Task? RunningTask { get; set; }
-
     public BraidTaskState State { get; set; } = BraidTaskState.Waiting;
 
     public string WorkerId => $"worker-{Id}";
 
-    public void Dispose() => _permit.Dispose();
-
     public void Release() => _permit.Release();
 
     public Task WaitForReleaseAsync(CancellationToken cancellationToken) => _permit.WaitAsync(cancellationToken);
+
+    public void Dispose() => _permit.Dispose();
 }

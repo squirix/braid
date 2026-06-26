@@ -2,14 +2,26 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers deterministic seed behavior.
-/// </summary>
+/// <summary>Covers deterministic seed behavior.</summary>
 public sealed class BraidDeterministicSeedTests : TestBase
 {
-    /// <summary>
-    /// Verifies random scheduling produces the same trace for the same seed.
-    /// </summary>
+    /// <summary>Verifies different seeds can explore different random traces.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunAsyncWithDifferentSeedsCanProduceDifferentTraces()
+    {
+        var traces = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var seed = 100; seed < 116; seed++)
+        {
+            var trace = await CaptureRandomTraceAsync(seed);
+            _ = traces.Add(string.Join('|', trace));
+        }
+
+        Assert.True(traces.Count >= 2, "Expected several seeds to produce at least two distinct random traces.");
+    }
+
+    /// <summary>Verifies random scheduling produces the same trace for the same seed.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncWithSameSeedProducesSameTrace()
@@ -20,35 +32,12 @@ public sealed class BraidDeterministicSeedTests : TestBase
         Assert.Equal(first, second);
     }
 
-    /// <summary>
-    /// Verifies different seeds can explore different random traces.
-    /// </summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncWithDifferentSeedsCanProduceDifferentTraces()
-    {
-        var traces = new HashSet<string>(StringComparer.Ordinal);
-
-        for (var seed = 100; seed < 116; seed++)
-        {
-            var trace = await CaptureRandomTraceAsync(seed);
-            _ = traces.Add(string.Join("|", trace));
-        }
-
-        Assert.True(traces.Count >= 2, "Expected several seeds to produce at least two distinct random traces.");
-    }
-
-    /// <summary>
-    /// Verifies scripted replay does not depend on the random seed.
-    /// </summary>
+    /// <summary>Verifies scripted replay does not depend on the random seed.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncWithScriptedScheduleIgnoresRandomSeed()
     {
-        var schedule = BraidSchedule.Replay(
-            new BraidStep("worker-3", "ready"),
-            new BraidStep("worker-1", "ready"),
-            new BraidStep("worker-2", "ready"));
+        var schedule = BraidSchedule.Replay(new BraidStep("worker-3", "ready"), new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready"));
 
         var (trace, releaseOrder) = await CaptureScriptedRunAsync(12345, schedule);
         var (actual, order) = await CaptureScriptedRunAsync(67890, schedule);
@@ -62,12 +51,12 @@ public sealed class BraidDeterministicSeedTests : TestBase
     {
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
                     for (var index = 0; index < 5; index++)
                     {
-                        context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
+                        context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
                     }
 
                     await context.JoinAsync(DefaultCancellationToken);
@@ -85,17 +74,12 @@ public sealed class BraidDeterministicSeedTests : TestBase
         var releases = new List<string>();
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 async context =>
                 {
                     for (var index = 0; index < 3; index++)
                     {
-                        var workerName = $"worker-{index + 1}";
-                        context.Fork(async () =>
-                        {
-                            await BraidProbe.HitAsync("ready", DefaultCancellationToken);
-                            releases.Add(workerName);
-                        });
+                        ForkHitReadyAddWorker(context, releases, $"worker-{index + 1}");
                     }
 
                     await context.JoinAsync(DefaultCancellationToken);

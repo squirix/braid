@@ -7,7 +7,7 @@ Each limiter instance is constructed with one `userId` and one `limit`. The unsa
 The tests are intentionally small because callers do not repeat the user and limit on every operation:
 
 ```csharp
-var limiter = new UserOperationLimiter("user-1", 1);
+var limiter = new UnsafeUserOperationLimiter("user-1", 1);
 var allowed = await limiter.TryEnterAsync(cancellationToken);
 ```
 

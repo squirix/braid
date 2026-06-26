@@ -2,30 +2,22 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers small scheduler stress smoke scenarios.
-/// </summary>
+/// <summary>Covers small scheduler stress smoke scenarios.</summary>
 public sealed class BraidStressSmokeTests : TestBase
 {
-    /// <summary>
-    /// Verifies many workers waiting at the same probe are all released.
-    /// </summary>
+    /// <summary>Verifies many workers waiting at the same probe are all released.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncCompletesManyWorkersAtSameProbe()
     {
-        var completed = 0;
+        var completed = new CompletionCounter();
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             context =>
             {
                 for (var index = 0; index < 20; index++)
                 {
-                    context.Fork(async () =>
-                    {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
-                        _ = Interlocked.Increment(ref completed);
-                    });
+                    ForkHitReadyAndIncrement(context, completed);
                 }
 
                 return context.JoinAsync(DefaultCancellationToken);
@@ -33,30 +25,24 @@ public sealed class BraidStressSmokeTests : TestBase
             new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
             DefaultCancellationToken);
 
-        Assert.Equal(20, completed);
+        Assert.Equal(20, completed.Value);
     }
 
-    /// <summary>
-    /// Verifies multiple short iterations complete without leaking scheduler state.
-    /// </summary>
+    /// <summary>Verifies multiple short iterations complete without leaking scheduler state.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncCompletesMultipleIterationsWithSmallWorkers()
     {
         const int iterations = 10;
         const int workers = 5;
-        var completed = 0;
+        var completed = new CompletionCounter();
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             context =>
             {
                 for (var index = 0; index < workers; index++)
                 {
-                    context.Fork(async () =>
-                    {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
-                        _ = Interlocked.Increment(ref completed);
-                    });
+                    ForkHitReadyAndIncrement(context, completed);
                 }
 
                 return context.JoinAsync(DefaultCancellationToken);
@@ -64,17 +50,15 @@ public sealed class BraidStressSmokeTests : TestBase
             new BraidOptions { Iterations = iterations, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
             DefaultCancellationToken);
 
-        Assert.Equal(iterations * workers, completed);
+        Assert.Equal(iterations * workers, completed.Value);
     }
 
-    /// <summary>
-    /// Verifies a scripted schedule can release several workers in reverse order.
-    /// </summary>
+    /// <summary>Verifies a scripted schedule can release several workers in reverse order.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReplaysSeveralWorkersInScriptedOrder()
     {
-        var gate = new object();
+        Lock gate = new();
         var releases = new List<string>();
         var options = new BraidOptions
         {
@@ -88,20 +72,12 @@ public sealed class BraidStressSmokeTests : TestBase
                 new BraidStep("worker-1", "ready")),
         };
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             context =>
             {
                 for (var index = 0; index < 4; index++)
                 {
-                    var worker = $"worker-{index + 1}";
-                    context.Fork(async () =>
-                    {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
-                        lock (gate)
-                        {
-                            releases.Add(worker);
-                        }
-                    });
+                    ForkHitReadyRecordWorker(context, $"worker-{index + 1}", releases, gate);
                 }
 
                 return context.JoinAsync(DefaultCancellationToken);

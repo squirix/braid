@@ -1,15 +1,61 @@
 <Project>
-    <PropertyGroup>
+    <PropertyGroup Label="Build">
         <TargetFramework>net10.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-        <AnalysisLevel>latest</AnalysisLevel>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
     </PropertyGroup>
-    <ItemGroup>
-        <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556" PrivateAssets="all"/>
+
+    <PropertyGroup Label="Analyzers">
+        <EnableNETAnalyzers>true</EnableNETAnalyzers>
+        <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+        <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
+        <RunAnalyzersDuringLiveAnalysis>true</RunAnalyzersDuringLiveAnalysis>
+        <AnalysisLevel>latest</AnalysisLevel>
+        <AnalysisMode>All</AnalysisMode>
+        <MeziantouAnalysisMode>all-errors</MeziantouAnalysisMode>
+    </PropertyGroup>
+
+    <!-- Classify projects once; reuse in conditions below. -->
+    <PropertyGroup Label="ProjectKind">
+        <_NormalizedProjectDir>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\', '/'))</_NormalizedProjectDir>
+        <IsBraidTestProject>false</IsBraidTestProject>
+    </PropertyGroup>
+    <PropertyGroup Condition="$(_NormalizedProjectDir.Contains('/tests/')) or $(_NormalizedProjectDir.Contains('/examples/'))">
+        <IsBraidTestProject>true</IsBraidTestProject>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(IsBraidTestProject)' == 'true'">
+        <!-- xUnit: public test, fixture, and helper types. -->
+        <!-- Tests run on xUnit's sync context; ConfigureAwait(false) is unnecessary and can break test semantics. -->
+        <NoWarn>$(NoWarn);CA1515;CA2007;MA0004</NoWarn>
+        <MeziantouAnalysisMode>all-errors</MeziantouAnalysisMode>
+    </PropertyGroup>
+
+    <!-- Solution-wide Roslyn analyzers (all projects). -->
+    <ItemGroup Label="GlobalAnalyzers">
+        <PackageReference Include="AsyncFixer" PrivateAssets="all"/>
+        <PackageReference Include="ErrorProne.NET.CoreAnalyzers" PrivateAssets="all"/>
+        <PackageReference Include="ErrorProne.NET.Structs" PrivateAssets="all"/>
+        <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all"/>
+        <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all"/>
+        <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all"/>
+        <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all"/>
+        <PackageReference Include="StyleCop.Analyzers" PrivateAssets="all"/>
+        <PackageReference Include="ZeroAlloc.Analyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <!-- Test-project analyzers: tests/** and examples/** (not src/**). -->
+    <ItemGroup Label="TestAnalyzers" Condition="'$(IsBraidTestProject)' == 'true'">
+        <PackageReference Include="xunit.analyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
+    <ItemGroup Label="AnalyzerConfig">
+        <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" Visible="false"/>
+        <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Visible="false"/>
     </ItemGroup>
 </Project>

@@ -6,7 +6,7 @@ internal sealed class DeterministicRandom
 
     internal DeterministicRandom(int seed)
     {
-        _state = unchecked((uint)seed);
+        _state = uint.CreateTruncating(seed);
 
         if (_state == 0)
         {
@@ -19,7 +19,8 @@ internal sealed class DeterministicRandom
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(exclusiveMax);
 
         var value = NextUInt32();
-        return (int)(value % (uint)exclusiveMax);
+        var modulus = uint.CreateTruncating(exclusiveMax);
+        return int.CreateTruncating(value % modulus);
     }
 
     private uint NextUInt32()

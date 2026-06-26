@@ -2,28 +2,27 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers explicit probe behavior.
-/// </summary>
+/// <summary>Covers explicit probe behavior.</summary>
 public sealed class BraidProbeTests : TestBase
 {
-    /// <summary>
-    /// Verifies probes are no-ops outside a braid run.
-    /// </summary>
+    /// <summary>Verifies probes are no-ops outside a braid run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task HitAsyncOutsideRunCompletesImmediately() => await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+    public async Task HitAsyncOutsideRunCompletesImmediately()
+    {
+        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        Assert.True(probe.IsCompletedSuccessfully);
+        await probe;
+    }
 
-    /// <summary>
-    /// Verifies probe behavior does not leak outside a failed run.
-    /// </summary>
+    /// <summary>Verifies probe behavior does not leak outside a failed run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task HitAsyncOutsideRunStillCompletesAfterFailedRun()
     {
         _ = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>

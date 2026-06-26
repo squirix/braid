@@ -2,14 +2,10 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers cancellation and timeout behavior.
-/// </summary>
+/// <summary>Covers cancellation and timeout behavior.</summary>
 public sealed class BraidCancellationTests : TestBase
 {
-    /// <summary>
-    /// Verifies timeout failures are reported as braid run exceptions.
-    /// </summary>
+    /// <summary>Verifies timeout failures are reported as braid run exceptions.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReportsTimeoutAsBraidRunException()
@@ -23,10 +19,10 @@ public sealed class BraidCancellationTests : TestBase
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => { await Task.Delay(TimeSpan.FromMilliseconds(200), DefaultCancellationToken); });
+                    context.Fork(static async () => await Task.Delay(TimeSpan.FromMilliseconds(200), TimeProvider.System, DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
@@ -40,12 +36,12 @@ public sealed class BraidCancellationTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Verifies external cancellation unblocks a waiting braid run.
-    /// </summary>
+    /// <summary>Verifies external cancellation unblocks a waiting braid run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncSurfacesOperationCanceledWhenCanceledExternally()
+    public async Task RunAsyncSurfacesOperationCanceledWhenCanceledExternally() => _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(RunAndCancelExternallyAsync);
+
+    private static async Task RunAndCancelExternallyAsync()
     {
         using var cancellation = new CancellationTokenSource();
         var cancellationToken = cancellation.Token;
@@ -57,27 +53,37 @@ public sealed class BraidCancellationTests : TestBase
             Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready")),
         };
 
-        var runTask = Braid.RunAsync(
-            async context =>
+        var cancelTask = StartNewOnThreadPoolAsync(
+            async () =>
             {
-                context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
-
-                context.Fork(async () =>
-                {
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        await Task.Delay(TimeSpan.FromMilliseconds(5), cancellationToken).ConfigureAwait(false);
-                    }
-                });
-
-                await context.JoinAsync(cancellationToken);
+                await Task.Delay(TimeSpan.FromMilliseconds(30), TimeProvider.System, DefaultCancellationToken);
+                await cancellation.CancelAsync();
             },
-            options,
-            cancellationToken);
+            DefaultCancellationToken);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(30), DefaultCancellationToken);
-        await cancellation.CancelAsync();
+        try
+        {
+            await BraidRunner.RunAsync(
+                async context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
 
-        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runTask);
+                    context.Fork(async () =>
+                    {
+                        while (!cancellationToken.IsCancellationRequested)
+                        {
+                            await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, cancellationToken).ConfigureAwait(false);
+                        }
+                    });
+
+                    await context.JoinAsync(cancellationToken);
+                },
+                options,
+                cancellationToken);
+        }
+        finally
+        {
+            await cancelTask;
+        }
     }
 }

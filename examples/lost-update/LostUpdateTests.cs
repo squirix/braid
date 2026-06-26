@@ -2,27 +2,17 @@ using Xunit;
 
 namespace Braid.Examples.LostUpdate;
 
-/// <summary>
-/// Demonstrates turning a lost-update interleaving into a stable replay regression.
-/// </summary>
+/// <summary>Demonstrates turning a lost-update interleaving into a stable replay regression.</summary>
 public sealed class LostUpdateTests
 {
     private static CancellationToken TestCancellationToken => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Verifies a scripted schedule reproduces the lost update and exports a replay token.
-    /// </summary>
+    /// <summary>Verifies a scripted schedule reproduces the lost update and exports a replay token.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task ReplayTokenCapturesLostUpdateInterleaving()
     {
-        var schedule = BraidSchedule.Parse(
-            """
-            hit worker-1 after-read
-            hit worker-2 after-read
-            hit worker-1 before-write
-            hit worker-2 before-write
-            """);
+        var schedule = BraidSchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read\nhit worker-1 before-write\nhit worker-2 before-write\n");
 
         var options = new BraidOptions
         {
@@ -33,7 +23,7 @@ public sealed class LostUpdateTests
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
                     var value = 0;
