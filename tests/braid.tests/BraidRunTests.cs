@@ -2,21 +2,17 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers basic braid run behavior.
-/// </summary>
+/// <summary>Covers basic braid run behavior.</summary>
 public sealed class BraidRunTests : TestBase
 {
-    /// <summary>
-    /// Verifies a run completes after forked operations complete.
-    /// </summary>
+    /// <summary>Verifies a run completes after forked operations complete.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncCompletesWhenForksComplete()
     {
         var value = 0;
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
@@ -39,16 +35,14 @@ public sealed class BraidRunTests : TestBase
         Assert.Equal(2, value);
     }
 
-    /// <summary>
-    /// Verifies all requested iterations run when each iteration passes.
-    /// </summary>
+    /// <summary>Verifies all requested iterations run when each iteration passes.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncExecutesAllIterationsWhenTheyPass()
     {
         var invocations = 0;
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             context =>
             {
                 _ = context;
@@ -61,9 +55,7 @@ public sealed class BraidRunTests : TestBase
         Assert.Equal(3, invocations);
     }
 
-    /// <summary>
-    /// Verifies the failing iteration is reported as a zero-based index.
-    /// </summary>
+    /// <summary>Verifies the failing iteration is reported as a zero-based index.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReportsFailingIterationAsZeroBasedIndex()
@@ -72,12 +64,12 @@ public sealed class BraidRunTests : TestBase
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
-                    return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
+                    return invocation is 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 3, Seed = 12345 },
                 DefaultCancellationToken);
@@ -86,9 +78,7 @@ public sealed class BraidRunTests : TestBase
         Assert.Equal(1, exception.Iteration);
     }
 
-    /// <summary>
-    /// Verifies a run stops after the first failing iteration.
-    /// </summary>
+    /// <summary>Verifies a run stops after the first failing iteration.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncStopsAfterFirstFailingIteration()
@@ -97,12 +87,12 @@ public sealed class BraidRunTests : TestBase
 
         _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
-                    return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
+                    return invocation is 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 5, Seed = 12345 },
                 DefaultCancellationToken);

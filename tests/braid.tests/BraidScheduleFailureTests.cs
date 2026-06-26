@@ -2,14 +2,10 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers scripted schedule failure behavior.
-/// </summary>
+/// <summary>Covers scripted schedule failure behavior.</summary>
 public sealed class BraidScheduleFailureTests : TestBase
 {
-    /// <summary>
-    /// Verifies schedule exhaustion fails with a clear report.
-    /// </summary>
+    /// <summary>Verifies schedule exhaustion fails with a clear report.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncFailsWhenScriptedScheduleIsExhausted()
@@ -24,12 +20,12 @@ public sealed class BraidScheduleFailureTests : TestBase
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
+                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
 
-                    context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
+                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
@@ -43,9 +39,7 @@ public sealed class BraidScheduleFailureTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Verifies an unsatisfied scripted step fails with a clear report.
-    /// </summary>
+    /// <summary>Verifies an unsatisfied scripted step fails with a clear report.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncFailsWhenScriptedStepCannotBeSatisfied()
@@ -59,10 +53,10 @@ public sealed class BraidScheduleFailureTests : TestBase
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => { await BraidProbe.HitAsync("ready", DefaultCancellationToken); });
+                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },

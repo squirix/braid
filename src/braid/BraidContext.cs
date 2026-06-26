@@ -4,7 +4,7 @@ namespace Braid;
 
 /// <summary>
 /// Provides task orchestration APIs for a braid run. Only use members while the active
-/// <see cref="Braid" /> run callback is executing.
+/// <see cref="BraidRunner" /> run callback is executing.
 /// </summary>
 public sealed class BraidContext
 {
@@ -16,9 +16,7 @@ public sealed class BraidContext
         _scheduler = scheduler;
     }
 
-    /// <summary>
-    /// Starts a logical concurrent operation controlled by the braid scheduler.
-    /// </summary>
+    /// <summary>Starts a logical concurrent operation controlled by the braid scheduler.</summary>
     /// <param name="operation">The operation to run.</param>
     public void Fork(Func<Task> operation)
     {
@@ -27,9 +25,7 @@ public sealed class BraidContext
         _scheduler.Fork(operation);
     }
 
-    /// <summary>
-    /// Runs all forked operations until they complete or the scheduler detects a failure.
-    /// </summary>
+    /// <summary>Runs all forked operations until they complete or the scheduler detects a failure.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all forked operations complete.</returns>
     public Task JoinAsync(CancellationToken cancellationToken)
@@ -42,9 +38,9 @@ public sealed class BraidContext
 
     private void ThrowIfInactive()
     {
-        if (Volatile.Read(ref _isActive) == 0)
+        if (Volatile.Read(ref _isActive) is 0)
         {
-            throw new InvalidOperationException("BraidContext can only be used during the Braid.RunAsync callback.");
+            throw new InvalidOperationException("BraidContext can only be used during the BraidRunner.RunAsync callback.");
         }
     }
 }

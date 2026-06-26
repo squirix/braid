@@ -2,16 +2,12 @@ using Xunit;
 
 namespace Braid.Examples.CancellationBeforeObservation;
 
-/// <summary>
-/// Demonstrates a cancellation race where a cancelled operation must not be counted as observed.
-/// </summary>
+/// <summary>Demonstrates a cancellation race where a cancelled operation must not be counted as observed.</summary>
 public sealed class CancellationBeforeObservationTests
 {
     private static CancellationToken TestCancellationToken => TestContext.Current.CancellationToken;
 
-    /// <summary>
-    /// Verifies cancellation wins before the observer records the operation.
-    /// </summary>
+    /// <summary>Verifies cancellation wins before the observer records the operation.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task CancelledOperationIsNotObservedWhenCancellationWinsFirst()
@@ -19,11 +15,7 @@ public sealed class CancellationBeforeObservationTests
         var options = new BraidOptions
         {
             Iterations = 1,
-            Schedule = BraidSchedule.Parse(
-                """
-                hit worker-2 cancelled
-                hit worker-1 before-observe
-                """),
+            Schedule = BraidSchedule.Parse("hit worker-2 cancelled\nhit worker-1 before-observe\n"),
         };
 
         var observed = await RunScenarioAsync(options);
@@ -36,7 +28,7 @@ public sealed class CancellationBeforeObservationTests
         var operationCancelled = false;
         var observed = false;
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>

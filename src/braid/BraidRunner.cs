@@ -2,10 +2,8 @@ using Braid.Internal;
 
 namespace Braid;
 
-/// <summary>
-/// Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.
-/// </summary>
-public static class Braid
+/// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
+public static class BraidRunner
 {
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
@@ -16,8 +14,11 @@ public static class Braid
     /// <param name="test">The test callback to execute.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
-    public static Task RunAsync(Func<BraidContext, Task> test, CancellationToken cancellationToken)
-        => RunAsync(test, null, cancellationToken);
+    /// <exception cref="ArgumentNullException"><paramref name="test" /> is null.</exception>
+    /// <exception cref="InvalidOperationException">A braid run is already active, or the callback returned a null task.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
+    /// <exception cref="BraidRunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
+    public static Task RunAsync(Func<BraidContext, Task> test, CancellationToken cancellationToken) => RunAsync(test, null, cancellationToken);
 
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
@@ -29,14 +30,17 @@ public static class Braid
     /// <param name="options">The run options.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="test" /> is null.</exception>
+    /// <exception cref="InvalidOperationException">A braid run is already active, or the callback returned a null task.</exception>
+    /// <exception cref="ArgumentException"><paramref name="options" /> failed validation.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
+    /// <exception cref="BraidRunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
     public static async Task RunAsync(Func<BraidContext, Task> test, BraidOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(test);
 
         if (BraidRunScope.CurrentScheduler is not null)
-        {
             throw new InvalidOperationException("Nested braid runs are not supported.");
-        }
 
         cancellationToken.ThrowIfCancellationRequested();
 

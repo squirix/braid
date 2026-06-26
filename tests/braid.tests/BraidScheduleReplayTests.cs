@@ -2,14 +2,10 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers scripted schedule replay behavior.
-/// </summary>
+/// <summary>Covers scripted schedule replay behavior.</summary>
 public sealed class BraidScheduleReplayTests : TestBase
 {
-    /// <summary>
-    /// Verifies scripted schedules release workers in the requested order.
-    /// </summary>
+    /// <summary>Verifies scripted schedules release workers in the requested order.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReleasesWorkersInScriptedOrder()
@@ -22,7 +18,7 @@ public sealed class BraidScheduleReplayTests : TestBase
             Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready"), new BraidStep("worker-1", "ready")),
         };
 
-        await Braid.RunAsync(
+        await BraidRunner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
@@ -45,9 +41,7 @@ public sealed class BraidScheduleReplayTests : TestBase
         Assert.Equal(["worker-2", "worker-1"], releases);
     }
 
-    /// <summary>
-    /// Verifies scripted schedules can reproduce a lost update.
-    /// </summary>
+    /// <summary>Verifies scripted schedules can reproduce a lost update.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncReplaysScriptedScheduleThatReproducesLostUpdate()
@@ -65,7 +59,7 @@ public sealed class BraidScheduleReplayTests : TestBase
 
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
         {
-            await Braid.RunAsync(
+            await BraidRunner.RunAsync(
                 static async context =>
                 {
                     var value = 0;

@@ -2,14 +2,10 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers braid schedule validation behavior.
-/// </summary>
+/// <summary>Covers braid schedule validation behavior.</summary>
 public sealed class BraidScheduleTests : TestBase
 {
-    /// <summary>
-    /// Verifies replay rejects blank probe names.
-    /// </summary>
+    /// <summary>Verifies replay rejects blank probe names.</summary>
     [Fact]
     public void ReplayThrowsForBlankProbeName()
     {
@@ -17,9 +13,7 @@ public sealed class BraidScheduleTests : TestBase
         _ = Assert.Throws<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep("worker-1", " ")));
     }
 
-    /// <summary>
-    /// Verifies replay rejects blank worker ids.
-    /// </summary>
+    /// <summary>Verifies replay rejects blank worker ids.</summary>
     [Fact]
     public void ReplayThrowsForBlankWorkerId()
     {
