@@ -62,6 +62,43 @@ public sealed class BraidApiContractTests : TestBase
             DefaultCancellationToken);
     }
 
+    /// <summary>Verifies fork validation rejects a null worker id.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public Task ForkWithWorkerIdThrowsForNullWorkerId()
+    {
+        return BraidRunner.RunAsync(
+            context =>
+            {
+                _ = Assert.Throws<ArgumentNullException>(() => context.Fork(NullTestValues.String, static () => Task.CompletedTask));
+                return Task.CompletedTask;
+            },
+            new BraidOptions { Iterations = 1, Seed = 12345 },
+            DefaultCancellationToken);
+    }
+
+    /// <summary>Verifies a named fork uses the supplied worker id in the scheduling trace.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ForkWithWorkerIdUsesStableWorkerIdInTrace()
+    {
+        BraidContext? capturedContext = null;
+
+        await BraidRunner.RunAsync(
+            async context =>
+            {
+                capturedContext = context;
+                context.Fork("reader", static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 12345 },
+            DefaultCancellationToken);
+
+        Assert.NotNull(capturedContext);
+        Assert.Contains("reader forked", capturedContext.Trace, StringComparer.Ordinal);
+        Assert.Contains("reader hit ready", capturedContext.Trace, StringComparer.Ordinal);
+    }
+
     /// <summary>Verifies probe validation rejects invalid names.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]

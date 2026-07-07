@@ -2,6 +2,17 @@ namespace Braid.Internal;
 
 internal static class BraidSchedulerSearch
 {
+    internal static Task InvokeForkOperationAsync(object? state)
+    {
+        if (state is not Func<Task> operation)
+        {
+            throw new InvalidOperationException("Invalid fork operation.");
+        }
+
+        var task = operation();
+        return task ?? Task.FromException(new InvalidOperationException("Fork operation returned a null task."));
+    }
+
     internal static Exception? FindFirstFailedException(List<BraidTask> tasks)
     {
         for (var index = 0; index < tasks.Count; index++)

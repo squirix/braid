@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 0.6.0
+
+### Added
+
+- Added `BraidRunner.ExploreAsync` for bounded hit-schedule exploration with configurable `MaxSchedules` and `MaxStepsPerSchedule`.
+- Added `BraidExploreOptions`, `BraidExploreOptionsBuilder`, and `BraidExploreContext.WorkerAsync`.
+- Added `BraidContext.Fork(string workerId, Func<Task>)` for stable worker ids in replay schedules.
+- Added [docs/design/explore-async-rfc.md](docs/design/explore-async-rfc.md).
+- Added `examples/single-file/explore-lost-update` with a walkthrough for bounded exploration and replay-token export.
+
+### Changed
+
+- Renamed the public runner from `Braid` to `BraidRunner` (breaking change for v0.5.x consumers).
+- Migrated featured examples to .NET 10 file-based apps under `examples/single-file/` (`dotnet run <example>.cs`).
+- Extracted scheduler search helpers into `BraidSchedulerSearch` and consolidated test utilities.
+
+### Fixed
+
+- Canceled fork tasks now record `OperationCanceledException` so `JoinAsync` and scheduler failure detection behave consistently with faulted workers.
+
+### Documentation
+
+- Documented bounded exploration in the README and updated the public roadmap for v0.6.0.
+
 ## 0.5.0
 
 ### Added

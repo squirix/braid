@@ -152,7 +152,7 @@ public sealed class BraidRunException : Exception
 
         try
         {
-            var replaySchedule = BraidSchedule.Replay([.. Schedule]);
+            var replaySchedule = BraidSchedule.Replay(Schedule);
             text = replaySchedule.ToReplayText();
             return true;
         }
@@ -176,8 +176,9 @@ public sealed class BraidRunException : Exception
         if (diagnostics.WaitingWorkers.Count > 0)
         {
             lines.Add("Waiting workers:");
-            foreach (var worker in diagnostics.WaitingWorkers)
+            for (var index = 0; index < diagnostics.WaitingWorkers.Count; index++)
             {
+                var worker = diagnostics.WaitingWorkers[index];
                 lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
             }
         }
@@ -185,8 +186,9 @@ public sealed class BraidRunException : Exception
         if (diagnostics.HeldWorkers.Count > 0)
         {
             lines.Add("Held workers:");
-            foreach (var worker in diagnostics.HeldWorkers)
+            for (var index = 0; index < diagnostics.HeldWorkers.Count; index++)
             {
+                var worker = diagnostics.HeldWorkers[index];
                 lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
             }
         }
@@ -197,8 +199,9 @@ public sealed class BraidRunException : Exception
         }
 
         lines.Add("Unused replay steps:");
-        foreach (var (oneBasedIndex, step) in diagnostics.UnusedReplaySteps)
+        for (var index = 0; index < diagnostics.UnusedReplaySteps.Count; index++)
         {
+            var (oneBasedIndex, step) = diagnostics.UnusedReplaySteps[index];
             lines.Add($"  {oneBasedIndex}. {BraidReplayFormat.CanonicalStepLine(step)}");
         }
     }

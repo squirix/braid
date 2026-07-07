@@ -1,3 +1,9 @@
+#:sdk Microsoft.NET.Sdk
+#:property PublishAot=false
+#:project ../../../src/braid/Braid.csproj
+#:package xunit.v3@3.2.2
+#:package Microsoft.NET.Test.Sdk@18.7.0
+
 using Xunit;
 
 namespace Braid.Examples.LostUpdate;

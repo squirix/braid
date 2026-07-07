@@ -33,15 +33,16 @@ public sealed class BraidSchedule
     public static BraidSchedule Replay(params BraidStep[] steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
+        return CreateReplaySchedule(steps, steps.Length);
+    }
 
-        var copy = new BraidStep[steps.Length];
-        for (var index = 0; index < steps.Length; index++)
-        {
-            copy[index] = steps[index];
-            copy[index].Validate();
-        }
-
-        return new BraidSchedule(Array.AsReadOnly(copy));
+    /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
+    /// <param name="steps">The worker replay steps.</param>
+    /// <returns>A replay schedule.</returns>
+    public static BraidSchedule Replay(IReadOnlyList<BraidStep> steps)
+    {
+        ArgumentNullException.ThrowIfNull(steps);
+        return CreateReplaySchedule(steps, steps.Count);
     }
 
     /// <summary>Attempts to parse a line-based textual replay schedule.</summary>
@@ -93,10 +94,22 @@ public sealed class BraidSchedule
 
     internal void Validate()
     {
-        foreach (var step in Steps)
+        for (var index = 0; index < Steps.Count; index++)
         {
-            step.Validate();
+            Steps[index].Validate();
         }
+    }
+
+    private static BraidSchedule CreateReplaySchedule(IReadOnlyList<BraidStep> steps, int count)
+    {
+        var copy = new BraidStep[count];
+        for (var index = 0; index < count; index++)
+        {
+            copy[index] = steps[index];
+            copy[index].Validate();
+        }
+
+        return new BraidSchedule(Array.AsReadOnly(copy));
     }
 
     private static void EnsureReplayTextRepresentable(string value, bool isWorkerId)

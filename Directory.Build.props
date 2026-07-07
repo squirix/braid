@@ -23,7 +23,7 @@
         <_NormalizedProjectDir>$([System.String]::Copy('$(MSBuildProjectDirectory)').Replace('\', '/'))</_NormalizedProjectDir>
         <IsBraidTestProject>false</IsBraidTestProject>
     </PropertyGroup>
-    <PropertyGroup Condition="$(_NormalizedProjectDir.Contains('/tests/')) or $(_NormalizedProjectDir.Contains('/examples/'))">
+    <PropertyGroup Condition="$(_NormalizedProjectDir.Contains('/tests/'))">
         <IsBraidTestProject>true</IsBraidTestProject>
     </PropertyGroup>
 
@@ -49,7 +49,7 @@
         <PackageReference Include="ZeroAlloc.Analyzers" PrivateAssets="all"/>
     </ItemGroup>
 
-    <!-- Test-project analyzers: tests/** and examples/** (not src/**). -->
+    <!-- Test-project analyzers: tests/** (not src/**). -->
     <ItemGroup Label="TestAnalyzers" Condition="'$(IsBraidTestProject)' == 'true'">
         <PackageReference Include="xunit.analyzers" PrivateAssets="all"/>
     </ItemGroup>

@@ -61,5 +61,8 @@ jobs:
             - name: Test
               run: dotnet test --configuration Release --no-build
 
+            - name: Run file-based examples
+              run: bash examples/single-file/run-examples.sh Release
+
             - name: Pack
               run: dotnet pack --configuration Release --no-build

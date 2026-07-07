@@ -370,7 +370,7 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
             options,
             DefaultCancellationToken);
 
-        _ = Assert.Single(options.Schedule!.Steps);
+        _ = Assert.Single(options.Schedule.Steps);
         await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
     }
 

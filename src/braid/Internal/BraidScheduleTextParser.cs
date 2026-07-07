@@ -32,13 +32,9 @@ internal static class BraidScheduleTextParser
             }
         }
 
-        if (steps.Count is 0)
-        {
-            error = "Text contains no replay steps (only comments or empty lines).";
-            return false;
-        }
-
-        return TryCreateSchedule(steps, out schedule, out error);
+        if (steps.Count is not 0) return TryCreateSchedule(steps, out schedule, out error);
+        error = "Text contains no replay steps (only comments or empty lines).";
+        return false;
     }
 
     private static bool TryCreateSchedule(List<BraidStep> steps, out BraidSchedule? schedule, [NotNullWhen(false)] out string? error)
@@ -48,7 +44,7 @@ internal static class BraidScheduleTextParser
 
         try
         {
-            schedule = BraidSchedule.Replay([.. steps]);
+            schedule = BraidSchedule.Replay(steps);
             return true;
         }
         catch (ArgumentException ex)
@@ -169,12 +165,8 @@ internal static class BraidScheduleTextParser
             return false;
         }
 
-        if (probeName.Length is 0)
-        {
-            error = $"Line {lineNumber}: Probe name must not be empty.";
-            return false;
-        }
-
-        return true;
+        if (probeName.Length is not 0) return true;
+        error = $"Line {lineNumber}: Probe name must not be empty.";
+        return false;
     }
 }

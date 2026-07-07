@@ -35,5 +35,5 @@ Example projects inherit **`net10.0`** from the repository root [`Directory.Buil
 Run the example with:
 
 ```powershell
-dotnet test examples/user-operation-limiter/Braid.Examples.UserOperationLimiter.csproj --configuration Release
+dotnet run examples/single-file/user-operation-limiter/user-operation-limiter.cs --configuration Release
 ```

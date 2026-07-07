@@ -4,7 +4,7 @@ braid is deterministic concurrency testing for .NET libraries (currently **.NET 
 
 The current stable product intentionally focuses on small, reproducible async interleavings. Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control, binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
-**Recommended next release:** **v0.6.0** — bounded exploration design and optional implementation (v0.5.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
+**Recommended next release:** **v0.7.0** — follow-on exploration and API hardening (v0.6.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
 This roadmap matches [CHANGELOG.md](../CHANGELOG.md) for completed work and keeps future direction intentionally high level.
 
@@ -59,7 +59,7 @@ Delivered:
 - `BraidSchedule.ToReplayText()` and canonical replay text format
 - replay text in failure reports when a typed replay schedule was configured and can be exported
 - scheduler-state diagnostics in failure reports when available (for example last matched replay step, waiting workers, held workers, unused replay steps)
-- `examples/cache-cas-race` with walkthrough for versioned compare-and-set under `Arrive` / `Hit` / `Release` replay
+- `examples/single-file/cache-cas-race` with walkthrough for versioned compare-and-set under `Arrive` / `Hit` / `Release` replay
 - README documentation for text replay schedules, failure-report replay text, scheduler diagnostics, and limits for random-only runs; README links the cache/CAS example
 
 ### v0.3.1 — Documentation, roadmap, and hardening
@@ -96,13 +96,26 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.5.0**):
 - walkthrough docs for the new featured examples
 - package metadata alignment
 
+### v0.6.0 — Bounded exploration
+
+Goal: bounded schedule search with replay token on failure. Explicit probes only.
+
+Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.6.0** and [design/explore-async-rfc.md](design/explore-async-rfc.md)):
+
+- `BraidRunner.ExploreAsync` with `BraidExploreOptionsBuilder` (`WithSeed`, `WithMaxSchedules`, `WithMaxStepsPerSchedule`)
+- `BraidExploreContext.WorkerAsync` worker-oriented facade
+- `BraidContext.Fork(string workerId, ...)` for stable worker ids
+- bounded depth-first hit-schedule enumeration with discovery trace parsing
+- README exploration section and RFC
+- `examples/single-file/explore-lost-update` with walkthrough for discovery → replay token → `RunAsync` regression
+
 ## Planned releases
 
 This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
 
-### v0.6.0 — Bounded exploration (design + optional ship)
+### v0.7.0 — Exploration follow-on
 
-Goal: `ExploreAsync` RFC and optional bounded search with replay token on failure. Explicit probes only.
+Goal: fairness-aware search, richer failure collection, and API hardening.
 
 ## Future preview
 

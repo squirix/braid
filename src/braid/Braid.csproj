@@ -3,7 +3,7 @@
         <AssemblyName>Braid</AssemblyName>
         <RootNamespace>Braid</RootNamespace>
         <PackageId>braid</PackageId>
-        <Version>0.5.0</Version>
+        <Version>0.6.0</Version>
         <Title>braid</Title>
         <Description>Deterministic concurrency testing for .NET libraries using explicit async probe points and replay tokens.</Description>
         <Authors>Squirix</Authors>
