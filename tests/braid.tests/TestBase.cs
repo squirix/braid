@@ -39,6 +39,7 @@ public abstract class TestBase
         try
         {
             await runTask;
+            Assert.Fail("Expected BraidRunException for concurrent probe hit on the same worker.");
         }
         catch (BraidRunException exception)
         {

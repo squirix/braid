@@ -78,30 +78,19 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
     [Fact]
     public async Task ConcurrentProbeHitsOnSameWorkerMustFailClearly()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () =>
-                    {
-                        var token = DefaultCancellationToken;
-
-                        var firstHit = BraidProbe.HitAsync("first", token).AsTask();
-                        await BraidProbe.HitAsync("second", token);
-                        await firstHit;
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions
-                {
-                    Iterations = 1,
-                    Seed = 12345,
-                    Timeout = TimeSpan.FromSeconds(2),
-                },
-                DefaultCancellationToken);
-        });
+        var exception = await Assert.ThrowsAsync<BraidRunException>(static () => BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () => await RunTwoThreadProbeRaceAsync("first", "second"));
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions
+            {
+                Iterations = 1,
+                Seed = 12345,
+                Timeout = TimeSpan.FromSeconds(2),
+            },
+            DefaultCancellationToken));
 
         Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
     }
