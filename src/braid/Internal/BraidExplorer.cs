@@ -38,13 +38,13 @@ internal static class BraidExplorer
         }
 
         var workerProbeSequences = BraidProbeCatalog.ParseWorkerProbeSequences(discoveryTrace);
+        if (discoveryFailure is not null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count is 0)
+        {
+            throw discoveryFailure;
+        }
+
         if (workerProbeSequences.Count is 0)
         {
-            if (discoveryFailure is not null && IsExplorationTargetFailure(discoveryFailure))
-            {
-                throw discoveryFailure;
-            }
-
             return;
         }
 
@@ -102,22 +102,17 @@ internal static class BraidExplorer
 
     private static bool IsExplorationTargetFailure(BraidRunException exception)
     {
+        if (exception.FailureOrigin is not BraidRunFailureOrigin.UserTest)
+        {
+            return false;
+        }
+
         if (exception.InnerException is null)
         {
             return false;
         }
 
-        if (exception.InnerException is BraidRunException)
-        {
-            return false;
-        }
-
-        if (exception.Schedule.Count > 0)
-        {
-            return true;
-        }
-
-        return exception.InnerException is not InvalidOperationException and not FormatException;
+        return exception.InnerException is not BraidRunException;
     }
 
     private sealed class ExploreCallback(Func<BraidExploreContext, Task> test)

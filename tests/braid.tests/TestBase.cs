@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Runtime.ExceptionServices;
 using Xunit;
 
@@ -39,7 +38,6 @@ public abstract class TestBase
         try
         {
             await runTask;
-            Assert.Fail("Expected BraidRunException for concurrent probe hit on the same worker.");
         }
         catch (BraidRunException exception)
         {
@@ -48,6 +46,23 @@ public abstract class TestBase
                 Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
             }
 
+            Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
+        }
+    }
+
+    /// <summary>Asserts a concurrent probe race always fails with the expected braid error (no silent serialization).</summary>
+    /// <param name="startRun">Starts the braid run to observe.</param>
+    protected static async Task AssertConcurrentProbeRaceMustFailAsync(Func<Task> startRun)
+    {
+        ArgumentNullException.ThrowIfNull(startRun);
+        var runTask = startRun();
+        try
+        {
+            await runTask;
+            Assert.Fail("Expected BraidRunException for concurrent probe hit on the same worker.");
+        }
+        catch (BraidRunException exception)
+        {
             Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
         }
     }
@@ -356,16 +371,35 @@ public abstract class TestBase
 
     private static void WaitUntilCompletedOrFail(Task task, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage)
     {
-        var stopwatch = Stopwatch.StartNew();
-        SpinWait spinWait = default;
-        while (!task.IsCompleted)
+        if (task.IsCompleted)
         {
-            if (stopwatch.Elapsed >= watchdogTimeout)
+            return;
+        }
+
+        var completed = new ManualResetEventSlim(false);
+        try
+        {
+            _ = task.ContinueWith(
+                static (_, state) =>
+                {
+                    if (state is ManualResetEventSlim signal)
+                    {
+                        signal.Set();
+                    }
+                },
+                completed,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+
+            if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
             {
                 Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
             }
-
-            spinWait.SpinOnce();
+        }
+        finally
+        {
+            completed.Dispose();
         }
     }
 

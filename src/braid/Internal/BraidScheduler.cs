@@ -27,7 +27,7 @@ internal sealed class BraidScheduler : IDisposable
         _random = new DeterministicRandom(seed);
     }
 
-    public BraidRunException CreateException(string message, Exception? innerException)
+    public BraidRunException CreateException(string message, Exception? innerException, BraidRunFailureOrigin failureOrigin = BraidRunFailureOrigin.Scheduler)
     {
         IReadOnlyList<string> traceSnapshot;
         IReadOnlyList<BraidStep> scheduleSnapshot;
@@ -42,7 +42,7 @@ internal sealed class BraidScheduler : IDisposable
             diagnostics = BuildDiagnosticSnapshot();
         }
 
-        return new BraidRunException(resolvedMessage, _seed, _iteration, traceSnapshot, scheduleSnapshot, innerException, diagnostics);
+        return new BraidRunException(resolvedMessage, _seed, _iteration, traceSnapshot, scheduleSnapshot, innerException, diagnostics, failureOrigin);
     }
 
     public void Fork(Func<Task> operation) => Fork(null, operation);
@@ -67,7 +67,7 @@ internal sealed class BraidScheduler : IDisposable
         registration.ForkTask = Task.Factory.StartNew(
             RunForkedOperationAsync,
             (braidTask, operation, registration),
-            _shutdownCts.Token,
+            CancellationToken.None,
             TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default).Unwrap();
 
@@ -176,6 +176,18 @@ internal sealed class BraidScheduler : IDisposable
 
     private static string FormatStep(BraidStep step) =>
         step.Kind is BraidStepKind.Hit ? $"Hit {step.WorkerId} at {step.ProbeName}" : $"{step.Kind} {step.WorkerId} at {step.ProbeName}";
+
+    private static OperationCanceledException PreserveCanceledException(Task canceledTask)
+    {
+        if (canceledTask.Exception?.GetBaseException() is not OperationCanceledException operationCanceled)
+        {
+            return new OperationCanceledException();
+        }
+
+        return operationCanceled is TaskCanceledException
+            ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
+            : operationCanceled;
+    }
 
     private static BraidTask? TrySelectStartupTask(BraidTask[] waitingTasks)
     {
@@ -313,7 +325,7 @@ internal sealed class BraidScheduler : IDisposable
             await opTask.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             if (opTask.IsCanceled)
             {
-                braidTask.Exception = new OperationCanceledException();
+                braidTask.Exception = PreserveCanceledException(opTask);
             }
             else if (opTask.IsFaulted)
             {
@@ -468,7 +480,7 @@ internal sealed class BraidScheduler : IDisposable
         if (failure is not null)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            throw CreateException("A forked operation failed.", failure);
+            throw CreateException("A forked operation failed.", failure, BraidRunFailureOrigin.UserTest);
         }
 
         if (_tasks.Count is 0 || _tasks.TrueForAll(static task => task.State is BraidTaskState.Completed))

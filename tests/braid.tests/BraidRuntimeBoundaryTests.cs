@@ -76,12 +76,35 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
     /// <summary>Verifies concurrent probe waits on the same logical worker are rejected instead of being serialized.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ConcurrentProbeHitsOnSameWorkerMustFailClearly()
+    public Task ConcurrentProbeHitsOnSameWorkerMustFailClearly()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static () => BraidRunner.RunAsync(
+        return AssertConcurrentProbeRaceMustFailAsync(static () => BraidRunner.RunAsync(
             static async context =>
             {
-                context.Fork(static async () => await RunTwoThreadProbeRaceAsync("first", "second"));
+                context.Fork(static async () =>
+                {
+                    var firstProbeInFlight = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+                    var firstProbeTask = StartNewOnThreadPoolAsync(
+                        async () =>
+                        {
+                            var hitTask = BraidProbe.HitAsync("first", DefaultCancellationToken).AsTask();
+                            firstProbeInFlight.SetResult();
+                            await hitTask;
+                        },
+                        DefaultCancellationToken);
+
+                    await firstProbeInFlight.Task.WaitAsync(DefaultCancellationToken);
+                    await BraidProbe.HitAsync("second", DefaultCancellationToken);
+                    await firstProbeTask;
+                });
+
+                context.Fork(static async () =>
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
+                    await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                });
+
                 await context.JoinAsync(DefaultCancellationToken);
             },
             new BraidOptions
@@ -89,10 +112,9 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
                 Iterations = 1,
                 Seed = 12345,
                 Timeout = TimeSpan.FromSeconds(2),
+                Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "first"), BraidStep.Hit("worker-2", "other")),
             },
             DefaultCancellationToken));
-
-        Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
     }
 
     /// <summary>Verifies external cancellation wins over a subsequent worker failure.</summary>

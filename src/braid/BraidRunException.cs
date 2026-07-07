@@ -47,6 +47,7 @@ public sealed class BraidRunException : Exception
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
     /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
+    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
     public BraidRunException(
         string message,
         int seed,
@@ -54,7 +55,8 @@ public sealed class BraidRunException : Exception
         IReadOnlyList<string> trace,
         IReadOnlyList<BraidStep>? schedule,
         Exception? innerException,
-        BraidSchedulerDiagnostics? schedulerDiagnostics = null)
+        BraidSchedulerDiagnostics? schedulerDiagnostics = null,
+        BraidRunFailureOrigin failureOrigin = BraidRunFailureOrigin.Scheduler)
         : base(message, innerException)
     {
         ArgumentNullException.ThrowIfNull(trace);
@@ -64,7 +66,11 @@ public sealed class BraidRunException : Exception
         Trace = Array.AsReadOnly([.. trace]);
         Schedule = schedule is null ? Array.Empty<BraidStep>() : Array.AsReadOnly([.. schedule]);
         SchedulerDiagnostics = schedulerDiagnostics;
+        FailureOrigin = failureOrigin;
     }
+
+    /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
+    public BraidRunFailureOrigin FailureOrigin { get; }
 
     /// <summary>Gets the zero-based failing iteration index.</summary>
     public int Iteration { get; }

@@ -31,10 +31,7 @@ internal static class BraidProbeCatalog
                 sequences[workerId] = probes;
             }
 
-            if (probes.Count is 0 || !string.Equals(probes[^1], probeName, StringComparison.Ordinal))
-            {
-                probes.Add(probeName);
-            }
+            probes.Add(probeName);
         }
 
         return sequences;

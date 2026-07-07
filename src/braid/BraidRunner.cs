@@ -109,7 +109,7 @@ public static class BraidRunner
             catch (Exception ex)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
-                throw scheduler.CreateException("braid run failed.", ex);
+                throw scheduler.CreateException("braid run failed.", ex, BraidRunFailureOrigin.UserTest);
             }
             finally
             {
