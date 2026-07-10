@@ -81,29 +81,33 @@ public sealed class BraidRuntimeBoundaryTests : TestBase
         return AssertConcurrentProbeRaceMustFailAsync(static () => BraidRunner.RunAsync(
             static async context =>
             {
-                context.Fork(static async () =>
-                {
-                    var firstProbeInFlight = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                context.Fork(
+                    "worker-1",
+                    static async () =>
+                    {
+                        var firstProbeInFlight = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-                    var firstProbeTask = StartNewOnThreadPoolAsync(
-                        async () =>
-                        {
-                            var hitTask = BraidProbe.HitAsync("first", DefaultCancellationToken).AsTask();
-                            firstProbeInFlight.SetResult();
-                            await hitTask;
-                        },
-                        DefaultCancellationToken);
+                        var firstProbeTask = StartNewOnThreadPoolAsync(
+                            async () =>
+                            {
+                                var hitTask = BraidProbe.HitAsync("first", DefaultCancellationToken).AsTask();
+                                firstProbeInFlight.SetResult();
+                                await hitTask;
+                            },
+                            DefaultCancellationToken);
 
-                    await firstProbeInFlight.Task.WaitAsync(DefaultCancellationToken);
-                    await BraidProbe.HitAsync("second", DefaultCancellationToken);
-                    await firstProbeTask;
-                });
+                        await firstProbeInFlight.Task.WaitAsync(DefaultCancellationToken);
+                        await BraidProbe.HitAsync("second", DefaultCancellationToken);
+                        await firstProbeTask;
+                    });
 
-                context.Fork(static async () =>
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
-                    await BraidProbe.HitAsync("other", DefaultCancellationToken);
-                });
+                context.Fork(
+                    "worker-2",
+                    static async () =>
+                    {
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
+                        await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                    });
 
                 await context.JoinAsync(DefaultCancellationToken);
             },

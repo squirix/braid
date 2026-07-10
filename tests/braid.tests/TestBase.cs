@@ -377,30 +377,25 @@ public abstract class TestBase
         }
 
         var completed = new ManualResetEventSlim(false);
-        try
-        {
-            _ = task.ContinueWith(
-                static (_, state) =>
-                {
-                    if (state is ManualResetEventSlim signal)
-                    {
-                        signal.Set();
-                    }
-                },
-                completed,
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
-
-            if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
+        _ = task.ContinueWith(
+            static (_, state) =>
             {
-                Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
-            }
-        }
-        finally
+                if (state is ManualResetEventSlim signal)
+                {
+                    signal.Set();
+                }
+            },
+            completed,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
         {
-            completed.Dispose();
+            Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
         }
+
+        completed.Dispose();
     }
 
     private static void RethrowIfFaultedOrCanceled(Task task)

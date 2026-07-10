@@ -30,6 +30,11 @@ internal static class BraidScheduleEnumerator
 
         while (stack.Count > 0)
         {
+            if (yielded >= maxSchedules)
+            {
+                break;
+            }
+
             var frame = stack.Pop();
             if (AllWorkersCompleted(workerIds, sequences, frame.Progress))
             {
