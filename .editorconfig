@@ -298,6 +298,8 @@ resharper_place_constructor_initializer_on_same_line = false
 # Meziantou.Analyzer Rules
 # Allow member access expressions (e.g. request.Definition) where the root is a parameter.
 MA0015.consider_member_access_as_parameter = true
+# MA0211: Require multi-line <summary> XML comments; single-line summaries are fine for short, obvious members.
+dotnet_diagnostic.MA0211.severity = none
 
 # MA0016: Prefer collection abstraction over concrete types on public API — conflicts with zero-allocation and concrete test helpers.
 dotnet_diagnostic.MA0016.severity = none

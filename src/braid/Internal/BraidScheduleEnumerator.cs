@@ -49,11 +49,11 @@ internal static class BraidScheduleEnumerator
                 continue;
             }
 
-            TryScheduleNextWorker(workerIds, sequences, frame, stack);
+            ScheduleNextWorker(workerIds, sequences, frame, stack);
         }
     }
 
-    private static void TryScheduleNextWorker(
+    private static void ScheduleNextWorker(
         string[] workerIds,
         IReadOnlyList<string>[] sequences,
         SearchFrame frame,

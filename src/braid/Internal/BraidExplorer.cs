@@ -34,7 +34,7 @@ internal static class BraidExplorer
 
         if (discoveryTrace.Count is 0 && callback.DiscoveryContext is not null)
         {
-            discoveryTrace = callback.DiscoveryContext.Trace;
+            discoveryTrace = callback.DiscoveryContext.TraceSteps;
         }
 
         var workerProbeSequences = BraidProbeCatalog.ParseWorkerProbeSequences(discoveryTrace);

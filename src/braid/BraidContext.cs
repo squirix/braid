@@ -17,7 +17,7 @@ public sealed class BraidContext
     }
 
     /// <summary>Gets the scheduling trace from the completed run, when available.</summary>
-    public IReadOnlyList<string> Trace { get; private set; } = [];
+    public IReadOnlyList<string> TraceSteps { get; private set; } = [];
 
     /// <summary>Starts a logical concurrent operation controlled by the braid scheduler.</summary>
     /// <param name="operation">The operation to run.</param>
@@ -50,7 +50,7 @@ public sealed class BraidContext
 
     internal void Complete()
     {
-        Trace = _scheduler.GetTraceSnapshot();
+        TraceSteps = _scheduler.GetTraceSnapshot();
         _ = Interlocked.Exchange(ref _isActive, 0);
     }
 

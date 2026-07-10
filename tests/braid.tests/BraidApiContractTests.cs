@@ -95,8 +95,8 @@ public sealed class BraidApiContractTests : TestBase
             DefaultCancellationToken);
 
         Assert.NotNull(capturedContext);
-        Assert.Contains("reader forked", capturedContext.Trace, StringComparer.Ordinal);
-        Assert.Contains("reader hit ready", capturedContext.Trace, StringComparer.Ordinal);
+        Assert.Contains("reader forked", capturedContext.TraceSteps, StringComparer.Ordinal);
+        Assert.Contains("reader hit ready", capturedContext.TraceSteps, StringComparer.Ordinal);
     }
 
     /// <summary>Verifies probe validation rejects invalid names.</summary>
