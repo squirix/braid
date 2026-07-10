@@ -1,0 +1,26 @@
+<Project>
+    <PropertyGroup>
+        <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+        <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+        <EnableNETAnalyzers>false</EnableNETAnalyzers>
+        <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+        <RunAnalyzersDuringLiveAnalysis>false</RunAnalyzersDuringLiveAnalysis>
+        <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+        <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Remove="AsyncFixer"/>
+        <PackageReference Remove="ErrorProne.NET.CoreAnalyzers"/>
+        <PackageReference Remove="ErrorProne.NET.Structs"/>
+        <PackageReference Remove="Meziantou.Analyzer"/>
+        <PackageReference Remove="Microsoft.CodeAnalysis.BannedApiAnalyzers"/>
+        <PackageReference Remove="Microsoft.CodeAnalysis.NetAnalyzers"/>
+        <PackageReference Remove="Microsoft.VisualStudio.Threading.Analyzers"/>
+        <PackageReference Remove="Roslynator.Analyzers"/>
+        <PackageReference Remove="SonarAnalyzer.CSharp"/>
+        <PackageReference Remove="StyleCop.Analyzers"/>
+        <PackageReference Remove="ZeroAlloc.Analyzers"/>
+        <PackageReference Remove="xunit.analyzers"/>
+    </ItemGroup>
+</Project>

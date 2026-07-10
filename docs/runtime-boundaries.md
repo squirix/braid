@@ -31,13 +31,13 @@ Tests: `BraidRuntimeBoundaryTests.ProbeInsideFlowingChildTaskConcurrentWithParen
 
 ## Outside a braid run
 
-`BraidProbe.HitAsync` completes immediately when no `Braid.RunAsync` is active. Probes do not schedule outside a run.
+`BraidProbe.HitAsync` completes immediately when no `BraidRunner.RunAsync` is active. Probes do not schedule outside a run.
 
 ---
 
 ## Other lifecycle rules
 
-- Nested `Braid.RunAsync` calls are not supported.
+- Nested `BraidRunner.RunAsync` calls are not supported.
 - `BraidContext` is valid only during the active run callback.
 - Fork delegates must return a non-null `Task`.
 - Probe names cannot be null, empty, or whitespace.

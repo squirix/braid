@@ -1,6 +1,6 @@
 # Lost update example
 
-This example turns a classic read-modify-write race into a stable replay regression.
+This example turns a classic read-modify-write race into a stable replay regression. To discover the failing interleaving without writing the schedule by hand, see [explore-lost-update](explore-lost-update.md).
 
 Two workers read the same integer value, both stop at `after-read`, then both stop again at `before-write`. The replay schedule releases them so each worker writes `current + 1` from the same original value. The final assertion expects `2`, so the reproduced interleaving fails with a `BraidRunException`.
 
@@ -20,7 +20,7 @@ The test catches the failure and calls `TryGetReplayText` to prove the report co
 ## Run it
 
 ```bash
-dotnet test examples/lost-update/Braid.Examples.LostUpdate.csproj
+dotnet run examples/single-file/lost-update/lost-update.cs
 ```
 
 The test passes because it expects the failing interleaving and verifies the replay token.

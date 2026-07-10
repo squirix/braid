@@ -47,6 +47,7 @@ public sealed class BraidRunException : Exception
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
     /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
+    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
     public BraidRunException(
         string message,
         int seed,
@@ -54,7 +55,8 @@ public sealed class BraidRunException : Exception
         IReadOnlyList<string> trace,
         IReadOnlyList<BraidStep>? schedule,
         Exception? innerException,
-        BraidSchedulerDiagnostics? schedulerDiagnostics = null)
+        BraidSchedulerDiagnostics? schedulerDiagnostics = null,
+        BraidRunFailureOrigin failureOrigin = BraidRunFailureOrigin.Scheduler)
         : base(message, innerException)
     {
         ArgumentNullException.ThrowIfNull(trace);
@@ -64,7 +66,11 @@ public sealed class BraidRunException : Exception
         Trace = Array.AsReadOnly([.. trace]);
         Schedule = schedule is null ? Array.Empty<BraidStep>() : Array.AsReadOnly([.. schedule]);
         SchedulerDiagnostics = schedulerDiagnostics;
+        FailureOrigin = failureOrigin;
     }
+
+    /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
+    public BraidRunFailureOrigin FailureOrigin { get; }
 
     /// <summary>Gets the zero-based failing iteration index.</summary>
     public int Iteration { get; }
@@ -152,7 +158,7 @@ public sealed class BraidRunException : Exception
 
         try
         {
-            var replaySchedule = BraidSchedule.Replay([.. Schedule]);
+            var replaySchedule = BraidSchedule.Replay(Schedule);
             text = replaySchedule.ToReplayText();
             return true;
         }
@@ -176,8 +182,9 @@ public sealed class BraidRunException : Exception
         if (diagnostics.WaitingWorkers.Count > 0)
         {
             lines.Add("Waiting workers:");
-            foreach (var worker in diagnostics.WaitingWorkers)
+            for (var index = 0; index < diagnostics.WaitingWorkers.Count; index++)
             {
+                var worker = diagnostics.WaitingWorkers[index];
                 lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
             }
         }
@@ -185,8 +192,9 @@ public sealed class BraidRunException : Exception
         if (diagnostics.HeldWorkers.Count > 0)
         {
             lines.Add("Held workers:");
-            foreach (var worker in diagnostics.HeldWorkers)
+            for (var index = 0; index < diagnostics.HeldWorkers.Count; index++)
             {
+                var worker = diagnostics.HeldWorkers[index];
                 lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
             }
         }
@@ -197,8 +205,9 @@ public sealed class BraidRunException : Exception
         }
 
         lines.Add("Unused replay steps:");
-        foreach (var (oneBasedIndex, step) in diagnostics.UnusedReplaySteps)
+        for (var index = 0; index < diagnostics.UnusedReplaySteps.Count; index++)
         {
+            var (oneBasedIndex, step) = diagnostics.UnusedReplaySteps[index];
             lines.Add($"  {oneBasedIndex}. {BraidReplayFormat.CanonicalStepLine(step)}");
         }
     }

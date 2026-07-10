@@ -171,8 +171,14 @@ dotnet_analyzer_diagnostic.category-roslynator.severity = warning
 dotnet_diagnostic.RCS1069.severity = none
 # Convert interpolated string to concatenation
 dotnet_diagnostic.RCS1217.severity = none
+# Remove redundant statement — conflicts with explicit control-flow in some methods.
+dotnet_diagnostic.RCS1134.severity = none
+# RCS1021: Use expression-bodied lambda, it makes XUnit box the value inside an assert
+dotnet_diagnostic.RCS1021.severity = none
 
 # ZeroAlloc.Analyzers (ZA): promote Info rules to warning for dotnet build (TreatWarningsAsErrors => error).
+# No single category-zeroalloc — rules use Performance.* subcategories (see ZeroAlloc DiagnosticCategories.cs).
+# Do NOT use category-Performance: that also elevates CA18xx/CA186x NetAnalyzers in the same bucket.
 dotnet_analyzer_diagnostic.category-Performance.Collections.severity = warning
 dotnet_analyzer_diagnostic.category-Performance.Strings.severity = warning
 dotnet_analyzer_diagnostic.category-Performance.Memory.severity = warning
@@ -186,6 +192,54 @@ dotnet_analyzer_diagnostic.category-Performance.Serialization.severity = warning
 dotnet_analyzer_diagnostic.category-Performance.Async.severity = warning
 dotnet_analyzer_diagnostic.category-Performance.Delegates.severity = warning
 dotnet_analyzer_diagnostic.category-Performance.ValueTypes.severity = warning
+dotnet_analyzer_diagnostic.category-Performance.DataLayout.severity = warning
+dotnet_analyzer_diagnostic.category-Performance.Aot.severity = warning
+
+# ErrorProne.NET (EPC/ERP/EPS): all rules at warning for dotnet build (TreatWarningsAsErrors => error).
+# Docs: https://github.com/SergeyTeplyakov/ErrorProne.NET/tree/master/docs/Rules
+# Per-rule IDs avoid category-Performance bulk config (collides with CA18xx/CA186x and ZeroAlloc Performance.*).
+dotnet_diagnostic.EPC11.severity = warning
+dotnet_diagnostic.EPC12.severity = warning
+dotnet_diagnostic.EPC13.severity = warning
+dotnet_diagnostic.EPC14.severity = warning
+dotnet_diagnostic.EPC15.severity = warning
+dotnet_diagnostic.EPC16.severity = warning
+dotnet_diagnostic.EPC17.severity = warning
+dotnet_diagnostic.EPC18.severity = warning
+dotnet_diagnostic.EPC19.severity = warning
+dotnet_diagnostic.EPC20.severity = warning
+dotnet_diagnostic.EPC23.severity = warning
+dotnet_diagnostic.EPC24.severity = warning
+dotnet_diagnostic.EPC25.severity = warning
+dotnet_diagnostic.EPC26.severity = warning
+dotnet_diagnostic.EPC27.severity = warning
+dotnet_diagnostic.EPC28.severity = warning
+dotnet_diagnostic.EPC29.severity = warning
+dotnet_diagnostic.EPC30.severity = warning
+dotnet_diagnostic.EPC31.severity = warning
+dotnet_diagnostic.EPC32.severity = warning
+dotnet_diagnostic.EPC33.severity = warning
+dotnet_diagnostic.EPC34.severity = warning
+dotnet_diagnostic.EPC35.severity = warning
+dotnet_diagnostic.EPC36.severity = warning
+dotnet_diagnostic.EPC37.severity = warning
+dotnet_diagnostic.EPC38.severity = warning
+dotnet_diagnostic.EPC39.severity = warning
+dotnet_diagnostic.EPC40.severity = warning
+dotnet_diagnostic.EPC41.severity = warning
+dotnet_diagnostic.ERP021.severity = warning
+dotnet_diagnostic.ERP022.severity = warning
+dotnet_diagnostic.ERP031.severity = warning
+dotnet_diagnostic.ERP041.severity = warning
+dotnet_diagnostic.ERP042.severity = warning
+dotnet_diagnostic.EPS01.severity = warning
+dotnet_diagnostic.EPS05.severity = warning
+dotnet_diagnostic.EPS06.severity = warning
+dotnet_diagnostic.EPS09.severity = warning
+dotnet_diagnostic.EPS10.severity = warning
+dotnet_diagnostic.EPS11.severity = warning
+dotnet_diagnostic.EPS12.severity = warning
+dotnet_diagnostic.EPS13.severity = warning
 
 # General line break behavior
 resharper_csharp_keep_existing_linebreaks = false
@@ -242,8 +296,13 @@ resharper_csharp_place_constructor_initializer_on_same_line = false
 resharper_place_constructor_initializer_on_same_line = false
 
 # Meziantou.Analyzer Rules
+# Allow member access expressions (e.g. request.Definition) where the root is a parameter.
 MA0015.consider_member_access_as_parameter = true
+# MA0211: Require multi-line <summary> XML comments; single-line summaries are fine for short, obvious members.
+dotnet_diagnostic.MA0211.severity = none
 
+# MA0016: Prefer collection abstraction over concrete types on public API — conflicts with zero-allocation and concrete test helpers.
+dotnet_diagnostic.MA0016.severity = none
 # MA0003: Require named arguments when passing literal values to method calls.
 dotnet_diagnostic.MA0003.severity = none
 # MA0157: Methods returning IAsyncEnumerable must not use the Async suffix.
@@ -254,6 +313,8 @@ dotnet_diagnostic.MA0038.severity = none
 dotnet_diagnostic.MA0111.severity = none
 # MA0174: Record declarations should use explicit 'record class' keyword.
 dotnet_diagnostic.MA0174.severity = none
+# MA0192: Use HasFlag instead of bitwise checks; it adds extra allocations
+dotnet_diagnostic.MA0192.severity = none
 
 [examples/**]
 # MA0048: File name must match the primary type name (script file names differ from inline types).

@@ -16,6 +16,9 @@ public sealed class BraidContext
         _scheduler = scheduler;
     }
 
+    /// <summary>Gets the scheduling trace from the completed run, when available.</summary>
+    public IReadOnlyList<string> TraceSteps { get; private set; } = [];
+
     /// <summary>Starts a logical concurrent operation controlled by the braid scheduler.</summary>
     /// <param name="operation">The operation to run.</param>
     public void Fork(Func<Task> operation)
@@ -23,6 +26,17 @@ public sealed class BraidContext
         ArgumentNullException.ThrowIfNull(operation);
         ThrowIfInactive();
         _scheduler.Fork(operation);
+    }
+
+    /// <summary>Starts a logical concurrent operation with a stable worker id.</summary>
+    /// <param name="workerId">The stable worker id used in replay schedules.</param>
+    /// <param name="operation">The operation to run.</param>
+    public void Fork(string workerId, Func<Task> operation)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workerId);
+        ArgumentNullException.ThrowIfNull(operation);
+        ThrowIfInactive();
+        _scheduler.Fork(workerId, operation);
     }
 
     /// <summary>Runs all forked operations until they complete or the scheduler detects a failure.</summary>
@@ -34,7 +48,11 @@ public sealed class BraidContext
         return _scheduler.JoinAsync(cancellationToken);
     }
 
-    internal void Complete() => _ = Interlocked.Exchange(ref _isActive, 0);
+    internal void Complete()
+    {
+        TraceSteps = _scheduler.GetTraceSnapshot();
+        _ = Interlocked.Exchange(ref _isActive, 0);
+    }
 
     private void ThrowIfInactive()
     {

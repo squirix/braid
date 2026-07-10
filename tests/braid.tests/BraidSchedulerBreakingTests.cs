@@ -31,13 +31,15 @@ public sealed class BraidSchedulerBreakingTests : TestBase
         var report = exception.ToString();
         Assert.Contains(exception.Seed.ToString(CultureInfo.InvariantCulture), report, StringComparison.Ordinal);
         Assert.Contains(exception.Iteration.ToString(CultureInfo.InvariantCulture), report, StringComparison.Ordinal);
-        foreach (var step in exception.Schedule)
+        for (var index = 0; index < exception.Schedule.Count; index++)
         {
+            var step = exception.Schedule[index];
             Assert.Contains($"{step.WorkerId} @ {step.ProbeName}", report, StringComparison.Ordinal);
         }
 
-        foreach (var traceEntry in exception.Trace)
+        for (var index = 0; index < exception.Trace.Count; index++)
         {
+            var traceEntry = exception.Trace[index];
             Assert.Contains(traceEntry, report, StringComparison.Ordinal);
         }
     }
@@ -723,7 +725,7 @@ public sealed class BraidSchedulerBreakingTests : TestBase
         }
     }
 
-    /// <summary>Verifies Braid.RunAsync joins forked workers after the callback returns without an explicit join.</summary>
+    /// <summary>Verifies BraidRunner.RunAsync joins forked workers after the callback returns without an explicit join.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncAutomaticallyJoinsWhenCallbackReturnsWithoutExplicitJoin()

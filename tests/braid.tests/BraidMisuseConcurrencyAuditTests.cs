@@ -31,7 +31,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
                     DefaultCancellationToken);
             });
 
-            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail quickly with callback failure.", TimeSpan.FromSeconds(3), false);
+            AssertCompletesBeforeWatchdog(exceptionTask, "Run should fail quickly with callback failure.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
             Assert.Contains("callback boom", exception.ToString(), StringComparison.Ordinal);
         }
@@ -208,7 +208,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
                 DefaultCancellationToken);
         });
 
-        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false);
+        AssertCompletesBeforeWatchdog(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false);
         var exception = await exceptionTask;
         var report = exception.ToString();
         Assert.Contains("sync-fail-", report, StringComparison.Ordinal);
@@ -573,7 +573,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
                     DefaultCancellationToken);
             });
 
-            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
+            AssertCompletesBeforeWatchdog(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
             Assert.Contains("primary worker failure", exception.ToString(), StringComparison.Ordinal);
         }
@@ -612,7 +612,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
                 DefaultCancellationToken);
         });
 
-        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false);
+        AssertCompletesBeforeWatchdog(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false);
         var exception = await exceptionTask;
         var report = exception.ToString();
         Assert.Contains("failing worker", report, StringComparison.Ordinal);
@@ -653,7 +653,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
                     DefaultCancellationToken);
             });
 
-            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Timeout run should fail deterministically.", TimeSpan.FromSeconds(3), false);
+            AssertCompletesBeforeWatchdog(exceptionTask, "Timeout run should fail deterministically.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
             Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
         }
@@ -662,7 +662,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
             _ = gate.TrySetResult();
         }
 
-        await AssertCompletesBeforeWatchdogAsync(workerFinallyObserved.Task, "Worker finally should complete after timeout.", TimeSpan.FromSeconds(3), false);
+        AssertCompletesBeforeWatchdog(workerFinallyObserved.Task, "Worker finally should complete after timeout.", TimeSpan.FromSeconds(3), false);
         await BraidProbe.HitAsync("outside-after-timeout", DefaultCancellationToken);
     }
 

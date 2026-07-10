@@ -4,9 +4,10 @@ internal sealed class BraidTask : IDisposable
 {
     private readonly SemaphoreSlim _permit = new(0, 1);
 
-    public BraidTask(int id)
+    public BraidTask(int id, string? workerId = null)
     {
         Id = id;
+        WorkerId = workerId ?? $"worker-{id}";
     }
 
     public Exception? Exception { get; set; }
@@ -19,7 +20,7 @@ internal sealed class BraidTask : IDisposable
 
     public BraidTaskState State { get; set; } = BraidTaskState.Waiting;
 
-    public string WorkerId => $"worker-{Id}";
+    public string WorkerId { get; }
 
     public void Release() => _permit.Release();
 

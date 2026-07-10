@@ -26,7 +26,7 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
    hit worker-2 before-write
    """);
 
-   await Braid.RunAsync(test, new BraidOptions { Schedule = schedule, Iterations = 1 }, cancellationToken);
+   await BraidRunner.RunAsync(test, new BraidOptions { Schedule = schedule, Iterations = 1 }, cancellationToken);
    ```
 
 2. Or build a typed schedule with `BraidSchedule.Replay(...)` and `BraidStep` values.

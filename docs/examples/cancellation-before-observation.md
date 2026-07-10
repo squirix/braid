@@ -16,7 +16,7 @@ This schedule is intentionally small: it captures only the ordering that matters
 ## Run it
 
 ```bash
-dotnet test examples/cancellation-before-observation/Braid.Examples.CancellationBeforeObservation.csproj
+dotnet run examples/single-file/cancellation-before-observation/cancellation-before-observation.cs
 ```
 
 Use this pattern when an async operation can be cancelled before it reaches the state your production code treats as visible.

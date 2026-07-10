@@ -824,7 +824,7 @@ public sealed class BraidTraceAndLifecycleBreakingTests : TestBase
                     DefaultCancellationToken);
             });
 
-            await AssertCompletesBeforeWatchdogAsync(runTask, "Timed out run should complete with exception.", TimeSpan.FromSeconds(3), false);
+            AssertCompletesBeforeWatchdog(runTask, "Timed out run should complete with exception.", TimeSpan.FromSeconds(3), false);
         }
         finally
         {

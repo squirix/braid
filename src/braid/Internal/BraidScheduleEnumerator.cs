@@ -1,0 +1,183 @@
+namespace Braid.Internal;
+
+internal static class BraidScheduleEnumerator
+{
+    internal static IEnumerable<IReadOnlyList<BraidStep>> EnumerateHitSchedules(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
+        int maxSchedules,
+        int maxStepsPerSchedule)
+    {
+        ArgumentNullException.ThrowIfNull(workerProbeSequences);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSchedules);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxStepsPerSchedule);
+
+        return EnumerateHitSchedulesCore(workerProbeSequences, maxSchedules, maxStepsPerSchedule);
+    }
+
+    private static IEnumerable<IReadOnlyList<BraidStep>> EnumerateHitSchedulesCore(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
+        int maxSchedules,
+        int maxStepsPerSchedule)
+    {
+        if (!TryCreateWorkerState(workerProbeSequences, out var workerIds, out var sequences))
+        {
+            yield break;
+        }
+
+        var yielded = 0;
+        var stack = new Stack<SearchFrame>();
+        stack.Push(new SearchFrame(new int[workerIds.Length], [], 0));
+
+        while (stack.Count > 0)
+        {
+            if (yielded >= maxSchedules)
+            {
+                break;
+            }
+
+            var frame = stack.Pop();
+            if (AllWorkersCompleted(workerIds, sequences, frame.Progress))
+            {
+                if (frame.Steps.Count > 0
+                    && frame.Steps.Count <= maxStepsPerSchedule
+                    && yielded < maxSchedules)
+                {
+                    yielded++;
+                    yield return CopySteps(frame.Steps);
+                }
+
+                continue;
+            }
+
+            if (frame.Steps.Count > maxStepsPerSchedule)
+            {
+                continue;
+            }
+
+            ScheduleNextWorker(workerIds, sequences, frame, stack);
+        }
+    }
+
+    private static void ScheduleNextWorker(
+        string[] workerIds,
+        IReadOnlyList<string>[] sequences,
+        SearchFrame frame,
+        Stack<SearchFrame> stack)
+    {
+        for (var workerIndex = frame.NextWorkerIndex; workerIndex < workerIds.Length; workerIndex++)
+        {
+            if (frame.Progress[workerIndex] >= sequences[workerIndex].Count)
+            {
+                continue;
+            }
+
+            var nextProgress = CloneProgress(frame.Progress);
+            nextProgress[workerIndex]++;
+            var nextSteps = new List<BraidStep>(frame.Steps)
+            {
+                BraidStep.Hit(workerIds[workerIndex], sequences[workerIndex][frame.Progress[workerIndex]]),
+            };
+
+            stack.Push(new SearchFrame(frame.Progress, frame.Steps, workerIndex + 1));
+            stack.Push(new SearchFrame(nextProgress, nextSteps, 0));
+            return;
+        }
+    }
+
+    private static int[] CloneProgress(int[] progress)
+    {
+        var copy = new int[progress.Length];
+        for (var index = 0; index < progress.Length; index++)
+        {
+            copy[index] = progress[index];
+        }
+
+        return copy;
+    }
+
+    private static BraidStep[] CopySteps(List<BraidStep> steps)
+    {
+        var copy = new BraidStep[steps.Count];
+        for (var index = 0; index < steps.Count; index++)
+        {
+            copy[index] = steps[index];
+        }
+
+        return copy;
+    }
+
+    private static bool TryCreateWorkerState(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
+        out string[] workerIds,
+        out IReadOnlyList<string>[] sequences)
+    {
+        workerIds = [];
+        sequences = [];
+
+        if (workerProbeSequences.Count is 0)
+        {
+            return false;
+        }
+
+        workerIds = new string[workerProbeSequences.Count];
+        sequences = new IReadOnlyList<string>[workerProbeSequences.Count];
+        var index = 0;
+        foreach (var pair in workerProbeSequences)
+        {
+            if (pair.Value.Count is 0)
+            {
+                workerIds = [];
+                sequences = [];
+                return false;
+            }
+
+            workerIds[index] = pair.Key;
+            sequences[index] = pair.Value;
+            index++;
+        }
+
+        SortWorkerEntries(workerIds, sequences);
+        return true;
+    }
+
+    private static bool AllWorkersCompleted(string[] workerIds, IReadOnlyList<string>[] sequences, int[] progress)
+    {
+        for (var index = 0; index < workerIds.Length; index++)
+        {
+            if (progress[index] < sequences[index].Count)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void SortWorkerEntries(string[] workerIds, IReadOnlyList<string>[] sequences)
+    {
+        for (var i = 1; i < workerIds.Length; i++)
+        {
+            var workerId = workerIds[i];
+            var sequence = sequences[i];
+            var j = i;
+            while (j > 0 && string.CompareOrdinal(workerIds[j - 1], workerId) > 0)
+            {
+                workerIds[j] = workerIds[j - 1];
+                sequences[j] = sequences[j - 1];
+                j--;
+            }
+
+            workerIds[j] = workerId;
+            sequences[j] = sequence;
+        }
+    }
+
+    private readonly struct SearchFrame(int[] progress, List<BraidStep> steps, int nextWorkerIndex)
+    {
+        internal int[] Progress { get; } = progress;
+
+        internal List<BraidStep> Steps { get; } = steps;
+
+        internal int NextWorkerIndex { get; } = nextWorkerIndex;
+    }
+}
