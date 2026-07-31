@@ -312,3 +312,7 @@ or [examples/single-file/run-examples.ps1](examples/single-file/run-examples.ps1
   do** above).
 - Exhaustive search is not implemented.
 - Random-run failures do not automatically include a complete replay schedule unless you configured one in `BraidOptions.Schedule`.
+
+## SAST Tools
+
+[PVS-Studio](https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static code analyzer for Enterprise (C, C++, C#, Go, and Java) and Web (JS and TS) development.
