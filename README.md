@@ -7,6 +7,8 @@ Deterministic concurrency testing for .NET libraries using explicit async probe 
 Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. When a race is understood, keep the reproducing interleaving as a
 copyable replay token. Roadmap: [docs/roadmap.md](docs/roadmap.md). Contributing: [contributing.md](contributing.md).
 
+[![Powered by NDepend](docs/assets/powered-by-ndepend.png)](https://www.ndepend.com/)
+
 ## Install
 
 ```bash
@@ -310,5 +312,3 @@ or [examples/single-file/run-examples.ps1](examples/single-file/run-examples.ps1
   do** above).
 - Exhaustive search is not implemented.
 - Random-run failures do not automatically include a complete replay schedule unless you configured one in `BraidOptions.Schedule`.
-
-[![Powered by NDepend](docs/assets/powered-by-ndepend.png)](https://www.ndepend.com/)
