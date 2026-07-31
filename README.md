@@ -310,3 +310,5 @@ or [examples/single-file/run-examples.ps1](examples/single-file/run-examples.ps1
   do** above).
 - Exhaustive search is not implemented.
 - Random-run failures do not automatically include a complete replay schedule unless you configured one in `BraidOptions.Schedule`.
+
+[![Powered by NDepend](docs/assets/powered-by-ndepend.png)](https://www.ndepend.com/)
