@@ -262,7 +262,7 @@ public sealed class BraidMisuseConcurrencyAuditTests : TestBase
             expectedOrder.Add($"worker-{workerIndex}");
         }
 
-        Assert.Equal(expectedOrder, releaseOrder);
+        Assert.Equal(expectedOrder, releaseOrder, StringComparer.Ordinal);
     }
 
     /// <summary>Verifies multiple worker failures report one failure while trace still records both workers.</summary>

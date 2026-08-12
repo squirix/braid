@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
+using System.Runtime.InteropServices;
 using Xunit;
 
 namespace Braid.Tests;
@@ -330,7 +331,7 @@ public abstract class TestBase
 
                 if (captured is not null)
                 {
-                    _ = LazyInitializer.EnsureInitialized(ref threadFailure[0], () => captured);
+                    _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
                 }
 
                 async Task HitOnContextAsync()
@@ -402,7 +403,7 @@ public abstract class TestBase
     {
         if (task.IsFaulted)
         {
-            ExceptionDispatchInfo.Capture(task.Exception!.GetBaseException()).Throw();
+            ExceptionDispatchInfo.Capture(task.Exception.GetBaseException()).Throw();
         }
 
         if (task.IsCanceled)

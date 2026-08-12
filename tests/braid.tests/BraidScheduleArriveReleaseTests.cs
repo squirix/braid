@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Xunit;
 
 namespace Braid.Tests;
@@ -299,14 +300,14 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
                 context.Fork(async () =>
                 {
                     await BraidProbe.HitAsync("A", DefaultCancellationToken);
-                    var idx = Interlocked.Increment(ref releaseCursor[0]) - 1;
+                    var idx = Interlocked.Increment(ref MemoryMarshal.GetArrayDataReference(releaseCursor)) - 1;
                     releaseOrder[idx] = 1;
                 });
 
                 context.Fork(async () =>
                 {
                     await BraidProbe.HitAsync("A", DefaultCancellationToken);
-                    var idx = Interlocked.Increment(ref releaseCursor[0]) - 1;
+                    var idx = Interlocked.Increment(ref MemoryMarshal.GetArrayDataReference(releaseCursor)) - 1;
                     releaseOrder[idx] = 2;
                 });
 
@@ -315,7 +316,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             options,
             DefaultCancellationToken);
 
-        Assert.Equal(2, Volatile.Read(ref releaseCursor[0]));
+        Assert.Equal(2, Volatile.Read(ref MemoryMarshal.GetArrayDataReference(releaseCursor)));
         Assert.Equal(2, releaseOrder[0]);
         Assert.Equal(1, releaseOrder[1]);
     }
@@ -338,14 +339,14 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    _ = Interlocked.Exchange(ref state[0], 1);
+                    _ = Interlocked.Exchange(ref MemoryMarshal.GetArrayDataReference(state), 1);
                     await BraidProbe.HitAsync("A", DefaultCancellationToken);
                     _ = Interlocked.Exchange(ref state[2], 1);
                 });
 
                 context.Fork(async () =>
                 {
-                    Assert.Equal(1, Volatile.Read(ref state[0]));
+                    Assert.Equal(1, Volatile.Read(ref MemoryMarshal.GetArrayDataReference(state)));
                     Assert.Equal(0, Volatile.Read(ref state[2]));
                     await BraidProbe.HitAsync("B", DefaultCancellationToken);
                     _ = Interlocked.Exchange(ref state[1], 1);
@@ -356,7 +357,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             options,
             DefaultCancellationToken);
 
-        Assert.Equal(1, Volatile.Read(ref state[0]));
+        Assert.Equal(1, Volatile.Read(ref MemoryMarshal.GetArrayDataReference(state)));
         Assert.Equal(1, Volatile.Read(ref state[1]));
         Assert.Equal(1, Volatile.Read(ref state[2]));
     }
@@ -414,10 +415,10 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
                 context.Fork(async () =>
                 {
                     await BraidProbe.HitAsync("A", DefaultCancellationToken);
-                    _ = Interlocked.Increment(ref hitsAfterRelease[0]);
+                    _ = Interlocked.Increment(ref MemoryMarshal.GetArrayDataReference(hitsAfterRelease));
 
                     await BraidProbe.HitAsync("A", DefaultCancellationToken);
-                    _ = Interlocked.Increment(ref hitsAfterRelease[0]);
+                    _ = Interlocked.Increment(ref MemoryMarshal.GetArrayDataReference(hitsAfterRelease));
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
@@ -425,7 +426,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             options,
             DefaultCancellationToken);
 
-        Assert.Equal(2, Volatile.Read(ref hitsAfterRelease[0]));
+        Assert.Equal(2, Volatile.Read(ref MemoryMarshal.GetArrayDataReference(hitsAfterRelease)));
     }
 
     /// <summary>Verifies hit steps keep legacy replay behavior and release matching workers.</summary>

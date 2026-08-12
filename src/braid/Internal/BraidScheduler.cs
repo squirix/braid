@@ -329,7 +329,7 @@ internal sealed class BraidScheduler : IDisposable
             }
             else if (opTask.IsFaulted)
             {
-                braidTask.Exception = opTask.Exception!.GetBaseException();
+                braidTask.Exception = opTask.Exception.GetBaseException();
             }
         }
         catch (OperationCanceledException)
