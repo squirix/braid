@@ -33,7 +33,7 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - name: Checkout
-              uses: actions/checkout@v5
+              uses: actions/checkout@v7
 
             - name: Validate paths
               run: echo "Docs or metadata-only change; full build skipped by CI paths-ignore."
