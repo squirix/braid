@@ -22,7 +22,7 @@
 
     <!-- Test-project analyzers (see Directory.Build.props / TestAnalyzers). -->
     <ItemGroup Label="TestAnalyzers">
-        <PackageVersion Include="xunit.analyzers" Version="1.27.0"/>
+        <PackageVersion Include="xunit.analyzers" Version="2.0.0"/>
     </ItemGroup>
 
     <ItemGroup Label="Testing">
