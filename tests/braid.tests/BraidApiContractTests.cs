@@ -53,7 +53,7 @@ public sealed class BraidApiContractTests : TestBase
     public Task ForkThrowsForNullOperation()
     {
         return BraidRunner.RunAsync(
-            context =>
+            static context =>
             {
                 _ = Assert.Throws<ArgumentNullException>(() => context.Fork(NullTestValues.ForkOperation));
                 return Task.CompletedTask;
@@ -68,7 +68,7 @@ public sealed class BraidApiContractTests : TestBase
     public Task ForkWithWorkerIdThrowsForNullWorkerId()
     {
         return BraidRunner.RunAsync(
-            context =>
+            static context =>
             {
                 _ = Assert.Throws<ArgumentNullException>(() => context.Fork(NullTestValues.String, static () => Task.CompletedTask));
                 return Task.CompletedTask;
