@@ -10,7 +10,7 @@ public sealed class BraidSchedulerDiagnostics
     /// <param name="lastMatchedReplayStep">The last replay step that was fully consumed, if any.</param>
     /// <param name="lastMatchedReplayStepOneBased">One-based index of <paramref name="lastMatchedReplayStep" /> in the configured schedule.</param>
     /// <param name="waitingWorkers">Workers blocked at probes while waiting to be scheduled.</param>
-    /// <param name="heldWorkers">Workers held after an <c>Arrive</c> replay step.</param>
+    /// <param name="heldWorkers">Workers held after an Arrive replay step.</param>
     /// <param name="unusedReplaySteps">Remaining replay steps not yet consumed, with one-based schedule indices.</param>
     public BraidSchedulerDiagnostics(
         bool hasReplaySchedule,
@@ -31,9 +31,7 @@ public sealed class BraidSchedulerDiagnostics
     /// <summary>Gets a value indicating whether a non-empty typed replay schedule was configured.</summary>
     public bool HasReplaySchedule { get; }
 
-    /// <summary>
-    /// Gets workers held after an <c>Arrive</c> replay step matched.
-    /// </summary>
+    /// <summary>Gets workers held after an Arrive replay step matched.</summary>
     public IReadOnlyList<BraidProbeWaitDiagnostic> HeldWorkers { get; }
 
     /// <summary>Gets the last replay step that was fully consumed, if any.</summary>
