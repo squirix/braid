@@ -16,7 +16,7 @@ public sealed class BraidSchedule
     public IReadOnlyList<BraidStep> Steps { get; }
 
     /// <summary>Parses a line-based textual replay schedule. Operation names are case-insensitive; worker ids and probe names are case-sensitive.</summary>
-    /// <param name="text">The schedule text. Empty lines and full-line <c>#</c> comments are ignored. At least one step is required.</param>
+    /// <param name="text">The schedule text. Empty lines and full-line # comments are ignored. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text" /> is null.</exception>
     /// <exception cref="FormatException">The text is not a valid schedule.</exception>
