@@ -77,31 +77,7 @@ public sealed class BraidFailureReportTests : TestBase
     [Fact]
     public async Task FailureReportIncludesHeldBeforeRelease()
     {
-        var options = new BraidOptions
-        {
-            Iterations = 1,
-            Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
-        };
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
-
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
-                        throw new InvalidOperationException("boom");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+        var exception = await RunHeldWorkerFailureAsync("boom");
 
         var report = exception.ToString();
         Assert.Contains("Held workers:", report, StringComparison.OrdinalIgnoreCase);
@@ -115,31 +91,7 @@ public sealed class BraidFailureReportTests : TestBase
     [Fact]
     public async Task FailureReportIncludesHeldWorkers()
     {
-        var options = new BraidOptions
-        {
-            Iterations = 1,
-            Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
-        };
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
-
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
-                        throw new InvalidOperationException("boom");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+        var exception = await RunHeldWorkerFailureAsync("boom");
 
         var report = exception.ToString();
         Assert.Contains("Held workers:", report, StringComparison.Ordinal);
@@ -310,31 +262,7 @@ public sealed class BraidFailureReportTests : TestBase
     [Fact]
     public async Task FailureReportStateDoesNotHideInner()
     {
-        var options = new BraidOptions
-        {
-            Iterations = 1,
-            Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
-        };
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
-
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
-                        throw new InvalidOperationException("inner-boom");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+        var exception = await RunHeldWorkerFailureAsync("inner-boom");
 
         var report = exception.ToString();
         Assert.Contains("Last matched replay step:", report, StringComparison.Ordinal);
@@ -510,5 +438,37 @@ public sealed class BraidFailureReportTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
         Assert.Contains("before-failure", report, StringComparison.Ordinal);
         Assert.Contains("boom", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>Runs the arrive-hold-release schedule in which the held worker fails at the later scripted hit, returning the raised failure.</summary>
+    /// <param name="innerMessage">The message of the exception thrown by the failing worker.</param>
+    /// <returns>The raised <see cref="BraidRunException" />.</returns>
+    private static Task<BraidRunException> RunHeldWorkerFailureAsync(string innerMessage)
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
+        };
+
+        return Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await BraidRunner.RunAsync(
+                async context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
+
+                    context.Fork(async () =>
+                    {
+                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
+                        throw new InvalidOperationException(innerMessage);
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
     }
 }
