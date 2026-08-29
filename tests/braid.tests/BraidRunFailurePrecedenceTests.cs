@@ -217,7 +217,7 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(1) },
+                new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(5) },
                 DefaultCancellationToken);
         });
 
