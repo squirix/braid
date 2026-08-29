@@ -113,7 +113,7 @@ public sealed class BraidForkConcurrencyTests : TestBase
 
                     if (forkException == null)
                     {
-                        Assert.True(completed is 1 or 2);
+                        Assert.True(completed is 1 or 2, $"Expected completed workers to be 1 or 2 but observed {completed}.");
                         return;
                     }
 
