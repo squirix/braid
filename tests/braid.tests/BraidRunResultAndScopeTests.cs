@@ -86,9 +86,7 @@ public sealed class BraidRunResultAndScopeTests : TestBase
             new BraidOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
 
-        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
-        Assert.True(probe.IsCompletedSuccessfully);
-        await probe;
+        await AssertProbeIsNoOpOutsideRunAsync();
     }
 
     /// <summary>Verifies AsyncLocal scope is cleared after a timeout failure.</summary>
@@ -131,9 +129,7 @@ public sealed class BraidRunResultAndScopeTests : TestBase
             Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
         }
 
-        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
-        Assert.True(probe.IsCompletedSuccessfully);
-        await probe;
+        await AssertProbeIsNoOpOutsideRunAsync();
     }
 
     /// <summary>Verifies a run with no workers and no schedule completes.</summary>
@@ -144,9 +140,7 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         var options = new BraidOptions { Iterations = 1, Seed = 12345 };
         await BraidRunner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
 
-        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
-        Assert.True(probe.IsCompletedSuccessfully);
-        await probe;
+        await AssertProbeIsNoOpOutsideRunAsync();
     }
 
     /// <summary>Verifies cancellation is observed before the user callback runs.</summary>

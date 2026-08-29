@@ -449,7 +449,7 @@ public sealed class BraidFailureReportTests : TestBase
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
+            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "fail-point"), BraidStep.Release("worker-1", "cache-hit")),
         };
 
         return Assert.ThrowsAsync<BraidRunException>(async () =>
@@ -461,7 +461,7 @@ public sealed class BraidFailureReportTests : TestBase
 
                     context.Fork(async () =>
                     {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
+                        await BraidProbe.HitAsync("fail-point", DefaultCancellationToken);
                         throw new InvalidOperationException(innerMessage);
                     });
 

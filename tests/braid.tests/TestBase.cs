@@ -74,6 +74,14 @@ public abstract class TestBase
         Assert.Null(ex);
     }
 
+    /// <summary>Asserts a probe invoked outside an active run is a no-op that completes immediately.</summary>
+    protected static async Task AssertProbeIsNoOpOutsideRunAsync()
+    {
+        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        Assert.True(probe.IsCompletedSuccessfully);
+        await probe;
+    }
+
     /// <summary>Forks a worker that hits ready and appends a worker label to the order list.</summary>
     /// <param name="context">The braid run context.</param>
     /// <param name="order">The list that receives the worker label.</param>
