@@ -66,8 +66,8 @@ public sealed class BraidRunExceptionReportTests : TestBase
                 DefaultCancellationToken);
         });
 
-        if (exception.Schedule is IList<BraidStep> list)
-            _ = Assert.ThrowsAny<Exception>(() => list[0] = new BraidStep("worker-9", "changed"));
+        var list = Assert.IsAssignableFrom<IList<BraidStep>>(exception.Schedule);
+        _ = Assert.ThrowsAny<Exception>(() => list[0] = new BraidStep("worker-9", "changed"));
 
         Assert.Contains("worker-1 @ expected", exception.ToString(), StringComparison.Ordinal);
     }
@@ -94,8 +94,8 @@ public sealed class BraidRunExceptionReportTests : TestBase
                 DefaultCancellationToken);
         });
 
-        if (exception.Trace is IList<string> traceList)
-            _ = Assert.ThrowsAny<Exception>(() => traceList[0] = "mutated");
+        var traceList = Assert.IsAssignableFrom<IList<string>>(exception.Trace);
+        _ = Assert.ThrowsAny<Exception>(() => traceList[0] = "mutated");
 
         Assert.Contains("worker-1 hit actual", exception.ToString(), StringComparison.Ordinal);
     }

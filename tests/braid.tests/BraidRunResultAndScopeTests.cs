@@ -63,12 +63,10 @@ public sealed class BraidRunResultAndScopeTests : TestBase
 
         Assert.Equal(new BraidStep("worker-1", "ready"), steps[0]);
 
-        if (steps is IList<BraidStep> list)
-        {
-            _ = Assert.Throws<NotSupportedException>(() => list.Add(new BraidStep("worker-2", "x")));
-            _ = Assert.Throws<NotSupportedException>(list.Clear);
-            _ = Assert.Throws<NotSupportedException>(() => list[0] = new BraidStep("worker-9", "mutated"));
-        }
+        var list = Assert.IsAssignableFrom<IList<BraidStep>>(steps);
+        _ = Assert.Throws<NotSupportedException>(() => list.Add(new BraidStep("worker-2", "x")));
+        _ = Assert.Throws<NotSupportedException>(list.Clear);
+        _ = Assert.Throws<NotSupportedException>(() => list[0] = new BraidStep("worker-9", "mutated"));
 
         Assert.Equal(new BraidStep("worker-1", "ready"), schedule.Steps[0]);
     }
