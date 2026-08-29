@@ -62,7 +62,7 @@ internal sealed class Scheduler : IDisposable
         }
 
         var registration = new ForkOperationRegistration();
-        registration.ForkTask = Task.Factory.StartNew(
+        var forkTask = Task.Factory.StartNew(
             RunForkedOperationAsync,
             (braidTask, operation, registration),
             CancellationToken.None,
@@ -70,8 +70,11 @@ internal sealed class Scheduler : IDisposable
             TaskScheduler.Default).Unwrap();
 
         lock (_gate)
-            if (!registration.ForkTask.IsCompleted)
-                _runningForkTasks.Add(registration.ForkTask);
+        {
+            registration.ForkTask = forkTask;
+            if (!forkTask.IsCompleted)
+                _runningForkTasks.Add(forkTask);
+        }
     }
 
     public async ValueTask HitAsync(RunTask task, string name, CancellationToken cancellationToken)
@@ -148,6 +151,9 @@ internal sealed class Scheduler : IDisposable
 
     public void Dispose()
     {
+        if (!_shutdownCts.IsCancellationRequested)
+            _shutdownCts.Cancel();
+
         _shutdownCts.Dispose();
         _stateChanged.Dispose();
         _joinMutex.Dispose();
@@ -164,14 +170,6 @@ internal sealed class Scheduler : IDisposable
 
     private static string FormatStep(BraidStep step) =>
         step.Kind is BraidStepKind.Hit ? $"Hit {step.WorkerId} at {step.ProbeName}" : $"{step.Kind} {step.WorkerId} at {step.ProbeName}";
-
-    private static OperationCanceledException PreserveCanceledException(Task canceledTask)
-    {
-        if (canceledTask.Exception?.GetBaseException() is not OperationCanceledException operationCanceled)
-            return new OperationCanceledException();
-
-        return operationCanceled is TaskCanceledException ? new OperationCanceledException(operationCanceled.Message, operationCanceled) : operationCanceled;
-    }
 
     private bool AllJoinWorkCompleted()
     {
@@ -235,14 +233,6 @@ internal sealed class Scheduler : IDisposable
         return new BraidSchedulerDiagnostics(hasReplay, lastMatched, lastMatchedOneBased, waiting, held, unused);
     }
 
-    private string BuildStepMismatchMessage(int stepIndex, string action, BraidStep expectedStep, RunTask? sameWorkerBlockedTask)
-    {
-        _ = _iteration;
-        return sameWorkerBlockedTask?.LastProbeName == null
-            ? $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}."
-            : $"Scripted schedule step {stepIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
-    }
-
     private async Task CancelBlockedTasksAsync()
     {
         if (_shutdownCts.IsCancellationRequested)
@@ -282,9 +272,22 @@ internal sealed class Scheduler : IDisposable
                 TaskScheduler.Default).Unwrap();
             await opTask.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             if (opTask.IsCanceled)
-                braidTask.Exception = PreserveCanceledException(opTask);
+            {
+                try
+                {
+                    await opTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException operationCanceled)
+                {
+                    braidTask.Exception = operationCanceled is TaskCanceledException
+                        ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
+                        : operationCanceled;
+                }
+            }
             else if (opTask.IsFaulted)
+            {
                 braidTask.Exception = opTask.Exception.GetBaseException();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -399,6 +402,14 @@ internal sealed class Scheduler : IDisposable
             return SelectNextTask(waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
         }
 
+        private static string BuildStepMismatchMessage(int stepIndex, string action, BraidStep expectedStep, RunTask? sameWorkerBlockedTask)
+        {
+            var oneBasedIndex = stepIndex + 1;
+            return sameWorkerBlockedTask?.LastProbeName == null
+                ? $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}."
+                : $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
+        }
+
         private static RunTask? TrySelectStartupTask(RunTask[] waitingTasks)
         {
             for (var index = 0; index < waitingTasks.Length; index++)
@@ -415,7 +426,7 @@ internal sealed class Scheduler : IDisposable
         {
             if (waitingTask == null)
                 return hasRunningTasks ? null : throw _scheduler.CreateException(
-                    _scheduler.BuildStepMismatchMessage(_scheduler._nextScheduleStep, "arrive", step, sameWorkerBlockedTask),
+                    BuildStepMismatchMessage(_scheduler._nextScheduleStep, "arrive", step, sameWorkerBlockedTask),
                     null);
 
             waitingTask.State = RunTaskState.Held;
@@ -430,7 +441,7 @@ internal sealed class Scheduler : IDisposable
             var releasableTask = heldTask ?? waitingTask;
             if (releasableTask == null)
                 return hasRunningTasks ? null : throw _scheduler.CreateException(
-                    _scheduler.BuildStepMismatchMessage(_scheduler._nextScheduleStep, "release", step, sameWorkerBlockedTask),
+                    BuildStepMismatchMessage(_scheduler._nextScheduleStep, "hit", step, sameWorkerBlockedTask),
                     null);
 
             _scheduler._nextScheduleStep++;
@@ -456,7 +467,7 @@ internal sealed class Scheduler : IDisposable
         {
             if (heldTask == null)
                 return hasRunningTasks ? null : throw _scheduler.CreateException(
-                    _scheduler.BuildStepMismatchMessage(_scheduler._nextScheduleStep, "release held", step, sameWorkerBlockedTask),
+                    BuildStepMismatchMessage(_scheduler._nextScheduleStep, "release held", step, sameWorkerBlockedTask),
                     null);
 
             _scheduler._nextScheduleStep++;
@@ -474,11 +485,11 @@ internal sealed class Scheduler : IDisposable
             {
                 BraidStepKind.Hit => SelectHitStep(step, waitingTask, heldTask, sameWorkerBlockedTask, hasRunningTasks),
                 BraidStepKind.Arrive when heldTask != null => throw _scheduler.CreateException(
-                    $"Scripted schedule step {_scheduler._nextScheduleStep} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
+                    $"Scripted schedule step {_scheduler._nextScheduleStep + 1} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
                     null),
                 BraidStepKind.Arrive => SelectArriveStep(step, waitingTask, sameWorkerBlockedTask, hasRunningTasks, ref advancedWithoutRelease),
                 BraidStepKind.Release => SelectReleaseStep(step, heldTask, sameWorkerBlockedTask, hasRunningTasks),
-                _ => throw _scheduler.CreateException($"Scripted schedule step {_scheduler._nextScheduleStep} has unknown step kind {step.Kind}.", null),
+                _ => throw _scheduler.CreateException($"Scripted schedule step {_scheduler._nextScheduleStep + 1} has unknown step kind {step.Kind}.", null),
             };
         }
     }

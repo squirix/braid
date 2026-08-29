@@ -202,7 +202,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
         });
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule step 0", report, StringComparison.Ordinal);
+        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
         Assert.Contains("worker-1", report, StringComparison.Ordinal);
         Assert.Contains("expected", report, StringComparison.Ordinal);
         Assert.Contains("actual", report, StringComparison.Ordinal);
@@ -233,7 +233,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
         var report = exception.ToString();
         Assert.Contains("worker-2 @ ready", report, StringComparison.Ordinal);
         Assert.Contains("worker-1 hit ready", report, StringComparison.Ordinal);
-        Assert.Contains("Scripted schedule step 0", report, StringComparison.Ordinal);
+        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies mismatch reports keep the failing schedule step and trace details.</summary>
@@ -259,7 +259,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
         });
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule step 0", report, StringComparison.Ordinal);
+        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
         Assert.Contains("worker-1 @ expected", report, StringComparison.Ordinal);
         Assert.Contains("worker-1 hit actual", report, StringComparison.Ordinal);
     }

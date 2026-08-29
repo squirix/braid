@@ -249,7 +249,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
         });
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule step 0", report, StringComparison.Ordinal);
+        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
         Assert.Contains("worker-1", report, StringComparison.Ordinal);
         Assert.Contains("expected", report, StringComparison.Ordinal);
         Assert.Contains("actual", report, StringComparison.Ordinal);
