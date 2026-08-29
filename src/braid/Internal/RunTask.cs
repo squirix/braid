@@ -22,6 +22,8 @@ internal sealed class RunTask : IDisposable
 
     public string WorkerId { get; }
 
+    internal List<string> ProbeNames { get; } = new();
+
     public void Release() => _permit.Release();
 
     public Task WaitForReleaseAsync(CancellationToken cancellationToken) => _permit.WaitAsync(cancellationToken);

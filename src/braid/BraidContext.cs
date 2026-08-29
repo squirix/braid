@@ -19,6 +19,8 @@ public sealed class BraidContext
     /// <summary>Gets the scheduling trace from the completed run, when available.</summary>
     public IReadOnlyList<string> TraceSteps { get; private set; } = [];
 
+    internal Dictionary<string, List<string>> WorkerProbeSequences { get; private set; } = new(StringComparer.Ordinal);
+
     /// <summary>Starts a logical concurrent operation controlled by the braid scheduler.</summary>
     /// <param name="operation">The operation to run.</param>
     public void Fork(Func<Task> operation)
@@ -51,6 +53,7 @@ public sealed class BraidContext
     internal void Complete()
     {
         TraceSteps = _scheduler.GetTraceSnapshot();
+        WorkerProbeSequences = _scheduler.GetWorkerProbeSequences();
         _ = Interlocked.Exchange(ref _isActive, 0);
     }
 

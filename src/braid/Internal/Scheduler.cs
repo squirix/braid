@@ -90,6 +90,7 @@ internal sealed class Scheduler : IDisposable
             task.ProbeWaitInFlight = true;
             task.State = RunTaskState.Waiting;
             task.LastProbeName = name;
+            task.ProbeNames.Add(name);
             _trace.Add($"{task.WorkerId} hit {name}");
         }
 
@@ -166,6 +167,30 @@ internal sealed class Scheduler : IDisposable
     {
         lock (_gate)
             return [.. _trace];
+    }
+
+    internal Dictionary<string, List<string>> GetWorkerProbeSequences()
+    {
+        lock (_gate)
+        {
+            var sequences = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            for (var index = 0; index < _tasks.Count; index++)
+            {
+                var task = _tasks[index];
+                if (task.ProbeNames.Count == 0)
+                    continue;
+
+                if (!sequences.TryGetValue(task.WorkerId, out var probes))
+                {
+                    probes = [];
+                    sequences[task.WorkerId] = probes;
+                }
+
+                probes.AddRange(task.ProbeNames);
+            }
+
+            return sequences;
+        }
     }
 
     private static string FormatStep(BraidStep step) =>

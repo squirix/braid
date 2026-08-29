@@ -16,7 +16,6 @@ internal static class Explorer
             Timeout = options.Timeout,
         };
 
-        IReadOnlyList<string> discoveryTrace = [];
         BraidRunException? discoveryFailure = null;
 
         try
@@ -26,13 +25,10 @@ internal static class Explorer
         catch (BraidRunException ex)
         {
             discoveryFailure = ex;
-            discoveryTrace = ex.Trace;
         }
 
-        if (discoveryTrace.Count == 0 && callback.DiscoveryContext != null)
-            discoveryTrace = callback.DiscoveryContext.TraceSteps;
-
-        var workerProbeSequences = ProbeCatalog.ParseWorkerProbeSequences(discoveryTrace);
+        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences
+            ?? new Dictionary<string, List<string>>(StringComparer.Ordinal);
         if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count == 0)
             throw discoveryFailure;
 
