@@ -1,6 +1,6 @@
 namespace Braid.Internal;
 
-internal static class BraidProbeCatalog
+internal static class ProbeCatalog
 {
     private const string HitMarker = " hit ";
 
@@ -14,16 +14,12 @@ internal static class BraidProbeCatalog
             var line = trace[index];
             var markerIndex = line.IndexOf(HitMarker, StringComparison.Ordinal);
             if (markerIndex < 0)
-            {
                 continue;
-            }
 
             var workerId = line[..markerIndex];
             var probeName = line[(markerIndex + HitMarker.Length)..];
-            if (workerId.Length is 0 || probeName.Length is 0)
-            {
+            if (workerId.Length == 0 || probeName.Length == 0)
                 continue;
-            }
 
             if (!sequences.TryGetValue(workerId, out var probes))
             {

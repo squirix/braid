@@ -8,10 +8,10 @@ namespace Braid;
 /// </summary>
 public sealed class BraidContext
 {
-    private readonly BraidScheduler _scheduler;
+    private readonly Scheduler _scheduler;
     private int _isActive = 1;
 
-    internal BraidContext(BraidScheduler scheduler)
+    internal BraidContext(Scheduler scheduler)
     {
         _scheduler = scheduler;
     }
@@ -56,9 +56,7 @@ public sealed class BraidContext
 
     private void ThrowIfInactive()
     {
-        if (Volatile.Read(ref _isActive) is 0)
-        {
+        if (Volatile.Read(ref _isActive) == 0)
             throw new InvalidOperationException("BraidContext can only be used during the BraidRunner.RunAsync callback.");
-        }
     }
 }

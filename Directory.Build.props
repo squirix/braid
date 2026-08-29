@@ -50,6 +50,10 @@
         <PackageReference Include="ZeroAlloc.Analyzers" PrivateAssets="all"/>
     </ItemGroup>
 
+    <ItemGroup Label="SquirixAnalyzers">
+        <PackageReference Include="squirix.analyzers" PrivateAssets="all"/>
+    </ItemGroup>
+
     <!-- Test-project analyzers: tests/** (not src/**). -->
     <ItemGroup Label="TestAnalyzers" Condition="'$(IsBraidTestProject)' == 'true'">
         <PackageReference Include="xunit.analyzers" PrivateAssets="all"/>

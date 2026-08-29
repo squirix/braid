@@ -1,11 +1,8 @@
 namespace Braid.Internal;
 
-internal static class BraidExplorer
+internal static class Explorer
 {
-    internal static async Task ExploreAsync(
-        BraidExploreOptions options,
-        Func<BraidExploreContext, Task> test,
-        CancellationToken cancellationToken)
+    internal static async Task ExploreAsync(BraidExploreOptions options, Func<BraidExploreContext, Task> test, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(test);
@@ -32,21 +29,15 @@ internal static class BraidExplorer
             discoveryTrace = ex.Trace;
         }
 
-        if (discoveryTrace.Count is 0 && callback.DiscoveryContext is not null)
-        {
+        if (discoveryTrace.Count == 0 && callback.DiscoveryContext != null)
             discoveryTrace = callback.DiscoveryContext.TraceSteps;
-        }
 
-        var workerProbeSequences = BraidProbeCatalog.ParseWorkerProbeSequences(discoveryTrace);
-        if (discoveryFailure is not null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count is 0)
-        {
+        var workerProbeSequences = ProbeCatalog.ParseWorkerProbeSequences(discoveryTrace);
+        if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count == 0)
             throw discoveryFailure;
-        }
 
-        if (workerProbeSequences.Count is 0)
-        {
+        if (workerProbeSequences.Count == 0)
             return;
-        }
 
         await ExploreGeneratedSchedulesAsync(options, callback, workerProbeSequences, cancellationToken).ConfigureAwait(false);
     }
@@ -59,11 +50,9 @@ internal static class BraidExplorer
     {
         var readOnlySequences = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
         foreach (var entry in workerProbeSequences)
-        {
             readOnlySequences[entry.Key] = entry.Value.AsReadOnly();
-        }
 
-        foreach (var steps in BraidScheduleEnumerator.EnumerateHitSchedules(readOnlySequences, options.MaxSchedules, options.MaxStepsPerSchedule))
+        foreach (var steps in ScheduleEnumerator.EnumerateHitSchedules(readOnlySequences, options.MaxSchedules, options.MaxStepsPerSchedule))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -83,11 +72,18 @@ internal static class BraidExplorer
         }
     }
 
-    private static Task RunScheduledExploreAttemptAsync(
-        BraidExploreOptions options,
-        ExploreCallback callback,
-        BraidSchedule schedule,
-        CancellationToken cancellationToken)
+    private static bool IsExplorationTargetFailure(BraidRunException exception)
+    {
+        if (exception.FailureOrigin != BraidRunFailureOrigin.UserTest)
+            return false;
+
+        if (exception.InnerException == null)
+            return false;
+
+        return exception.InnerException is not BraidRunException;
+    }
+
+    private static Task RunScheduledExploreAttemptAsync(BraidExploreOptions options, ExploreCallback callback, BraidSchedule schedule, CancellationToken cancellationToken)
     {
         var runOptions = new BraidOptions
         {
@@ -98,21 +94,6 @@ internal static class BraidExplorer
         };
 
         return BraidRunner.RunAsync(callback.RunReplayAsync, runOptions, cancellationToken);
-    }
-
-    private static bool IsExplorationTargetFailure(BraidRunException exception)
-    {
-        if (exception.FailureOrigin is not BraidRunFailureOrigin.UserTest)
-        {
-            return false;
-        }
-
-        if (exception.InnerException is null)
-        {
-            return false;
-        }
-
-        return exception.InnerException is not BraidRunException;
     }
 
     private sealed class ExploreCallback(Func<BraidExploreContext, Task> test)

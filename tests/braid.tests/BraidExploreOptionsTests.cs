@@ -8,7 +8,7 @@ public sealed class BraidExploreOptionsTests : TestBase
     /// <summary>Verifies invalid schedule caps are rejected before exploration starts.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ExploreAsyncRejectsInvalidMaxSchedulesBeforeRunStarts()
+    public async Task ExploreRejectsInvalidMaxSchedulesStart()
     {
         var ran = false;
 
@@ -30,7 +30,7 @@ public sealed class BraidExploreOptionsTests : TestBase
     /// <summary>Verifies invalid step caps are rejected before exploration starts.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ExploreAsyncRejectsInvalidMaxStepsPerScheduleBeforeRunStarts()
+    public async Task ExploreRejectsInvalidMaxStepsStart()
     {
         var ran = false;
 

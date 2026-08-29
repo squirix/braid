@@ -21,16 +21,14 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
         var report = exception.ToString();
         Assert.Contains("Replay text:", report, StringComparison.Ordinal);
         foreach (var segment in expectedText.Split(Environment.NewLine))
-        {
             Assert.Contains(segment, report, StringComparison.Ordinal);
-        }
     }
 
     /// <summary>
     /// Verifies <see cref="BraidRunException.ToString" /> keeps the generic unavailable line when export fails.
     /// </summary>
     [Fact]
-    public void ToStringReportsUnavailableReplayTextWhenNotExportable()
+    public void ToStringReportsUnavailableNotExportable()
     {
         var exception = new BraidRunException("failed", 1, 0, [], [BraidStep.Hit("has space", "ready")], null);
 
@@ -45,7 +43,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 
     /// <summary>Verifies whitespace in probe name prevents replay-text export with a diagnostic error.</summary>
     [Fact]
-    public void TryGetReplayTextReturnsFalseWhenProbeNameHasWhitespace()
+    public void TryGetReplayTextFalseOnProbeWhitespace()
     {
         var exception = new BraidRunException("failed", 1, 0, [], [BraidStep.Hit("worker-1", "bad probe")], null);
 
@@ -56,20 +54,9 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
         Assert.Contains("whitespace", error, StringComparison.Ordinal);
     }
 
-    /// <summary>Verifies random-only (empty schedule) yields false with no export error.</summary>
-    [Fact]
-    public void TryGetReplayTextReturnsFalseWhenScheduleIsEmpty()
-    {
-        var exception = new BraidRunException("failed", 1, 0, [], [], null);
-
-        Assert.False(exception.TryGetReplayText(out var text, out var error));
-        Assert.Equal(string.Empty, text);
-        Assert.Null(error);
-    }
-
     /// <summary>Verifies whitespace in worker id prevents replay-text export with a diagnostic error.</summary>
     [Fact]
-    public void TryGetReplayTextReturnsFalseWhenWorkerIdHasWhitespace()
+    public void TryGetReplayTextFalseOnWorkerWhitespace()
     {
         var exception = new BraidRunException("failed", 1, 0, [], [BraidStep.Hit("worker id", "ready")], null);
 
@@ -80,9 +67,20 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
         Assert.Contains("whitespace", error, StringComparison.Ordinal);
     }
 
+    /// <summary>Verifies random-only (empty schedule) yields false with no export error.</summary>
+    [Fact]
+    public void TryGetReplayTextFalseWhenScheduleEmpty()
+    {
+        var exception = new BraidRunException("failed", 1, 0, [], [], null);
+
+        Assert.False(exception.TryGetReplayText(out var text, out var error));
+        Assert.Equal(string.Empty, text);
+        Assert.Null(error);
+    }
+
     /// <summary>Verifies a typed exportable schedule yields canonical replay text.</summary>
     [Fact]
-    public void TryGetReplayTextReturnsTrueForExportableTypedSchedule()
+    public void TryGetReplayTextTrueForExportable()
     {
         var steps = new[]
         {

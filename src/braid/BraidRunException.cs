@@ -110,11 +110,9 @@ public sealed class BraidRunException : Exception
             if (TryGetReplayText(out var replayText, out var replayError))
             {
                 if (replayText.Length > 0)
-                {
                     lines.AddRange(replayText.Split(Environment.NewLine));
-                }
             }
-            else if (replayError is not null)
+            else if (replayError != null)
             {
                 lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
             }
@@ -124,11 +122,9 @@ public sealed class BraidRunException : Exception
 
         lines.Add("Trace:");
         for (var index = 0; index < Trace.Count; index++)
-        {
             lines.Add($"  {index + 1}. {Trace[index]}");
-        }
 
-        if (InnerException is null)
+        if (InnerException == null)
             return string.Join(Environment.NewLine, lines);
         lines.Add("Inner exception:");
         lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
@@ -151,10 +147,8 @@ public sealed class BraidRunException : Exception
         text = string.Empty;
         error = null;
 
-        if (Schedule.Count is 0)
-        {
+        if (Schedule.Count == 0)
             return false;
-        }
 
         try
         {
@@ -176,7 +170,7 @@ public sealed class BraidRunException : Exception
             lines.Add("Last matched replay step:");
             lines.Add(
                 diagnostics is { LastMatchedReplayStep: { } lastStep, LastMatchedReplayStepOneBased: { } stepNumber }
-                    ? $"  {stepNumber}. {BraidReplayFormat.CanonicalStepLine(lastStep)}" : "  none");
+                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(lastStep)}" : "  none");
         }
 
         if (diagnostics.WaitingWorkers.Count > 0)
@@ -199,25 +193,21 @@ public sealed class BraidRunException : Exception
             }
         }
 
-        if (diagnostics.UnusedReplaySteps.Count is 0)
-        {
+        if (diagnostics.UnusedReplaySteps.Count == 0)
             return;
-        }
 
         lines.Add("Unused replay steps:");
         for (var index = 0; index < diagnostics.UnusedReplaySteps.Count; index++)
         {
             var (oneBasedIndex, step) = diagnostics.UnusedReplaySteps[index];
-            lines.Add($"  {oneBasedIndex}. {BraidReplayFormat.CanonicalStepLine(step)}");
+            lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(step)}");
         }
     }
 
     private static void AppendSchedulerDiagnosticsLines(List<string> lines, BraidSchedulerDiagnostics? diagnostics)
     {
-        if (diagnostics is null)
-        {
+        if (diagnostics == null)
             return;
-        }
 
         AppendSchedulerDiagnosticsContent(lines, diagnostics);
     }

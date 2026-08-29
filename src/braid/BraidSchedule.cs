@@ -24,7 +24,7 @@ public sealed class BraidSchedule
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        return BraidScheduleTextParser.TryParse(text, out var schedule, out var error) ? schedule : throw new FormatException(error);
+        return ScheduleTextParser.TryParse(text, out var schedule, out var error) ? schedule : throw new FormatException(error);
     }
 
     /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
@@ -51,7 +51,7 @@ public sealed class BraidSchedule
     /// <param name="error">A diagnostic message when this method returns <see langword="false" />.</param>
     /// <returns><see langword="true" /> if parsing succeeded; otherwise <see langword="false" />.</returns>
     public static bool TryParse(string? text, [NotNullWhen(true)] out BraidSchedule? schedule, [NotNullWhen(false)] out string? error) =>
-        BraidScheduleTextParser.TryParse(text, out schedule, out error);
+        ScheduleTextParser.TryParse(text, out schedule, out error);
 
     /// <summary>
     /// Returns a canonical line-based replay schedule using lower-case operation names and <see cref="Environment.NewLine" /> between steps.
@@ -61,18 +61,14 @@ public sealed class BraidSchedule
     /// <exception cref="InvalidOperationException">A worker id or probe name contains whitespace and cannot be represented in this format.</exception>
     public string ToReplayText()
     {
-        if (Steps.Count is 0)
-        {
+        if (Steps.Count == 0)
             return string.Empty;
-        }
 
         var builder = new StringBuilder();
         for (var index = 0; index < Steps.Count; index++)
         {
             if (index > 0)
-            {
                 _ = builder.Append(Environment.NewLine);
-            }
 
             var step = Steps[index];
             EnsureReplayTextRepresentable(step.WorkerId, true);
@@ -95,9 +91,7 @@ public sealed class BraidSchedule
     internal void Validate()
     {
         for (var index = 0; index < Steps.Count; index++)
-        {
             Steps[index].Validate();
-        }
     }
 
     private static BraidSchedule CreateReplaySchedule(IReadOnlyList<BraidStep> steps, int count)

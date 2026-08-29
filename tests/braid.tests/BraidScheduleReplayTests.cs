@@ -44,7 +44,7 @@ public sealed class BraidScheduleReplayTests : TestBase
     /// <summary>Verifies scripted schedules can reproduce a lost update.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReplaysScriptedScheduleThatReproducesLostUpdate()
+    public async Task RunAsyncReplaysReproducesLostUpdate()
     {
         var options = new BraidOptions
         {

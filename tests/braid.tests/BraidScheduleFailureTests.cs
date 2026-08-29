@@ -8,7 +8,7 @@ public sealed class BraidScheduleFailureTests : TestBase
     /// <summary>Verifies schedule exhaustion fails with a clear report.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncFailsWhenScriptedScheduleIsExhausted()
+    public async Task RunAsyncFailsWhenScheduleExhausted()
     {
         var options = new BraidOptions
         {
@@ -42,7 +42,7 @@ public sealed class BraidScheduleFailureTests : TestBase
     /// <summary>Verifies an unsatisfied scripted step fails with a clear report.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncFailsWhenScriptedStepCannotBeSatisfied()
+    public async Task RunAsyncFailsWhenStepCannotBeMet()
     {
         var options = new BraidOptions
         {

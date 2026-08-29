@@ -28,16 +28,12 @@ public sealed class BraidOptions
     private static void ValidatePositive(int value, string paramName, string message)
     {
         if (value <= 0)
-        {
             throw new ArgumentOutOfRangeException(paramName, value, message);
-        }
     }
 
     private static void ValidatePositive(TimeSpan value, string paramName, string message)
     {
         if (value <= TimeSpan.Zero)
-        {
             throw new ArgumentOutOfRangeException(paramName, value, message);
-        }
     }
 }

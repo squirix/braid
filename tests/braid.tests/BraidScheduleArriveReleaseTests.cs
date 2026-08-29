@@ -9,7 +9,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies callback faults release held workers instead of deadlocking teardown.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CallbackFaultWhileWorkerIsHeldDoesNotDeadlock()
+    public async Task CallbackFaultWhileHeldDoesNotDeadlock()
     {
         var options = new BraidOptions
         {
@@ -49,7 +49,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies external cancellation releases held workers instead of deadlocking teardown.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task CancellationWhileWorkerIsHeldDoesNotDeadlock()
+    public async Task CancellationWhileHeldDoesNotDeadlock()
     {
         using var cts = new CancellationTokenSource();
         var cancellationToken = cts.Token;
@@ -114,16 +114,12 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
                 context.Fork(async () =>
                 {
                     lock (sync)
-                    {
                         observed.Add("worker-1-before-probe");
-                    }
 
                     await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
 
                     lock (sync)
-                    {
                         observed.Add("worker-1-after-release");
-                    }
                 });
 
                 context.Fork(async () =>
@@ -131,9 +127,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
                     await BraidProbe.HitAsync("mutated", DefaultCancellationToken);
 
                     lock (sync)
-                    {
                         observed.Add("worker-2-mutated");
-                    }
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
@@ -156,7 +150,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies a held worker/probe cannot be arrived twice without release.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ReplayDuplicateArriveForHeldProbeFailsClearly()
+    public async Task ReplayDuplicateArriveHeldFailsClearly()
     {
         var options = new BraidOptions
         {
@@ -187,7 +181,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies release cannot target a different probe than the held arrival.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ReplayReleaseForDifferentProbeFailsClearly()
+    public async Task ReplayReleaseDifferentProbeFailsClearly()
     {
         var options = new BraidOptions
         {
@@ -217,7 +211,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies release cannot target a different worker than the held arrival.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ReplayReleaseForDifferentWorkerFailsClearly()
+    public async Task ReplayReleaseDifferentWorkerFailsClearly()
     {
         var options = new BraidOptions
         {
@@ -279,7 +273,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies schedules disambiguate workers even when probe names are the same.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncDistinguishesSameProbeAcrossWorkers()
+    public async Task RunAsyncDistinguishesSameProbeWorkers()
     {
         var releaseOrder = new int[2];
         var releaseCursor = new int[1];
@@ -324,7 +318,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies later worker steps do not run before a required arrival step.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncDoesNotRunLaterWorkerStepBeforeRequiredArrival()
+    public async Task RunAsyncDoesNotRunStepBeforeArrival()
     {
         var state = new int[3];
         var options = new BraidOptions
@@ -365,7 +359,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies unexpected probe hits are reported with expected and actual probes.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncFailsClearlyWhenWorkerHitsUnexpectedProbe()
+    public async Task RunAsyncFailsWhenUnexpectedProbe()
     {
         var options = new BraidOptions
         {
@@ -394,7 +388,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies one worker can hit the same probe twice with deterministic replay steps.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncHandlesRepeatedSameProbeBySameWorkerDeterministically()
+    public async Task RunAsyncHandlesRepeatProbeDeterministic()
     {
         var hitsAfterRelease = new int[1];
 
@@ -432,7 +426,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies hit steps keep legacy replay behavior and release matching workers.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncHitStepRetainsLegacyReleaseBehavior()
+    public async Task RunAsyncHitStepRetainsLegacyRelease()
     {
         var released = new List<string>();
         var options = new BraidOptions
@@ -468,7 +462,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
     /// <summary>Verifies wrong arrival order produces a clear replay diagnostic.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReportsClearErrorWhenOrderIsWrongForArrival()
+    public async Task RunAsyncReportsClearErrorWrongOrder()
     {
         var options = new BraidOptions
         {

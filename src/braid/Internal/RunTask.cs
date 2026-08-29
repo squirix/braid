@@ -1,10 +1,10 @@
 namespace Braid.Internal;
 
-internal sealed class BraidTask : IDisposable
+internal sealed class RunTask : IDisposable
 {
     private readonly SemaphoreSlim _permit = new(0, 1);
 
-    public BraidTask(int id, string? workerId = null)
+    public RunTask(int id, string? workerId = null)
     {
         Id = id;
         WorkerId = workerId ?? $"worker-{id}";
@@ -18,7 +18,7 @@ internal sealed class BraidTask : IDisposable
 
     public bool ProbeWaitInFlight { get; set; }
 
-    public BraidTaskState State { get; set; } = BraidTaskState.Waiting;
+    public RunTaskState State { get; set; } = RunTaskState.Waiting;
 
     public string WorkerId { get; }
 

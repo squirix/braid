@@ -8,7 +8,7 @@ public sealed class BraidCancellationTests : TestBase
     /// <summary>Verifies timeout failures are reported as braid run exceptions.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReportsTimeoutAsBraidRunException()
+    public async Task RunAsyncReportsTimeoutAsRunException()
     {
         var options = new BraidOptions
         {
@@ -39,7 +39,7 @@ public sealed class BraidCancellationTests : TestBase
     /// <summary>Verifies external cancellation unblocks a waiting braid run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncSurfacesOperationCanceledWhenCanceledExternally() => _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(RunAndCancelExternallyAsync);
+    public async Task RunAsyncSurfacesCanceledExternally() => _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(RunAndCancelExternallyAsync);
 
     private static async Task RunAndCancelExternallyAsync()
     {
@@ -62,9 +62,7 @@ public sealed class BraidCancellationTests : TestBase
                 context.Fork(async () =>
                 {
                     while (!cancellationToken.IsCancellationRequested)
-                    {
                         await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, cancellationToken).ConfigureAwait(false);
-                    }
                 });
 
                 await context.JoinAsync(cancellationToken);

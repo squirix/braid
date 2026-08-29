@@ -5,20 +5,10 @@ namespace Braid.Tests;
 /// <summary>Covers explicit probe behavior.</summary>
 public sealed class BraidProbeTests : TestBase
 {
-    /// <summary>Verifies probes are no-ops outside a braid run.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task HitAsyncOutsideRunCompletesImmediately()
-    {
-        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
-        Assert.True(probe.IsCompletedSuccessfully);
-        await probe;
-    }
-
     /// <summary>Verifies probe behavior does not leak outside a failed run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task HitAsyncOutsideRunStillCompletesAfterFailedRun()
+    public async Task HitAsyncOutsideRunCompletesFailedRun()
     {
         _ = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
@@ -38,5 +28,15 @@ public sealed class BraidProbeTests : TestBase
         });
 
         await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+    }
+
+    /// <summary>Verifies probes are no-ops outside a braid run.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task HitAsyncOutsideRunCompletesImmediately()
+    {
+        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        Assert.True(probe.IsCompletedSuccessfully);
+        await probe;
     }
 }

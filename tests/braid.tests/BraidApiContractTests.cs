@@ -5,31 +5,6 @@ namespace Braid.Tests;
 /// <summary>Covers the public braid API contract.</summary>
 public sealed class BraidApiContractTests : TestBase
 {
-    /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
-    [Fact]
-    public void BraidRunExceptionExposesNullScheduleAsEmpty()
-    {
-        var exception = new BraidRunException("failed", 12345, 0, ["trace"], null, null);
-
-        Assert.Empty(exception.Schedule);
-    }
-
-    /// <summary>Verifies braid run exceptions snapshot trace and schedule values.</summary>
-    [Fact]
-    public void BraidRunExceptionSnapshotsTraceAndSchedule()
-    {
-        var trace = new[] { "worker-1 forked" };
-        var schedule = new[] { new BraidStep("worker-1", "ready") };
-
-        var exception = new BraidRunException("failed", 12345, 0, trace, schedule, null);
-        trace[0] = "changed";
-        schedule[0] = new BraidStep("worker-2", "changed");
-
-        Assert.Equal(["worker-1 forked"], exception.Trace);
-        Assert.Equal([new BraidStep("worker-1", "ready")], exception.Schedule);
-        Assert.Null(exception.SchedulerDiagnostics);
-    }
-
     /// <summary>Verifies fork after join starts fails with a braid run exception.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
@@ -80,7 +55,7 @@ public sealed class BraidApiContractTests : TestBase
     /// <summary>Verifies a named fork uses the supplied worker id in the scheduling trace.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task ForkWithWorkerIdUsesStableWorkerIdInTrace()
+    public async Task ForkWorkerIdUsesStableWorkerIdInTrace()
     {
         BraidContext? capturedContext = null;
 
@@ -145,33 +120,10 @@ public sealed class BraidApiContractTests : TestBase
         Assert.True(ran);
     }
 
-    /// <summary>Verifies invalid iteration counts are rejected before the run starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncRejectsInvalidIterationsBeforeRunStarts()
-    {
-        var ran = false;
-
-        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    ran = true;
-                    return Task.CompletedTask;
-                },
-                new BraidOptions { Iterations = 0 },
-                DefaultCancellationToken);
-        });
-
-        Assert.False(ran);
-    }
-
     /// <summary>Verifies invalid timeouts are rejected before the run starts.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncRejectsInvalidTimeoutBeforeRunStarts()
+    public async Task RunAsyncRejectsInvalidTimeoutAtStart()
     {
         var ran = false;
 
@@ -196,4 +148,52 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public async Task RunAsyncThrowsForNullTestDelegate() =>
         _ = await Assert.ThrowsAsync<ArgumentNullException>(static async () => await BraidRunner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
+
+    /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
+    [Fact]
+    public void RunExceptionExposesNullScheduleAsEmpty()
+    {
+        var exception = new BraidRunException("failed", 12345, 0, ["trace"], null, null);
+
+        Assert.Empty(exception.Schedule);
+    }
+
+    /// <summary>Verifies braid run exceptions snapshot trace and schedule values.</summary>
+    [Fact]
+    public void RunExceptionSnapshotsTraceAndSchedule()
+    {
+        var trace = new[] { "worker-1 forked" };
+        var schedule = new[] { new BraidStep("worker-1", "ready") };
+
+        var exception = new BraidRunException("failed", 12345, 0, trace, schedule, null);
+        trace[0] = "changed";
+        schedule[0] = new BraidStep("worker-2", "changed");
+
+        Assert.Equal(["worker-1 forked"], exception.Trace);
+        Assert.Equal([new BraidStep("worker-1", "ready")], exception.Schedule);
+        Assert.Null(exception.SchedulerDiagnostics);
+    }
+
+    /// <summary>Verifies invalid iteration counts are rejected before the run starts.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunRejectsInvalidIterationsBeforeStart()
+    {
+        var ran = false;
+
+        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await BraidRunner.RunAsync(
+                context =>
+                {
+                    _ = context;
+                    ran = true;
+                    return Task.CompletedTask;
+                },
+                new BraidOptions { Iterations = 0 },
+                DefaultCancellationToken);
+        });
+
+        Assert.False(ran);
+    }
 }

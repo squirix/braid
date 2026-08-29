@@ -2,14 +2,14 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace Braid.Internal;
 
-internal static class BraidScheduleTextParser
+internal static class ScheduleTextParser
 {
     public static bool TryParse(string? text, [NotNullWhen(true)] out BraidSchedule? schedule, [NotNullWhen(false)] out string? error)
     {
         schedule = null;
         error = null;
 
-        if (text is null)
+        if (text == null)
         {
             error = "Text must not be null.";
             return false;
@@ -25,14 +25,12 @@ internal static class BraidScheduleTextParser
         var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-        {
             if (!TryParseLine(lines[lineIndex], lineIndex + 1, steps, out error))
-            {
                 return false;
-            }
-        }
 
-        if (steps.Count is not 0) return TryCreateSchedule(steps, out schedule, out error);
+        if (steps.Count != 0)
+            return TryCreateSchedule(steps, out schedule, out error);
+
         error = "Text contains no replay steps (only comments or empty lines).";
         return false;
     }
@@ -79,10 +77,8 @@ internal static class BraidScheduleTextParser
     {
         error = null;
         var line = rawLine.Trim();
-        if (line.Length is 0 || line[0] is '#')
-        {
+        if (line.Length == 0 || line[0] == '#')
             return true;
-        }
 
         char[]? separators = null;
         var tokens = line.Split(separators, StringSplitOptions.RemoveEmptyEntries);
@@ -99,14 +95,10 @@ internal static class BraidScheduleTextParser
         }
 
         if (!TryParseWorkerAndProbe(tokens, lineNumber, out var workerId, out var probeName, out error))
-        {
             return false;
-        }
 
         if (!TryCreateStep(kind, workerId, probeName, lineNumber, out var step, out error))
-        {
             return false;
-        }
 
         steps.Add(step);
         return true;
@@ -159,13 +151,15 @@ internal static class BraidScheduleTextParser
                 return false;
         }
 
-        if (workerId.Length is 0)
+        if (workerId.Length == 0)
         {
             error = $"Line {lineNumber}: Worker id must not be empty.";
             return false;
         }
 
-        if (probeName.Length is not 0) return true;
+        if (probeName.Length != 0)
+            return true;
+
         error = $"Line {lineNumber}: Probe name must not be empty.";
         return false;
     }
