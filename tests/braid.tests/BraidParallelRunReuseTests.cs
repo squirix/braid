@@ -6,9 +6,9 @@ namespace Braid.Tests;
 public sealed class BraidParallelRunReuseTests : TestBase
 {
     /// <summary>Verifies many concurrent runs do not share scheduler state.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <returns>A task that represents the test.</returns>
     [Fact]
-    public async Task ManyIndependentRunsDoNotShareState()
+    public Task ManyIndependentRunsDoNotShareState()
     {
         var runs = new Task[20];
         for (var i = 0; i < runs.Length; i++)
@@ -16,12 +16,13 @@ public sealed class BraidParallelRunReuseTests : TestBase
 
         var allRuns = Task.WhenAll(runs);
         AssertCompletesBeforeWatchdog(allRuns, "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(15));
+        return Task.CompletedTask;
     }
 
     /// <summary>Verifies parallel scripted runs each follow their own schedule.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
+    /// <returns>A task that represents the test.</returns>
     [Fact]
-    public async Task ParallelScriptedRunsUseTheirOwnSchedules()
+    public Task ParallelScriptedRunsUseTheirOwnSchedules()
     {
         var scheduleA = BraidSchedule.Replay(new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready"));
         var scheduleB = BraidSchedule.Replay(new BraidStep("worker-2", "ready"), new BraidStep("worker-1", "ready"));
@@ -74,6 +75,7 @@ public sealed class BraidParallelRunReuseTests : TestBase
 
         Assert.Equal(["worker-1", "worker-2"], orderA);
         Assert.Equal(["worker-2", "worker-1"], orderB);
+        return Task.CompletedTask;
     }
 
     /// <summary>Verifies the same options instance can be reused across separate runs.</summary>
