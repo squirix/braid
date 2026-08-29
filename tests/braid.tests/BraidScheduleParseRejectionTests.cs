@@ -18,7 +18,7 @@ public sealed class BraidScheduleParseRejectionTests : TestBase
     public void ParseRejectsEmptyText()
     {
         var ex = Assert.Throws<FormatException>(static () => BraidSchedule.Parse(string.Empty));
-        Assert.NotEmpty(ex.Message);
+        Assert.Contains("empty or contains only whitespace", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Verifies extra tokens are rejected.</summary>
@@ -82,6 +82,6 @@ public sealed class BraidScheduleParseRejectionTests : TestBase
     public void ParseRejectsWhitespaceOnlyText()
     {
         var ex = Assert.Throws<FormatException>(static () => BraidSchedule.Parse("   \t  "));
-        Assert.NotEmpty(ex.Message);
+        Assert.Contains("empty or contains only whitespace", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

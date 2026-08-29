@@ -189,14 +189,14 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
             await BraidRunner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
+                    context.Fork(static async () => await BraidProbe.HitAsync("probe-b", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 new BraidOptions
                 {
                     Iterations = 1,
                     Seed = 4007,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
+                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "probe-a")),
                 },
                 DefaultCancellationToken);
         });
@@ -204,8 +204,8 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
         var report = exception.ToString();
         Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
         Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("expected", report, StringComparison.Ordinal);
-        Assert.Contains("actual", report, StringComparison.Ordinal);
+        Assert.Contains("probe-a", report, StringComparison.Ordinal);
+        Assert.Contains("actual probe is probe-b", report, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies wrong worker diagnostics mention expected worker and blocked actual worker.</summary>

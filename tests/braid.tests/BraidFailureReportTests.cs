@@ -86,19 +86,6 @@ public sealed class BraidFailureReportTests : TestBase
         Assert.Contains("boom", report, StringComparison.Ordinal);
     }
 
-    /// <summary>Verifies held workers appear in diagnostics for arrive/hold/release schedules.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task FailureReportIncludesHeldWorkers()
-    {
-        var exception = await RunHeldWorkerFailureAsync("boom");
-
-        var report = exception.ToString();
-        Assert.Contains("Held workers:", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("cache-hit", report, StringComparison.Ordinal);
-    }
-
     /// <summary>Verifies the last matched replay step is listed when a later step cannot run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]

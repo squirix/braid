@@ -42,6 +42,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
     {
         using var runCts = new CancellationTokenSource();
         var runToken = runCts.Token;
+        var workerBlocked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var runTask = BraidRunner.RunAsync(
             async context =>
@@ -49,6 +50,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
                 context.Fork(async () =>
                 {
                     await BraidProbe.HitAsync("block", DefaultCancellationToken);
+                    workerBlocked.SetResult();
                     while (!runToken.IsCancellationRequested)
                         await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, DefaultCancellationToken);
 
@@ -60,7 +62,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             new BraidOptions { Iterations = 1, Seed = 12345 },
             runToken);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(50), TimeProvider.System, DefaultCancellationToken);
+        await workerBlocked.Task.WaitAsync(DefaultCancellationToken);
         await runCts.CancelAsync();
 
         var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);

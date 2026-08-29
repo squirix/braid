@@ -211,6 +211,6 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
             new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(1) },
             DefaultCancellationToken);
 
-        Assert.Equal(5, completed.Value);
+        Assert.True(completed.Value == 5, $"Seed {seed} completed {completed.Value} of 5 workers.");
     }
 }

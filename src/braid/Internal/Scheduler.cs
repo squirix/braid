@@ -2,6 +2,7 @@ namespace Braid.Internal;
 
 internal sealed class Scheduler : IDisposable
 {
+    private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(1);
     private readonly Lock _gate = new();
     private readonly int _iteration;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
@@ -355,9 +356,6 @@ internal sealed class Scheduler : IDisposable
 
             if (nextTask == null)
             {
-                if (advancedWithoutRelease)
-                    continue;
-
                 await _stateChanged.WaitAsync(linkedToken).ConfigureAwait(false);
                 continue;
             }
@@ -391,7 +389,7 @@ internal sealed class Scheduler : IDisposable
         var all = Task.WhenAll(runningTasks);
         if (_shutdownCts.IsCancellationRequested)
         {
-            var completed = await Task.WhenAny(all, Task.Delay(TimeSpan.FromSeconds(1), TimeProvider.System, CancellationToken.None)).ConfigureAwait(false);
+            var completed = await Task.WhenAny(all, Task.Delay(ShutdownDrainTimeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(false);
             if (completed == all)
                 await all.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 

@@ -60,12 +60,13 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task LargeReplayScheduleCanBeCreatedAndReused()
     {
-        var steps = new BraidStep[100];
+        const int stepCount = 100;
+        var steps = new BraidStep[stepCount];
         for (var stepIndex = 0; stepIndex < steps.Length; stepIndex++)
             steps[stepIndex] = new BraidStep("worker-1", "tick");
 
         var schedule = BraidSchedule.Replay(steps);
-        Assert.Equal(100, schedule.Steps.Count);
+        Assert.Equal(stepCount, schedule.Steps.Count);
 
         for (var pass = 0; pass < 2; pass++)
         {
@@ -74,7 +75,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                 {
                     context.Fork(static async () =>
                     {
-                        for (var i = 0; i < 100; i++)
+                        for (var i = 0; i < stepCount; i++)
                             await BraidProbe.HitAsync("tick", DefaultCancellationToken);
                     });
 

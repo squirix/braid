@@ -306,30 +306,38 @@ public abstract class TestBase
                 __ =>
                 {
                     var completed = new ManualResetEventSlim(false);
-                    Exception? captured = null;
-
-                    _ = HitOnContextAsync();
-                    completed.Wait(cancellationToken);
-
-                    if (captured != null)
-                        _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
-                    return;
-
-                    async Task HitOnContextAsync()
+                    try
                     {
-                        try
+                        Exception? captured = null;
+
+                        _ = HitOnContextAsync();
+                        if (!completed.Wait(TimeSpan.FromSeconds(10), cancellationToken))
+                            Assert.Fail($"Probe '{probe}' did not complete before the thread watchdog timeout.");
+
+                        if (captured != null)
+                            _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
+                        return;
+
+                        async Task HitOnContextAsync()
                         {
-                            WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
-                            await BraidProbe.HitAsync(probe, cancellationToken);
+                            try
+                            {
+                                WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
+                                await BraidProbe.HitAsync(probe, cancellationToken);
+                            }
+                            catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException)
+                            {
+                                captured = ex;
+                            }
+                            finally
+                            {
+                                completed.Set();
+                            }
                         }
-                        catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException)
-                        {
-                            captured = ex;
-                        }
-                        finally
-                        {
-                            completed.Set();
-                        }
+                    }
+                    finally
+                    {
+                        completed.Dispose();
                     }
                 },
                 null);
@@ -344,13 +352,15 @@ public abstract class TestBase
                 throw new TaskCanceledException(task);
         }
 
-        public static Task RunWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+        public static async Task RunWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
         {
             ArgumentNullException.ThrowIfNull(startTask);
             var task = startTask();
-            WaitUntilCompletedOrFail(task, failureMessage, watchdogTimeout, prefixWatchdogMessage);
-            RethrowIfFaultedOrCanceled(task);
-            return Task.CompletedTask;
+            var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, DefaultCancellationToken);
+            if (await Task.WhenAny(task, watchdog).ConfigureAwait(false) != task)
+                Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+
+            await task.ConfigureAwait(false);
         }
 
         public static void WaitUntilCompletedOrFail(Task task, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage)
@@ -359,21 +369,26 @@ public abstract class TestBase
                 return;
 
             var completed = new ManualResetEventSlim(false);
-            _ = task.ContinueWith(
-                static (_, state) =>
-                {
-                    if (state is ManualResetEventSlim signal)
-                        signal.Set();
-                },
-                completed,
-                CancellationToken.None,
-                TaskContinuationOptions.ExecuteSynchronously,
-                TaskScheduler.Default);
+            try
+            {
+                _ = task.ContinueWith(
+                    static (_, state) =>
+                    {
+                        if (state is ManualResetEventSlim signal)
+                            signal.Set();
+                    },
+                    completed,
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
 
-            if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
-                Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
-
-            completed.Dispose();
+                if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
+                    Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+            }
+            finally
+            {
+                completed.Dispose();
+            }
         }
 
         private static void WaitUntilBothThreadsAreReady(CompletionCounter readyCount, CancellationToken cancellationToken)
