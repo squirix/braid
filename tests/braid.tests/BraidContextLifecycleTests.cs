@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers contextlifecycle behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers context lifecycle behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidContextLifecycleTests : TestBase
 {
     /// <summary>Verifies context use after failed completion fails clearly.</summary>

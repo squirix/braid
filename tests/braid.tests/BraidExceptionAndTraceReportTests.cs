@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers exceptionandtracereport behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers exception and trace report behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidExceptionAndTraceReportTests : TestBase
 {
     /// <summary>Verifies exception formatting succeeds for empty trace and empty schedule.</summary>

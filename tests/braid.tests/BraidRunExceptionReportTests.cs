@@ -3,7 +3,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers runexceptionreport behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers run exception report behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidRunExceptionReportTests : TestBase
 {
     /// <summary>Verifies exception properties are reflected in formatted reports.</summary>

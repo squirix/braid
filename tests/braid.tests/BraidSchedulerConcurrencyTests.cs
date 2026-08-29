@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers schedulerconcurrency behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers scheduler concurrency behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidSchedulerConcurrencyTests : TestBase
 {
     /// <summary>Verifies concurrent probe hits from the same worker fail clearly or serialize safely.</summary>
