@@ -29,10 +29,10 @@ public abstract class TestBase
     protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage) =>
         BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, TimeSpan.FromSeconds(2));
 
-    /// <summary>Asserts a concurrent probe race run fails with the expected braid error.</summary>
+    /// <summary>Asserts a concurrent probe race run fails with the expected braid error, or silently serializes without failure.</summary>
     /// <param name="startRun">Starts the braid run to observe.</param>
     /// <param name="expectForkFailureMessage">Whether to assert the fork wrapper failure message.</param>
-    protected static async Task AssertConcurrentProbeRaceFailureAsync(Func<Task> startRun, bool expectForkFailureMessage = false)
+    protected static async Task AssertConcurrentProbeRaceToleratesAsync(Func<Task> startRun, bool expectForkFailureMessage = false)
     {
         ArgumentNullException.ThrowIfNull(startRun);
         var runTask = startRun();

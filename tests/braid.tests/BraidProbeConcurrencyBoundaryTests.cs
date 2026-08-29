@@ -138,7 +138,7 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     [Fact]
     public Task ProbeInsideFlowingFailsOrSerializes()
     {
-        return AssertConcurrentProbeRaceFailureAsync(static () => BraidRunner.RunAsync(
+        return AssertConcurrentProbeRaceToleratesAsync(static () => BraidRunner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () => await RunTwoThreadProbeRaceAsync("parent", "child"));

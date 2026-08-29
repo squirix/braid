@@ -10,7 +10,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     [Fact]
     public Task ConcurrentProbesSameWorkerFailSerialize()
     {
-        return AssertConcurrentProbeRaceFailureAsync(
+        return AssertConcurrentProbeRaceToleratesAsync(
             static () => BraidRunner.RunAsync(
                 static async context =>
                 {
@@ -65,7 +65,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     [Fact]
     public Task ProbeFromChildTaskFailsOrSerializes()
     {
-        return AssertConcurrentProbeRaceFailureAsync(static () => BraidRunner.RunAsync(
+        return AssertConcurrentProbeRaceToleratesAsync(static () => BraidRunner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () => await RunTwoThreadProbeRaceAsync("parent", "child"));
@@ -172,23 +172,6 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 
-    private static async Task RunRandomSchedulingSeedScenarioAsync(int seed)
-    {
-        var completed = new CompletionCounter();
-        await BraidRunner.RunAsync(
-            async context =>
-            {
-                for (var workerIndex = 0; workerIndex < 5; workerIndex++)
-                    ForkWorkerRandomProbes(context, workerIndex, completed);
-
-                await context.JoinAsync(DefaultCancellationToken);
-            },
-            new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(1) },
-            DefaultCancellationToken);
-
-        Assert.Equal(5, completed.Value);
-    }
-
     private static Task RunOrderedWorkerReplayAsync(List<string> order, int seed, BraidStep firstStep, BraidStep secondStep) => BraidRunner.RunAsync(
         async context =>
         {
@@ -213,4 +196,21 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
             Schedule = BraidSchedule.Replay(firstStep, secondStep),
         },
         DefaultCancellationToken);
+
+    private static async Task RunRandomSchedulingSeedScenarioAsync(int seed)
+    {
+        var completed = new CompletionCounter();
+        await BraidRunner.RunAsync(
+            async context =>
+            {
+                for (var workerIndex = 0; workerIndex < 5; workerIndex++)
+                    ForkWorkerRandomProbes(context, workerIndex, completed);
+
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(1) },
+            DefaultCancellationToken);
+
+        Assert.Equal(5, completed.Value);
+    }
 }
