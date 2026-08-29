@@ -118,7 +118,7 @@ internal sealed class Scheduler : IDisposable
             await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
             await WaitForRunningTasksAsync().ConfigureAwait(false);
 
-            Exception? failure = null;
+            Exception? failure;
             lock (_gate)
                 failure = SchedulerSearch.FindFirstFailedException(_tasks);
             if (failure != null)

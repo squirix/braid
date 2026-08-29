@@ -27,6 +27,7 @@ csharp_prefer_braces = false:error
 # keyword. Forces the multi-line, brace-free form: `if (x)\n    Body();`. Honored by both
 # `dotnet format` and Rider; SA1519 is disabled below so the brace-free multi-line form is allowed.
 csharp_preserve_single_line_statements = false
+csharp_style_allow_embedded_statements_on_same_line_experimental = false
 csharp_style_deconstructed_variable_declaration = true:warning
 csharp_style_expression_bodied_operators = false:warning
 csharp_style_expression_bodied_local_functions = false:warning
@@ -74,6 +75,8 @@ dotnet_diagnostic.IDE0161.severity = error
 dotnet_diagnostic.IDE0290.severity = none
 # Enforce formatting, including single-line expression members when they fit the line width
 dotnet_diagnostic.IDE0055.severity = error
+# Disallow embedded statements on the same line as their control keyword (multi-line, brace-free form)
+dotnet_diagnostic.IDE2001.severity = error
 
 # SonarAnalyzer
 # Loops should be simplified with LINQ - intentionally disabled; this codebase prefers explicit loops.
