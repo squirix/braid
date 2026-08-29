@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers schedulerscopeandcancellation behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers scheduler scope and cancellation behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
 {
     /// <summary>Verifies callback-observed cancellation before forking surfaces operation canceled.</summary>

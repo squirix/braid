@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers timeoutcancellation behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers timeout and cancellation behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidTimeoutCancellationTests : TestBase
 {
     /// <summary>Verifies a canceled probe token does not strand the worker in a permanent wait.</summary>

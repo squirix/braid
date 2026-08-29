@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers schedulervalidation behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers scheduler validation behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidSchedulerValidationTests : TestBase
 {
     /// <summary>Verifies shared default options are not mutated by runs.</summary>

@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers innerexceptionstacktrace behavior of the braid scheduler and run reporting.</summary>
+/// <summary>Covers inner exception stack trace behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidInnerExceptionStackTraceTests : TestBase
 {
     /// <summary>Verifies callback failures preserve original inner exception stack trace.</summary>
