@@ -10,18 +10,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
     [Fact]
     public async Task CanceledProbeDoesNotWaitPermanently()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+        var exception = await RunLocalTokenCanceledProbeAsync(12345);
 
         Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
         Assert.NotNull(exception.InnerException);
@@ -33,18 +22,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
     [Fact]
     public async Task CanceledWorkerProbeContainsProbeTrace()
     {
-        var exceptionTask = Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+        var exceptionTask = RunLocalTokenCanceledProbeAsync(12345);
 
         var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
         if (await Task.WhenAny(exceptionTask, watchdog) != exceptionTask)
@@ -105,17 +83,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
     [Fact]
     public async Task ProbeCanceledByLocalTokenAsFailure()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 36 },
-                DefaultCancellationToken);
-        });
+        var exception = await RunLocalTokenCanceledProbeAsync(36);
 
         Assert.True(exception.InnerException is OperationCanceledException);
         Assert.Contains("ready", exception.ToString(), StringComparison.Ordinal);
@@ -238,4 +206,17 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             _ = gate.TrySetResult();
         }
     }
+
+    private static Task<BraidRunException> RunLocalTokenCanceledProbeAsync(int seed) =>
+        Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await BraidRunner.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(2) },
+                DefaultCancellationToken);
+        });
 }

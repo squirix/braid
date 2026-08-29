@@ -15,11 +15,7 @@ public sealed class BraidParallelRunReuseTests : TestBase
             runs[i] = RunIndependentParallelScenarioAsync(10_000 + i);
 
         var allRuns = Task.WhenAll(runs);
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(15), TimeProvider.System, DefaultCancellationToken);
-        if (await Task.WhenAny(allRuns, watchdog) != allRuns)
-            Assert.Fail("Braid run did not complete before watchdog timeout.");
-
-        await allRuns;
+        AssertCompletesBeforeWatchdog(allRuns, "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(15));
     }
 
     /// <summary>Verifies parallel scripted runs each follow their own schedule.</summary>
@@ -74,11 +70,7 @@ public sealed class BraidParallelRunReuseTests : TestBase
             DefaultCancellationToken);
 
         var combined = Task.WhenAll(runA, runB);
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
-        if (await Task.WhenAny(combined, watchdog) != combined)
-            Assert.Fail("Braid run did not complete before watchdog timeout.");
-
-        await combined;
+        AssertCompletesBeforeWatchdog(combined, "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(2));
 
         Assert.Equal(["worker-1", "worker-2"], orderA);
         Assert.Equal(["worker-2", "worker-1"], orderB);
