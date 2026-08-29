@@ -117,6 +117,12 @@ internal sealed class Scheduler : IDisposable
 
             await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
             await WaitForRunningTasksAsync().ConfigureAwait(false);
+
+            Exception? failure = null;
+            lock (_gate)
+                failure = SchedulerSearch.FindFirstFailedException(_tasks);
+            if (failure != null)
+                throw CreateException("A forked operation failed.", failure, BraidRunFailureOrigin.UserTest);
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
         {

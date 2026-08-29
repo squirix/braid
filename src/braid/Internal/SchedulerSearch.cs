@@ -103,6 +103,7 @@ internal static class SchedulerSearch
         if (state is not Func<Task> operation)
             throw new InvalidOperationException("Invalid fork operation.");
 
-        return operation();
+        Task? task = operation();
+        return task ?? Task.FromException(new InvalidOperationException("Fork operation returned a null task."));
     }
 }
