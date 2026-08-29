@@ -8,7 +8,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     /// <summary>Verifies multiple worker failures report one failure while trace still records both workers.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task MultipleWorkerFailuresReportAllTraces()
+    public async Task MultipleWorkersOneFailureBothTraced()
     {
         var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
