@@ -131,7 +131,9 @@ public sealed class BraidRunResultAndScopeTests : TestBase
             Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
         }
 
-        await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        Assert.True(probe.IsCompletedSuccessfully);
+        await probe;
     }
 
     /// <summary>Verifies a run with no workers and no schedule completes.</summary>
