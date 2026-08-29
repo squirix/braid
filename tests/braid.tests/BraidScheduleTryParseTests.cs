@@ -5,25 +5,18 @@ namespace Braid.Tests;
 /// <summary>Covers <see cref="BraidSchedule.TryParse" /> behavior for valid and malformed inputs.</summary>
 public sealed class BraidScheduleTryParseTests : TestBase
 {
-    /// <summary>Verifies try-parse does not throw for malformed inputs.</summary>
-    [Fact]
-    public void TryParseDoesNotThrowForMalformedInput()
-    {
-        string?[] inputs =
-        [
-            null,
-            string.Empty,
-            "   ",
-            "#\n#",
-            "nope w p",
-            "hit",
-            "hit w",
-            "hit w p x",
-        ];
-
-        foreach (var text in inputs)
-            AssertTryParseDoesNotThrow(text);
-    }
+    /// <summary>Verifies try-parse does not throw for each malformed input.</summary>
+    /// <param name="text">The malformed schedule text to attempt to parse.</param>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("#\n#")]
+    [InlineData("nope w p")]
+    [InlineData("hit")]
+    [InlineData("hit w")]
+    [InlineData("hit w p x")]
+    public void TryParseDoesNotThrowForMalformedInput(string? text) => AssertTryParseDoesNotThrow(text);
 
     /// <summary>Verifies null input returns false from try-parse with a message.</summary>
     [Fact]

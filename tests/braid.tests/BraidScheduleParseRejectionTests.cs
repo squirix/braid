@@ -28,7 +28,7 @@ public sealed class BraidScheduleParseRejectionTests : TestBase
         var ex = Assert.Throws<FormatException>(static () => BraidSchedule.Parse("hit worker-1 ready extra"));
 
         Assert.Contains("line 1", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("3", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("exactly 3 tokens", ex.Message, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies inline comments are treated as extra tokens.</summary>

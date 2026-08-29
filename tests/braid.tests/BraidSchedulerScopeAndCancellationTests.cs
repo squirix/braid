@@ -293,7 +293,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                 DefaultCancellationToken);
         });
 
-        Assert.True(exception.InnerException is OperationCanceledException);
+        _ = Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
         Assert.Contains("ready", exception.ToString(), StringComparison.Ordinal);
     }
 
@@ -322,7 +322,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
 
         var report = exception.ToString();
         Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
-        Assert.True(exception.InnerException is OperationCanceledException);
+        _ = Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 

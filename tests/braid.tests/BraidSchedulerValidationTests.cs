@@ -26,7 +26,7 @@ public sealed class BraidSchedulerValidationTests : TestBase
     /// <summary>Verifies duplicate scripted steps for the same worker and probe are rejected or fail clearly after the worker completes.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task DuplicateScriptedReleaseFailsClearly()
+    public async Task DuplicateScriptedHitStepFailsClearly()
     {
         var options = new BraidOptions
         {
