@@ -13,23 +13,34 @@ public sealed class BraidForkConcurrencyTests : TestBase
     {
         var completed = new CompletionCounter();
 
-        await BraidRunner.RunAsync(
-            async context =>
-            {
-                var forks = new Task[20];
-                for (var forkIndex = 0; forkIndex < forks.Length; forkIndex++)
-                    forks[forkIndex] = ScheduleConcurrentForkAsync(context, completed);
+        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await BraidRunner.RunAsync(
+                async context =>
+                {
+                    var forks = new Task[20];
+                    for (var forkIndex = 0; forkIndex < forks.Length; forkIndex++)
+                        forks[forkIndex] = ScheduleConcurrentForkAsync(context, completed);
 
-                await Task.WhenAll(forks);
-                await context.JoinAsync(DefaultCancellationToken);
-            },
-            new BraidOptions { Iterations = 1, Seed = 5502 },
-            DefaultCancellationToken);
+                    await Task.WhenAll(forks);
+                    await context.JoinAsync(DefaultCancellationToken);
+                    throw new InvalidOperationException("forced-failure");
+                },
+                new BraidOptions { Iterations = 1, Seed = 5502 },
+                DefaultCancellationToken);
+        });
 
         Assert.Equal(20, completed.Value);
+
+        var distinctWorkerIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var entry in exception.Trace)
+            if (entry.EndsWith(" forked", StringComparison.Ordinal))
+                _ = distinctWorkerIds.Add(entry);
+
+        Assert.Equal(20, distinctWorkerIds.Count);
     }
 
-    /// <summary>Verifies forking from external task during active join fails clearly.</summary>
+    /// <summary>Verifies forking from an external task during active join fails clearly.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task ForkFromExternalTaskFailsClearly()
