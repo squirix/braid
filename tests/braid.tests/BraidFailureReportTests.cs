@@ -43,7 +43,7 @@ public sealed class BraidFailureReportTests : TestBase
     /// <summary>Verifies report formatting does not throw when replay text cannot be exported.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task FailureReportDoesNotThrowWhenReplayTextCannotBeRendered()
+    public async Task FailureReportDoesNotThrowWhenNotRendered()
     {
         var options = new BraidOptions
         {
@@ -75,33 +75,9 @@ public sealed class BraidFailureReportTests : TestBase
     /// <summary>Verifies arrive-held state is visible before a worker throws at a later scripted hit.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task FailureReportIncludesArriveHeldWorkerBeforeRelease()
+    public async Task FailureReportIncludesHeldBeforeRelease()
     {
-        var options = new BraidOptions
-        {
-            Iterations = 1,
-            Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
-        };
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
-
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
-                        throw new InvalidOperationException("boom");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+        var exception = await RunHeldWorkerFailureAsync("boom");
 
         var report = exception.ToString();
         Assert.Contains("Held workers:", report, StringComparison.OrdinalIgnoreCase);
@@ -110,47 +86,10 @@ public sealed class BraidFailureReportTests : TestBase
         Assert.Contains("boom", report, StringComparison.Ordinal);
     }
 
-    /// <summary>Verifies held workers appear in diagnostics for arrive/hold/release schedules.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task FailureReportIncludesHeldWorkers()
-    {
-        var options = new BraidOptions
-        {
-            Iterations = 1,
-            Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
-        };
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
-
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
-                        throw new InvalidOperationException("boom");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("Held workers:", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("cache-hit", report, StringComparison.Ordinal);
-    }
-
     /// <summary>Verifies the last matched replay step is listed when a later step cannot run.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task FailureReportIncludesLastMatchedReplayStep()
+    public async Task FailureReportIncludesLastMatchedStep()
     {
         var options = new BraidOptions
         {
@@ -179,7 +118,7 @@ public sealed class BraidFailureReportTests : TestBase
     /// <summary>Verifies failure reports include replay text for arrive and release steps.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task FailureReportIncludesReplayTextForArriveReleaseSchedule()
+    public async Task FailureReportIncludesTextArriveRelease()
     {
         var options = new BraidOptions
         {
@@ -216,7 +155,7 @@ public sealed class BraidFailureReportTests : TestBase
     /// <summary>Verifies failure reports include canonical replay text for hit-only schedules.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task FailureReportIncludesReplayTextForHitSchedule()
+    public async Task FailureReportIncludesTextHitSchedule()
     {
         var options = new BraidOptions
         {
@@ -305,12 +244,25 @@ public sealed class BraidFailureReportTests : TestBase
         Assert.Contains("blocked", report, StringComparison.Ordinal);
     }
 
+    /// <summary>Verifies scheduler diagnostics do not hide the inner exception message.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task FailureReportStateDoesNotHideInner()
+    {
+        var exception = await RunHeldWorkerFailureAsync("inner-boom");
+
+        var report = exception.ToString();
+        Assert.Contains("Last matched replay step:", report, StringComparison.Ordinal);
+        Assert.Contains("inner-boom", report, StringComparison.Ordinal);
+        Assert.Contains("Inner exception:", report, StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Verifies replay text in the report matches <see cref="BraidSchedule.ToReplayText" /> and parses back to the same steps.
     /// </summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task FailureReportReplayTextParsesBackToSchedule()
+    public async Task FailureReportTextParsesBackSchedule()
     {
         var configured = BraidSchedule.Replay(BraidStep.Hit("worker-1", "after-read"), BraidStep.Arrive("worker-2", "before-write"), BraidStep.Release("worker-2", "before-write"));
 
@@ -349,47 +301,10 @@ public sealed class BraidFailureReportTests : TestBase
         }
     }
 
-    /// <summary>Verifies scheduler diagnostics do not hide the inner exception message.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task FailureReportSchedulerStateDoesNotHideInnerException()
-    {
-        var options = new BraidOptions
-        {
-            Iterations = 1,
-            Seed = 12345,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "boom-point"), BraidStep.Release("worker-1", "cache-hit")),
-        };
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
-
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("boom-point", DefaultCancellationToken);
-                        throw new InvalidOperationException("inner-boom");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("Last matched replay step:", report, StringComparison.Ordinal);
-        Assert.Contains("inner-boom", report, StringComparison.Ordinal);
-        Assert.Contains("Inner exception:", report, StringComparison.Ordinal);
-    }
-
     /// <summary>Verifies lost-update replay failures include schedule and trace details.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReportsScheduleAndTraceForLostUpdateReplayFailure()
+    public async Task RunAsyncReportsScheduleTraceLostUpdate()
     {
         var options = new BraidOptions
         {
@@ -445,7 +360,7 @@ public sealed class BraidFailureReportTests : TestBase
     /// <summary>Verifies scripted schedules appear in failure reports.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReportsScriptedScheduleWhenFailureOccurs()
+    public async Task RunAsyncReportsScriptedFailureOccurs()
     {
         var options = new BraidOptions
         {
@@ -483,7 +398,7 @@ public sealed class BraidFailureReportTests : TestBase
     /// <summary>Verifies failures include seed, iteration, trace, and inner message.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReportsSeedAndTraceWhenInterleavingFails()
+    public async Task RunAsyncReportsSeedTraceInterleaving()
     {
         var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
         {
@@ -510,5 +425,37 @@ public sealed class BraidFailureReportTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
         Assert.Contains("before-failure", report, StringComparison.Ordinal);
         Assert.Contains("boom", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>Runs the arrive-hold-release schedule in which the held worker fails at the later scripted hit, returning the raised failure.</summary>
+    /// <param name="innerMessage">The message of the exception thrown by the failing worker.</param>
+    /// <returns>The raised <see cref="BraidRunException" />.</returns>
+    private static Task<BraidRunException> RunHeldWorkerFailureAsync(string innerMessage)
+    {
+        var options = new BraidOptions
+        {
+            Iterations = 1,
+            Seed = 12345,
+            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"), BraidStep.Hit("worker-2", "fail-point"), BraidStep.Release("worker-1", "cache-hit")),
+        };
+
+        return Assert.ThrowsAsync<BraidRunException>(async () =>
+        {
+            await BraidRunner.RunAsync(
+                async context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("cache-hit", DefaultCancellationToken));
+
+                    context.Fork(async () =>
+                    {
+                        await BraidProbe.HitAsync("fail-point", DefaultCancellationToken);
+                        throw new InvalidOperationException(innerMessage);
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                options,
+                DefaultCancellationToken);
+        });
     }
 }

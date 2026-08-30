@@ -20,6 +20,15 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
         Assert.DoesNotContain(" \r", text, StringComparison.Ordinal);
     }
 
+    /// <summary>Verifies an empty typed schedule exports to an empty string.</summary>
+    [Fact]
+    public void ToReplayTextEmptyStringForEmptySchedule()
+    {
+        var schedule = BraidSchedule.Replay();
+
+        Assert.Equal(string.Empty, schedule.ToReplayText());
+    }
+
     /// <summary>Verifies probe name casing is preserved in export and round-trip.</summary>
     [Fact]
     public void ToReplayTextPreservesProbeCase()
@@ -79,15 +88,6 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
         var schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"));
 
         Assert.Equal("arrive worker-1 cache-hit", schedule.ToReplayText());
-    }
-
-    /// <summary>Verifies an empty typed schedule exports to an empty string.</summary>
-    [Fact]
-    public void ToReplayTextReturnsEmptyStringForEmptySchedule()
-    {
-        var schedule = BraidSchedule.Replay();
-
-        Assert.Equal(string.Empty, schedule.ToReplayText());
     }
 
     /// <summary>Verifies a hit step exports as a hit line.</summary>

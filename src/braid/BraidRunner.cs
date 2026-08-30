@@ -29,7 +29,7 @@ public static class BraidRunner
 
     /// <inheritdoc cref="ExploreAsync(Action{BraidExploreOptionsBuilder}, Func{BraidExploreContext, Task}, CancellationToken)" />
     public static Task ExploreAsync(BraidExploreOptions options, Func<BraidExploreContext, Task> test, CancellationToken cancellationToken) =>
-        BraidExplorer.ExploreAsync(options, test, cancellationToken);
+        Explorer.ExploreAsync(options, test, cancellationToken);
 
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
@@ -65,7 +65,7 @@ public static class BraidRunner
     {
         ArgumentNullException.ThrowIfNull(test);
 
-        if (BraidRunScope.CurrentScheduler is not null)
+        if (RunScope.CurrentScheduler != null)
             throw new InvalidOperationException("Nested braid runs are not supported.");
 
         cancellationToken.ThrowIfCancellationRequested();
@@ -85,10 +85,10 @@ public static class BraidRunner
             cancellationToken.ThrowIfCancellationRequested();
 
             var seed = unchecked(baseSeed + iteration);
-            using var scheduler = new BraidScheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps);
+            using var scheduler = new Scheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps);
             var context = new BraidContext(scheduler);
 
-            using var scope = BraidRunScope.Enter(scheduler);
+            using var scope = RunScope.Enter(scheduler);
 
             try
             {
