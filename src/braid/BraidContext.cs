@@ -8,12 +8,12 @@ namespace Braid;
 /// </summary>
 public sealed class BraidContext
 {
-    private readonly Scheduler _scheduler;
+    private readonly Scheduler _runScheduler;
     private int _isActive = 1;
 
-    internal BraidContext(Scheduler scheduler)
+    internal BraidContext(Scheduler runScheduler)
     {
-        _scheduler = scheduler;
+        _runScheduler = runScheduler;
     }
 
     /// <summary>Gets the scheduling trace from the completed run, when available.</summary>
@@ -27,7 +27,7 @@ public sealed class BraidContext
     {
         ArgumentNullException.ThrowIfNull(operation);
         ThrowIfInactive();
-        _scheduler.Fork(operation);
+        _runScheduler.Fork(operation);
     }
 
     /// <summary>Starts a logical concurrent operation with a stable worker id.</summary>
@@ -38,7 +38,7 @@ public sealed class BraidContext
         ArgumentException.ThrowIfNullOrWhiteSpace(workerId);
         ArgumentNullException.ThrowIfNull(operation);
         ThrowIfInactive();
-        _scheduler.Fork(workerId, operation);
+        _runScheduler.Fork(workerId, operation);
     }
 
     /// <summary>Runs all forked operations until they complete or the scheduler detects a failure.</summary>
@@ -47,13 +47,13 @@ public sealed class BraidContext
     public Task JoinAsync(CancellationToken cancellationToken)
     {
         ThrowIfInactive();
-        return _scheduler.JoinAsync(cancellationToken);
+        return _runScheduler.JoinAsync(cancellationToken);
     }
 
     internal void Complete()
     {
-        TraceSteps = _scheduler.GetTraceSnapshot();
-        WorkerProbeSequences = _scheduler.GetWorkerProbeSequences();
+        TraceSteps = _runScheduler.GetTraceSnapshot();
+        WorkerProbeSequences = _runScheduler.GetWorkerProbeSequences();
         _ = Interlocked.Exchange(ref _isActive, 0);
     }
 
