@@ -117,7 +117,7 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
                     DefaultCancellationToken);
             });
 
-            AssertCompletesBeforeWatchdog(exceptionTask, "Timeout run should fail deterministically.", TimeSpan.FromSeconds(3), false);
+            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Timeout run should fail deterministically.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
             Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
         }
@@ -126,7 +126,7 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
             _ = gate.TrySetResult();
         }
 
-        AssertCompletesBeforeWatchdog(workerFinallyObserved.Task, "Worker finally should complete after timeout.", TimeSpan.FromSeconds(3), false);
+        await AssertCompletesBeforeWatchdogAsync(workerFinallyObserved.Task, "Worker finally should complete after timeout.", TimeSpan.FromSeconds(3), false);
         await BraidProbe.HitAsync("outside-after-timeout", DefaultCancellationToken);
     }
 

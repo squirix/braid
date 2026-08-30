@@ -14,15 +14,13 @@ public sealed class BraidParallelRunReuseTests : TestBase
         for (var i = 0; i < runs.Length; i++)
             runs[i] = RunIndependentParallelScenarioAsync(10_000 + i);
 
-        var allRuns = Task.WhenAll(runs);
-        AssertCompletesBeforeWatchdog(allRuns, "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(15));
-        return Task.CompletedTask;
+        return AssertCompletesBeforeWatchdogAsync(Task.WhenAll(runs), "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(15));
     }
 
     /// <summary>Verifies parallel scripted runs each follow their own schedule.</summary>
     /// <returns>A task that represents the test.</returns>
     [Fact]
-    public Task ParallelScriptedRunsUseTheirOwnSchedules()
+    public async Task ParallelScriptedRunsUseTheirOwnSchedules()
     {
         var scheduleA = BraidSchedule.Replay(new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready"));
         var scheduleB = BraidSchedule.Replay(new BraidStep("worker-2", "ready"), new BraidStep("worker-1", "ready"));
@@ -71,11 +69,10 @@ public sealed class BraidParallelRunReuseTests : TestBase
             DefaultCancellationToken);
 
         var combined = Task.WhenAll(runA, runB);
-        AssertCompletesBeforeWatchdog(combined, "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(2));
+        await AssertCompletesBeforeWatchdogAsync(combined, "Braid run did not complete before watchdog timeout.", TimeSpan.FromSeconds(2));
 
         Assert.Equal(["worker-1", "worker-2"], orderA);
         Assert.Equal(["worker-2", "worker-1"], orderB);
-        return Task.CompletedTask;
     }
 
     /// <summary>Verifies the same options instance can be reused across separate runs.</summary>

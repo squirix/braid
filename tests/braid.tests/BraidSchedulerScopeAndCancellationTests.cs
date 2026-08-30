@@ -139,7 +139,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task ParallelFailedRunsDoNotMixTraceEntries()
     {
-        var tasks = new Task[10];
+        const int runCount = 10;
+        var tasks = new Task[runCount];
         for (var runId = 0; runId < tasks.Length; runId++)
             tasks[runId] = RunIsolatedFailedRunAsync(runId);
 
@@ -164,7 +165,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
 
             var report = exception.ToString();
             Assert.Contains(ownProbe, report, StringComparison.Ordinal);
-            for (var other = 0; other < 10; other++)
+            for (var other = 0; other < runCount; other++)
             {
                 if (other == runId)
                     continue;
@@ -403,7 +404,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     DefaultCancellationToken);
             });
 
-            AssertCompletesBeforeWatchdog(runTask, "Timed out run should complete with exception.", TimeSpan.FromSeconds(3), false);
+            await AssertCompletesBeforeWatchdogAsync(runTask, "Timed out run should complete with exception.", TimeSpan.FromSeconds(3), false);
         }
         finally
         {

@@ -120,7 +120,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                     DefaultCancellationToken);
             });
 
-            AssertCompletesBeforeWatchdog(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
+            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
             Assert.Contains("primary worker failure", exception.ToString(), StringComparison.Ordinal);
         }
@@ -159,7 +159,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                 DefaultCancellationToken);
         });
 
-        AssertCompletesBeforeWatchdog(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false);
+        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false);
         var exception = await exceptionTask;
         var report = exception.ToString();
         Assert.Contains("failing worker", report, StringComparison.Ordinal);

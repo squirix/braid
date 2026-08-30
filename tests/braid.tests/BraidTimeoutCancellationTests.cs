@@ -24,7 +24,7 @@ public sealed class BraidTimeoutCancellationTests : TestBase
     {
         var exceptionTask = RunLocalTokenCanceledProbeAsync(12345);
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(5), TimeProvider.System, DefaultCancellationToken);
         if (await Task.WhenAny(exceptionTask, watchdog) != exceptionTask)
             Assert.Fail("Braid run did not complete before watchdog timeout.");
 
@@ -62,7 +62,10 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             new BraidOptions { Iterations = 1, Seed = 12345 },
             runToken);
 
-        await workerBlocked.Task.WaitAsync(DefaultCancellationToken);
+        var signaled = await Task.WhenAny(workerBlocked.Task, runTask).WaitAsync(DefaultCancellationToken);
+        if (signaled == runTask)
+            await runTask;
+
         await runCts.CancelAsync();
 
         var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);

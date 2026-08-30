@@ -30,7 +30,7 @@ public sealed class BraidCallbackFaultReportingTests : TestBase
                     DefaultCancellationToken);
             });
 
-            AssertCompletesBeforeWatchdog(exceptionTask, "Run should fail quickly with callback failure.", TimeSpan.FromSeconds(3), false);
+            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail quickly with callback failure.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
             Assert.Contains("callback boom", exception.ToString(), StringComparison.Ordinal);
         }

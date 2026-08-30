@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace Braid.Tests;
@@ -40,6 +41,7 @@ public sealed class BraidInnerExceptionStackTraceTests : TestBase
         Assert.Contains(nameof(InvalidOperationException), exception.ToString(), StringComparison.Ordinal);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private static Task ThrowFromCallbackHelperAsync()
     {
         ThrowFromCallbackHelperCore();
@@ -48,6 +50,7 @@ public sealed class BraidInnerExceptionStackTraceTests : TestBase
 
     private static void ThrowFromCallbackHelperCore() => throw new InvalidOperationException("callback-helper-failure");
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowFromWorkerHelper() => ThrowFromWorkerHelperCore();
 
     private static void ThrowFromWorkerHelperCore() => throw new InvalidOperationException("worker-helper-failure");

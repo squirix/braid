@@ -167,7 +167,7 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 DefaultCancellationToken);
         });
 
-        AssertCompletesBeforeWatchdog(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false);
+        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false);
         var exception = await exceptionTask;
         var report = exception.ToString();
         Assert.Contains("sync-fail-", report, StringComparison.Ordinal);

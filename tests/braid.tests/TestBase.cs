@@ -11,23 +11,45 @@ public abstract class TestBase
     /// <summary>Gets the xUnit cancellation token for the current test.</summary>
     protected static CancellationToken DefaultCancellationToken => TestContext.Current.CancellationToken;
 
-    /// <summary>Waits for an already-started task to complete before a watchdog timeout.</summary>
+    /// <summary>Starts and waits for a task to complete before a watchdog timeout without blocking a thread.</summary>
+    /// <param name="startTask">Starts the task to wait for.</param>
+    /// <param name="failureMessage">The message used when the watchdog wins.</param>
+    /// <param name="watchdogTimeout">The watchdog duration. Defaults to two seconds.</param>
+    /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
+    protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout = default, bool prefixWatchdogMessage = true)
+    {
+        ArgumentNullException.ThrowIfNull(startTask);
+        var effectiveTimeout = watchdogTimeout == default ? TimeSpan.FromSeconds(2) : watchdogTimeout;
+        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, prefixWatchdogMessage);
+    }
+
+    /// <summary>Waits for an already-started task to complete before a watchdog timeout without blocking a thread.</summary>
     /// <param name="startedTask">The task that is already running.</param>
     /// <param name="failureMessage">The message used when the watchdog wins.</param>
     /// <param name="watchdogTimeout">The watchdog duration.</param>
     /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
-    protected static void AssertCompletesBeforeWatchdog(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+    protected static async Task AssertCompletesBeforeWatchdogAsync(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
     {
         ArgumentNullException.ThrowIfNull(startedTask);
-        BraidTestInternals.WaitUntilCompletedOrFail(startedTask, failureMessage, watchdogTimeout, prefixWatchdogMessage);
+        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = startedTask.ContinueWith(
+            static (_, state) =>
+            {
+                if (state is TaskCompletionSource<bool> source)
+                    source.SetResult(true);
+            },
+            completed,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, DefaultCancellationToken);
+        if (await Task.WhenAny(completed.Task, watchdog).ConfigureAwait(false) != completed.Task)
+            Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+
+        _ = await completed.Task.ConfigureAwait(false);
         BraidTestInternals.RethrowIfFaultedOrCanceled(startedTask);
     }
-
-    /// <summary>Waits for a started task to complete before a two-second watchdog timeout.</summary>
-    /// <param name="startTask">Starts the task to wait for.</param>
-    /// <param name="failureMessage">The message used when the watchdog wins.</param>
-    protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage) =>
-        BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, TimeSpan.FromSeconds(2));
 
     /// <summary>Asserts a concurrent probe race run fails with the expected braid error, or silently serializes without failure.</summary>
     /// <param name="startRun">Starts the braid run to observe.</param>
@@ -294,6 +316,8 @@ public abstract class TestBase
 
     private static class BraidTestInternals
     {
+        private const long ThreadReadyTimeoutMilliseconds = 10_000;
+
         public static void HitProbeOnCapturedContext(
             ExecutionContext executionContext,
             string probe,
@@ -306,38 +330,50 @@ public abstract class TestBase
                 __ =>
                 {
                     var completed = new ManualResetEventSlim(false);
+                    Exception? captured = null;
+
+                    var probeTask = HitOnContextAsync();
                     try
                     {
-                        Exception? captured = null;
-
-                        _ = HitOnContextAsync();
-                        if (!completed.Wait(TimeSpan.FromSeconds(10), cancellationToken))
-                            Assert.Fail($"Probe '{probe}' did not complete before the thread watchdog timeout.");
-
-                        if (captured != null)
-                            _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
-                        return;
-
-                        async Task HitOnContextAsync()
+                        bool signaled;
+                        try
                         {
-                            try
-                            {
-                                WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
-                                await BraidProbe.HitAsync(probe, cancellationToken);
-                            }
-                            catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException)
-                            {
-                                captured = ex;
-                            }
-                            finally
-                            {
-                                completed.Set();
-                            }
+                            signaled = completed.Wait(TimeSpan.FromMilliseconds(ThreadReadyTimeoutMilliseconds), cancellationToken);
                         }
+                        catch (OperationCanceledException ex)
+                        {
+                            captured ??= ex;
+                            signaled = true;
+                        }
+
+                        if (!signaled)
+                            captured ??= new TimeoutException($"Probe '{probe}' did not complete before the thread watchdog timeout.");
                     }
                     finally
                     {
-                        completed.Dispose();
+                        DisposeWhenCompleted(probeTask, completed);
+                    }
+
+                    if (captured != null)
+                        _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
+
+                    return;
+
+                    async Task HitOnContextAsync()
+                    {
+                        try
+                        {
+                            WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
+                            await BraidProbe.HitAsync(probe, cancellationToken);
+                        }
+                        catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException or TimeoutException)
+                        {
+                            captured = ex;
+                        }
+                        finally
+                        {
+                            completed.Set();
+                        }
                     }
                 },
                 null);
@@ -363,45 +399,33 @@ public abstract class TestBase
             await task.ConfigureAwait(false);
         }
 
-        public static void WaitUntilCompletedOrFail(Task task, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage)
-        {
-            if (task.IsCompleted)
-                return;
-
-            var completed = new ManualResetEventSlim(false);
-            try
-            {
-                _ = task.ContinueWith(
-                    static (_, state) =>
-                    {
-                        if (state is ManualResetEventSlim signal)
-                            signal.Set();
-                    },
-                    completed,
-                    CancellationToken.None,
-                    TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
-
-                if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
-                    Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
-            }
-            finally
-            {
-                completed.Dispose();
-            }
-        }
-
         private static void WaitUntilBothThreadsAreReady(CompletionCounter readyCount, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(readyCount);
             _ = readyCount.Increment();
 
             SpinWait spinWait = default;
+            var deadline = Environment.TickCount64 + ThreadReadyTimeoutMilliseconds;
             while (readyCount.Value < 2)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (Environment.TickCount64 > deadline)
+                    throw new TimeoutException("Probe threads did not both reach the readiness barrier.");
+
                 spinWait.SpinOnce();
             }
         }
+
+        private static void DisposeWhenCompleted(Task probeTask, ManualResetEventSlim signal) =>
+            _ = probeTask.ContinueWith(
+                static (_, state) =>
+                {
+                    if (state is ManualResetEventSlim s)
+                        s.Dispose();
+                },
+                signal,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
     }
 }
