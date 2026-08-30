@@ -13,9 +13,9 @@ public static class BraidProbe
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
-        var scheduler = BraidRunScope.CurrentScheduler;
-        var task = BraidRunScope.CurrentTask;
+        var scheduler = RunScope.CurrentScheduler;
+        var task = RunScope.CurrentTask;
 
-        return scheduler is null || task is null ? ValueTask.CompletedTask : scheduler.HitAsync(task, name, cancellationToken);
+        return scheduler == null || task == null ? ValueTask.CompletedTask : scheduler.HitAsync(task, name, cancellationToken);
     }
 }

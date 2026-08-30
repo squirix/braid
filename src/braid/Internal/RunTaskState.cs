@@ -1,6 +1,6 @@
 namespace Braid.Internal;
 
-internal enum BraidTaskState
+internal enum RunTaskState
 {
     /// <summary>The worker is blocked until the scheduler releases it.</summary>
     Waiting = 0,

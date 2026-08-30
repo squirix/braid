@@ -16,9 +16,7 @@ public sealed class BraidStressSmokeTests : TestBase
             context =>
             {
                 for (var index = 0; index < 20; index++)
-                {
                     ForkHitReadyAndIncrement(context, completed);
-                }
 
                 return context.JoinAsync(DefaultCancellationToken);
             },
@@ -31,7 +29,7 @@ public sealed class BraidStressSmokeTests : TestBase
     /// <summary>Verifies multiple short iterations complete without leaking scheduler state.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncCompletesMultipleIterationsWithSmallWorkers()
+    public async Task RunAsyncCompletesMultipleSmallWorkers()
     {
         const int iterations = 10;
         const int workers = 5;
@@ -41,9 +39,7 @@ public sealed class BraidStressSmokeTests : TestBase
             context =>
             {
                 for (var index = 0; index < workers; index++)
-                {
                     ForkHitReadyAndIncrement(context, completed);
-                }
 
                 return context.JoinAsync(DefaultCancellationToken);
             },
@@ -56,7 +52,7 @@ public sealed class BraidStressSmokeTests : TestBase
     /// <summary>Verifies a scripted schedule can release several workers in reverse order.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReplaysSeveralWorkersInScriptedOrder()
+    public async Task RunAsyncReplaysWorkersScriptedOrder()
     {
         Lock gate = new();
         var releases = new List<string>();
@@ -76,9 +72,7 @@ public sealed class BraidStressSmokeTests : TestBase
             context =>
             {
                 for (var index = 0; index < 4; index++)
-                {
                     ForkHitReadyRecordWorker(context, $"worker-{index + 1}", releases, gate);
-                }
 
                 return context.JoinAsync(DefaultCancellationToken);
             },

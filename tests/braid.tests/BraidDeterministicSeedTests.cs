@@ -8,7 +8,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
     /// <summary>Verifies different seeds can explore different random traces.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncWithDifferentSeedsCanProduceDifferentTraces()
+    public async Task RunAsyncDifferentSeedsDifferentTraces()
     {
         var traces = new HashSet<string>(StringComparer.Ordinal);
 
@@ -19,6 +19,21 @@ public sealed class BraidDeterministicSeedTests : TestBase
         }
 
         Assert.True(traces.Count >= 2, "Expected several seeds to produce at least two distinct random traces.");
+    }
+
+    /// <summary>Verifies scripted replay does not depend on the random seed.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunAsyncScriptedIgnoresRandomSeed()
+    {
+        var schedule = BraidSchedule.Replay(new BraidStep("worker-3", "ready"), new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready"));
+
+        var (trace, releaseOrder) = await CaptureScriptedRunAsync(12345, schedule);
+        var (actual, order) = await CaptureScriptedRunAsync(67890, schedule);
+
+        Assert.Equal(["worker-3", "worker-1", "worker-2"], releaseOrder);
+        Assert.Equal(releaseOrder, order);
+        Assert.Equal(trace, actual);
     }
 
     /// <summary>Verifies random scheduling produces the same trace for the same seed.</summary>
@@ -32,21 +47,6 @@ public sealed class BraidDeterministicSeedTests : TestBase
         Assert.Equal(first, second);
     }
 
-    /// <summary>Verifies scripted replay does not depend on the random seed.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncWithScriptedScheduleIgnoresRandomSeed()
-    {
-        var schedule = BraidSchedule.Replay(new BraidStep("worker-3", "ready"), new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready"));
-
-        var (trace, releaseOrder) = await CaptureScriptedRunAsync(12345, schedule);
-        var (actual, order) = await CaptureScriptedRunAsync(67890, schedule);
-
-        Assert.Equal(["worker-3", "worker-1", "worker-2"], releaseOrder);
-        Assert.Equal(releaseOrder, order);
-        Assert.Equal(trace, actual);
-    }
-
     private static async Task<IReadOnlyList<string>> CaptureRandomTraceAsync(int seed)
     {
         var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
@@ -55,9 +55,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
                 static async context =>
                 {
                     for (var index = 0; index < 5; index++)
-                    {
                         context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
-                    }
 
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("capture trace");
@@ -78,9 +76,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
                 async context =>
                 {
                     for (var index = 0; index < 3; index++)
-                    {
                         ForkHitReadyAddWorker(context, releases, $"worker-{index + 1}");
-                    }
 
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("capture trace");

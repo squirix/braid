@@ -38,7 +38,7 @@ public sealed class BraidRunTests : TestBase
     /// <summary>Verifies all requested iterations run when each iteration passes.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncExecutesAllIterationsWhenTheyPass()
+    public async Task RunAsyncExecutesAllIterationsWhenPass()
     {
         var invocations = 0;
 
@@ -58,7 +58,7 @@ public sealed class BraidRunTests : TestBase
     /// <summary>Verifies the failing iteration is reported as a zero-based index.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncReportsFailingIterationAsZeroBasedIndex()
+    public async Task RunAsyncReportsFailingIterationIndex()
     {
         var invocations = 0;
 
@@ -69,7 +69,7 @@ public sealed class BraidRunTests : TestBase
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
-                    return invocation is 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
+                    return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 3, Seed = 12345 },
                 DefaultCancellationToken);
@@ -92,7 +92,7 @@ public sealed class BraidRunTests : TestBase
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
-                    return invocation is 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
+                    return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 5, Seed = 12345 },
                 DefaultCancellationToken);

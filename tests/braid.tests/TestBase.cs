@@ -11,28 +11,50 @@ public abstract class TestBase
     /// <summary>Gets the xUnit cancellation token for the current test.</summary>
     protected static CancellationToken DefaultCancellationToken => TestContext.Current.CancellationToken;
 
-    /// <summary>Waits for a started task to complete before a two-second watchdog timeout.</summary>
+    /// <summary>Starts and waits for a task to complete before a watchdog timeout without blocking a thread.</summary>
     /// <param name="startTask">Starts the task to wait for.</param>
     /// <param name="failureMessage">The message used when the watchdog wins.</param>
-    protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage) =>
-        AssertCompletesBeforeWatchdogAsync(startTask, failureMessage, TimeSpan.FromSeconds(2));
+    /// <param name="watchdogTimeout">The watchdog duration. Defaults to two seconds.</param>
+    /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
+    protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout = default, bool prefixWatchdogMessage = true)
+    {
+        ArgumentNullException.ThrowIfNull(startTask);
+        var effectiveTimeout = watchdogTimeout == default ? TimeSpan.FromSeconds(2) : watchdogTimeout;
+        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, prefixWatchdogMessage);
+    }
 
-    /// <summary>Waits for an already-started task to complete before a watchdog timeout.</summary>
+    /// <summary>Waits for an already-started task to complete before a watchdog timeout without blocking a thread.</summary>
     /// <param name="startedTask">The task that is already running.</param>
     /// <param name="failureMessage">The message used when the watchdog wins.</param>
     /// <param name="watchdogTimeout">The watchdog duration.</param>
     /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
-    protected static void AssertCompletesBeforeWatchdog(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+    protected static async Task AssertCompletesBeforeWatchdogAsync(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
     {
         ArgumentNullException.ThrowIfNull(startedTask);
-        WaitUntilCompletedOrFail(startedTask, failureMessage, watchdogTimeout, prefixWatchdogMessage);
-        RethrowIfFaultedOrCanceled(startedTask);
+        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = startedTask.ContinueWith(
+            static (_, state) =>
+            {
+                if (state is TaskCompletionSource<bool> source)
+                    source.SetResult(true);
+            },
+            completed,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, DefaultCancellationToken);
+        if (await Task.WhenAny(completed.Task, watchdog).ConfigureAwait(false) != completed.Task)
+            Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+
+        _ = await completed.Task.ConfigureAwait(false);
+        BraidTestInternals.RethrowIfFaultedOrCanceled(startedTask);
     }
 
-    /// <summary>Asserts a concurrent probe race run fails with the expected braid error.</summary>
+    /// <summary>Asserts a concurrent probe race run fails with the expected braid error, or silently serializes without failure.</summary>
     /// <param name="startRun">Starts the braid run to observe.</param>
     /// <param name="expectForkFailureMessage">Whether to assert the fork wrapper failure message.</param>
-    protected static async Task AssertConcurrentProbeRaceFailureAsync(Func<Task> startRun, bool expectForkFailureMessage = false)
+    protected static async Task AssertConcurrentProbeRaceToleratesAsync(Func<Task> startRun, bool expectForkFailureMessage = false)
     {
         ArgumentNullException.ThrowIfNull(startRun);
         var runTask = startRun();
@@ -43,9 +65,7 @@ public abstract class TestBase
         catch (BraidRunException exception)
         {
             if (expectForkFailureMessage)
-            {
                 Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
-            }
 
             Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
         }
@@ -74,6 +94,14 @@ public abstract class TestBase
     {
         var ex = Record.Exception(() => BraidSchedule.TryParse(text, out _, out _));
         Assert.Null(ex);
+    }
+
+    /// <summary>Asserts a probe invoked outside an active run is a no-op that completes immediately.</summary>
+    protected static async Task AssertProbeIsNoOpOutsideRunAsync()
+    {
+        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        Assert.True(probe.IsCompletedSuccessfully);
+        await probe;
     }
 
     /// <summary>Forks a worker that hits ready and appends a worker label to the order list.</summary>
@@ -133,9 +161,7 @@ public abstract class TestBase
         {
             await BraidProbe.HitAsync("ready", DefaultCancellationToken);
             lock (gate)
-            {
                 releases.Add(workerName);
-            }
         });
     }
 
@@ -172,9 +198,7 @@ public abstract class TestBase
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-            {
                 await BraidProbe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
-            }
         });
     }
 
@@ -190,9 +214,7 @@ public abstract class TestBase
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-            {
                 await BraidProbe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
-            }
 
             _ = completed.Increment();
         });
@@ -208,9 +230,7 @@ public abstract class TestBase
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-            {
                 await BraidProbe.HitAsync($"step-{workerIndex}-{probeIndex}", DefaultCancellationToken);
-            }
         });
     }
 
@@ -228,8 +248,8 @@ public abstract class TestBase
         return StartNewOnThreadPoolAsync(
             () =>
             {
-                var first = new Thread(() => HitProbeOnCapturedContext(ec, firstProbe, readyCount, threadFailure, token));
-                var second = new Thread(() => HitProbeOnCapturedContext(ec, secondProbe, readyCount, threadFailure, token));
+                var first = new Thread(() => BraidTestInternals.HitProbeOnCapturedContext(ec, firstProbe, readyCount, threadFailure, token));
+                var second = new Thread(() => BraidTestInternals.HitProbeOnCapturedContext(ec, secondProbe, readyCount, threadFailure, token));
 
                 first.Start();
                 second.Start();
@@ -238,9 +258,7 @@ public abstract class TestBase
                 second.Join();
 
                 if (threadFailure[0] is { } failure)
-                {
                     ExceptionDispatchInfo.Capture(failure).Throw();
-                }
             },
             DefaultCancellationToken);
     }
@@ -292,123 +310,122 @@ public abstract class TestBase
         async () =>
         {
             while (!noiseToken.IsCancellationRequested)
-            {
                 await Task.Yield();
-            }
         },
         DefaultCancellationToken);
 
-    /// <summary>Waits for a started task to complete before a watchdog timeout.</summary>
-    /// <param name="startTask">Starts the task to wait for.</param>
-    /// <param name="failureMessage">The message used when the watchdog wins.</param>
-    /// <param name="watchdogTimeout">The watchdog duration.</param>
-    /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
-    private static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+    private static class BraidTestInternals
     {
-        ArgumentNullException.ThrowIfNull(startTask);
-        var task = startTask();
-        WaitUntilCompletedOrFail(task, failureMessage, watchdogTimeout, prefixWatchdogMessage);
-        RethrowIfFaultedOrCanceled(task);
-        return Task.CompletedTask;
-    }
+        private const long ThreadReadyTimeoutMilliseconds = 10_000;
 
-    private static void HitProbeOnCapturedContext(
-        ExecutionContext executionContext,
-        string probe,
-        CompletionCounter readyCount,
-        Exception?[] threadFailure,
-        CancellationToken cancellationToken)
-    {
-        ExecutionContext.Run(
-            executionContext,
-            __ =>
-            {
-                var completed = new ManualResetEventSlim(false);
-                Exception? captured = null;
-
-                _ = HitOnContextAsync();
-                completed.Wait(cancellationToken);
-
-                if (captured is not null)
+        public static void HitProbeOnCapturedContext(
+            ExecutionContext executionContext,
+            string probe,
+            CompletionCounter readyCount,
+            Exception?[] threadFailure,
+            CancellationToken cancellationToken)
+        {
+            ExecutionContext.Run(
+                executionContext,
+                __ =>
                 {
-                    _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
-                }
+                    var completed = new ManualResetEventSlim(false);
+                    Exception? captured = null;
 
-                async Task HitOnContextAsync()
-                {
+                    var probeTask = HitOnContextAsync();
                     try
                     {
-                        WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
-                        await BraidProbe.HitAsync(probe, cancellationToken);
-                    }
-                    catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException)
-                    {
-                        captured = ex;
+                        bool signaled;
+                        try
+                        {
+                            signaled = completed.Wait(TimeSpan.FromMilliseconds(ThreadReadyTimeoutMilliseconds), cancellationToken);
+                        }
+                        catch (OperationCanceledException ex)
+                        {
+                            captured ??= ex;
+                            signaled = true;
+                        }
+
+                        if (!signaled)
+                            captured ??= new TimeoutException($"Probe '{probe}' did not complete before the thread watchdog timeout.");
                     }
                     finally
                     {
-                        completed.Set();
+                        DisposeWhenCompleted(probeTask, completed);
                     }
-                }
-            },
-            null);
-    }
 
-    /// <summary>Waits until both probe threads have reached the same point.</summary>
-    /// <param name="readyCount">The shared ready counter.</param>
-    /// <param name="cancellationToken">A cancellation token.</param>
-    private static void WaitUntilBothThreadsAreReady(CompletionCounter readyCount, CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(readyCount);
-        _ = readyCount.Increment();
+                    if (captured != null)
+                        _ = LazyInitializer.EnsureInitialized(ref MemoryMarshal.GetArrayDataReference(threadFailure), () => captured);
 
-        SpinWait spinWait = default;
-        while (readyCount.Value < 2)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            spinWait.SpinOnce();
-        }
-    }
+                    return;
 
-    private static void WaitUntilCompletedOrFail(Task task, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage)
-    {
-        if (task.IsCompleted)
-        {
-            return;
+                    async Task HitOnContextAsync()
+                    {
+                        try
+                        {
+                            WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
+                            await BraidProbe.HitAsync(probe, cancellationToken);
+                        }
+                        catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException or TimeoutException)
+                        {
+                            captured = ex;
+                        }
+                        finally
+                        {
+                            completed.Set();
+                        }
+                    }
+                },
+                null);
         }
 
-        var completed = new ManualResetEventSlim(false);
-        _ = task.ContinueWith(
-            static (_, state) =>
+        public static void RethrowIfFaultedOrCanceled(Task task)
+        {
+            if (task.IsFaulted)
+                ExceptionDispatchInfo.Capture(task.Exception.GetBaseException()).Throw();
+
+            if (task.IsCanceled)
+                throw new TaskCanceledException(task);
+        }
+
+        public static async Task RunWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+        {
+            ArgumentNullException.ThrowIfNull(startTask);
+            var task = startTask();
+            var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, DefaultCancellationToken);
+            if (await Task.WhenAny(task, watchdog).ConfigureAwait(false) != task)
+                Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+
+            await task.ConfigureAwait(false);
+        }
+
+        private static void WaitUntilBothThreadsAreReady(CompletionCounter readyCount, CancellationToken cancellationToken)
+        {
+            ArgumentNullException.ThrowIfNull(readyCount);
+            _ = readyCount.Increment();
+
+            SpinWait spinWait = default;
+            var deadline = Environment.TickCount64 + ThreadReadyTimeoutMilliseconds;
+            while (readyCount.Value < 2)
             {
-                if (state is ManualResetEventSlim signal)
+                cancellationToken.ThrowIfCancellationRequested();
+                if (Environment.TickCount64 > deadline)
+                    throw new TimeoutException("Probe threads did not both reach the readiness barrier.");
+
+                spinWait.SpinOnce();
+            }
+        }
+
+        private static void DisposeWhenCompleted(Task probeTask, ManualResetEventSlim signal) =>
+            _ = probeTask.ContinueWith(
+                static (_, state) =>
                 {
-                    signal.Set();
-                }
-            },
-            completed,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-
-        if (!completed.Wait(watchdogTimeout, DefaultCancellationToken))
-        {
-            Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
-        }
-
-        completed.Dispose();
-    }
-
-    private static void RethrowIfFaultedOrCanceled(Task task)
-    {
-        if (task.IsFaulted)
-        {
-            ExceptionDispatchInfo.Capture(task.Exception.GetBaseException()).Throw();
-        }
-
-        if (task.IsCanceled)
-        {
-            throw new TaskCanceledException(task);
-        }
+                    if (state is ManualResetEventSlim s)
+                        s.Dispose();
+                },
+                signal,
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
     }
 }

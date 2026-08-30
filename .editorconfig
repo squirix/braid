@@ -22,7 +22,12 @@ csharp_place_expr_method_on_single_line = if_owner_is_single_line
 csharp_style_prefer_switch_expression = true:suggestion
 csharp_style_namespace_declarations = file_scoped
 csharp_prefer_static_local_function = true:error
-csharp_prefer_braces = when_multiline:error
+csharp_prefer_braces = false:error
+# Do not keep control-statement bodies (if/for/foreach/while/using/lock) on the same line as the
+# keyword. Forces the multi-line, brace-free form: `if (x)\n    Body();`. Honored by both
+# `dotnet format` and Rider; SA1519 is disabled below so the brace-free multi-line form is allowed.
+csharp_preserve_single_line_statements = false
+csharp_style_allow_embedded_statements_on_same_line_experimental = false
 csharp_style_deconstructed_variable_declaration = true:warning
 csharp_style_expression_bodied_operators = false:warning
 csharp_style_expression_bodied_local_functions = false:warning
@@ -51,8 +56,9 @@ dotnet_diagnostic.SA1134.severity = error
 dotnet_diagnostic.SA1124.severity = error
 # Disable SA1503 for single-line child statements
 dotnet_diagnostic.SA1503.severity = none
-# Require braces for multi-line statements
-dotnet_diagnostic.SA1519.severity = warning
+# Require braces for multi-line statements - disabled: braid uses brace-free style and puts the
+# embedded statement on its own line (see resharper_place_embedded_statement_on_same_line).
+dotnet_diagnostic.SA1519.severity = none
 # Prefix with this - disabled
 dotnet_diagnostic.SA1101.severity = none
 # Allow leading underscore fields
@@ -69,6 +75,8 @@ dotnet_diagnostic.IDE0161.severity = error
 dotnet_diagnostic.IDE0290.severity = none
 # Enforce formatting, including single-line expression members when they fit the line width
 dotnet_diagnostic.IDE0055.severity = error
+# Disallow embedded statements on the same line as their control keyword (multi-line, brace-free form)
+dotnet_diagnostic.IDE2001.severity = error
 
 # SonarAnalyzer
 # Loops should be simplified with LINQ - intentionally disabled; this codebase prefers explicit loops.
@@ -77,6 +85,29 @@ dotnet_diagnostic.S3267.severity = none
 dotnet_diagnostic.S4136.severity = none
 # Prefer string.Create / FormattableString over alternatives - conflicts with BannedSymbols.txt string formatting policy.
 dotnet_diagnostic.S6618.severity = none
+
+# Squirix analyzers (SQR*): mirror squirix severity set at warning. With TreatWarningsAsErrors these
+# still gate the build, so braid code is kept in parity with squirix coding standards.
+dotnet_diagnostic.SQR0001.severity = warning
+dotnet_diagnostic.SQR0002.severity = warning
+dotnet_diagnostic.SQR0003.severity = warning
+dotnet_diagnostic.SQR0004.severity = warning
+dotnet_diagnostic.SQR0005.severity = warning
+dotnet_diagnostic.SQR0006.severity = warning
+dotnet_diagnostic.SQR0007.severity = none # revert to warning when public api is ready 
+dotnet_diagnostic.SQR0008.severity = warning
+dotnet_diagnostic.SQR0009.severity = warning
+dotnet_diagnostic.SQR0010.severity = warning
+dotnet_diagnostic.SQR0011.severity = warning
+dotnet_diagnostic.SQR0012.severity = warning
+dotnet_diagnostic.SQR0013.severity = warning
+dotnet_diagnostic.SQR0014.severity = warning
+dotnet_diagnostic.SQR0015.severity = warning
+dotnet_diagnostic.SQR0016.severity = warning
+dotnet_diagnostic.SQR0017.severity = warning
+dotnet_diagnostic.SQR0018.severity = warning
+dotnet_diagnostic.SQR0019.severity = warning
+dotnet_diagnostic.SQR0020.severity = warning
 
 # Performance
 # Mark members as static
@@ -137,7 +168,7 @@ resharper_arguments_literal = positional
 resharper_arguments_style_other_highlighting = suggestion
 resharper_arguments_style_string_literal_highlighting = suggestion
 resharper_arguments_style_literal_highlighting = suggestion
-resharper_enforce_if_statement_braces_highlighting = warning
+resharper_enforce_if_statement_braces_highlighting = none
 resharper_convert_to_primary_constructor_highlighting = none
 resharper_braces_for_ifelse = not_required_for_both
 resharper_braces_redundant = false
@@ -163,6 +194,13 @@ csharp_indent_case_contents = true
 csharp_indent_case_contents_when_block = false
 
 # Rider/ReSharper C# formatting
+
+dotnet_diagnostic.MA0141.severity = none
+dotnet_diagnostic.MA0142.severity = none
+dotnet_diagnostic.MA0148.severity = none
+# MA0149: Use pattern matching instead of inequality operators for discrete values - conflicts with SQR0012/SQR0013/SQR0014 which prefer ==/!=. SQR wins.
+dotnet_diagnostic.MA0149.severity = none
+
 [*.cs]
 
 # Roslynator (RCS): all rules at warning+ so they appear in dotnet build (TreatWarningsAsErrors => error).
@@ -175,6 +213,13 @@ dotnet_diagnostic.RCS1217.severity = none
 dotnet_diagnostic.RCS1134.severity = none
 # RCS1021: Use expression-bodied lambda, it makes XUnit box the value inside an assert
 dotnet_diagnostic.RCS1021.severity = none
+
+# SQR0008/SQR0018/SA1519/RCS1001 require braces for multi-line bodies, which conflicts with
+# csharp_prefer_braces = false (braid/squirrel no-braces style). Disabled to honor that style.
+dotnet_diagnostic.SQR0008.severity = none
+dotnet_diagnostic.SQR0018.severity = none
+dotnet_diagnostic.SA1519.severity = none
+dotnet_diagnostic.RCS1001.severity = none
 
 # ZeroAlloc.Analyzers (ZA): promote Info rules to warning for dotnet build (TreatWarningsAsErrors => error).
 # No single category-zeroalloc — rules use Performance.* subcategories (see ZeroAlloc DiagnosticCategories.cs).
@@ -364,3 +409,8 @@ dotnet_diagnostic.EPC29.severity = none
 
 # Analyzer execution settings
 # Enable concurrent execution and generated code handling are set via MSBuild props
+
+
+[tests/**]
+# SQR0019 (closure-free testkit asserts) does not apply to braid's xUnit suite (no squirrel testkit).
+dotnet_diagnostic.SQR0019.severity = none

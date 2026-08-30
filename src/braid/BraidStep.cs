@@ -47,8 +47,6 @@ public readonly record struct BraidStep(string WorkerId, string ProbeName, Braid
     private static void ValidateRequired(string value, string paramName)
     {
         if (string.IsNullOrWhiteSpace(value))
-        {
             throw new ArgumentException("Value cannot be null or whitespace.", paramName);
-        }
     }
 }

@@ -9,9 +9,7 @@ internal sealed class DeterministicRandom
         _state = uint.CreateTruncating(seed);
 
         if (_state == 0)
-        {
             _state = 0x9E3779B9;
-        }
     }
 
     internal int NextInt32(int exclusiveMax)
