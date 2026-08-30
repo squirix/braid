@@ -2,7 +2,7 @@ name: CI
 
 on:
     push:
-        branches: [main]
+        branches: [main, develop]
         paths-ignore:
             - 'docs/**'
             - '**/*.md'
@@ -14,7 +14,7 @@ on:
             - '.gitattributes'
             - '.editorconfig'
     pull_request:
-        branches: [main]
+        branches: [main, develop]
         paths-ignore:
             - 'docs/**'
             - '**/*.md'
@@ -59,10 +59,374 @@ jobs:
               run: dotnet build --configuration Release --no-restore
 
             - name: Test
-              run: dotnet test --configuration Release --no-build
+              run: |
+                  set -o pipefail
+                  dotnet test --configuration Release --no-build \
+                    --results-directory "${{ github.workspace }}/coverage" \
+                    --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+            - name: Verify Coverage Collected
+              shell: bash
+              run: |
+                  set -euo pipefail
+                  mapfile -t files < <(find coverage -name coverage.cobertura.xml -type f 2>/dev/null || true)
+                  if [ ${#files[@]} -eq 0 ]; then
+                    echo "No coverage.cobertura.xml produced by the test run." >&2
+                    find coverage -type f -print 2>/dev/null || true
+                    exit 1
+                  fi
+                  echo "Found ${#files[@]} Cobertura report(s)."
+
+            - name: Upload Coverage Files
+              uses: actions/upload-artifact@v7
+              with:
+                  name: coverage-raw-net10.0-ci
+                  retention-days: 1
+                  path: coverage/**/coverage.cobertura.xml
+                  if-no-files-found: error
 
             - name: Run file-based examples
               run: bash examples/single-file/run-examples.sh Release
 
             - name: Pack
               run: dotnet pack --configuration Release --no-build
+
+    # SonarCloud: same-repo code changes; requires secrets.SONAR_TOKEN + a SonarCloud project
+    # (import org squirix, project key braid). PR decoration posts a comment/status on PRs.
+    sonarcloud:
+        name: SonarCloud
+        runs-on: ubuntu-latest
+        timeout-minutes: 45
+        permissions:
+            contents: read
+            pull-requests: read
+        needs: [ build ]
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+            SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            SONAR_ORGANIZATION: ${{ vars.SONAR_ORGANIZATION || 'squirix' }}
+            SONAR_PROJECT_KEY: ${{ vars.SONAR_PROJECT_KEY || 'braid' }}
+        steps:
+            -   name: Require SONAR_TOKEN
+                shell: bash
+                run: |
+                    if [[ -z "${SONAR_TOKEN}" ]]; then
+                      echo "Missing secrets.SONAR_TOKEN." >&2
+                      echo "1) Create a free SonarCloud org/project for public repo squirix/braid" >&2
+                      echo "2) Generate a token (My Account → Security)" >&2
+                      echo "3) Add GitHub Actions secret SONAR_TOKEN" >&2
+                      exit 1
+                    fi
+
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    fetch-depth: 0
+                    persist-credentials: false
+
+            -   name: Setup .NET
+                uses: actions/setup-dotnet@v6
+                with:
+                    global-json-file: global.json
+
+            -   name: Cache NuGet Packages
+                uses: actions/cache@v6
+                with:
+                    path: ~/.nuget/packages
+                    key: ${{ runner.os }}-dotnet10-nuget-${{ hashFiles('**/global.json', '**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
+                    restore-keys: |
+                        ${{ runner.os }}-dotnet10-nuget-
+
+            -   name: Cache SonarCloud Scanner
+                id: cache-sonar-scanner
+                uses: actions/cache@v6
+                with:
+                    path: .sonar/scanner
+                    key: ${{ runner.os }}-sonar-scanner
+                    restore-keys: |
+                        ${{ runner.os }}-sonar-scanner
+
+            -   name: Install SonarCloud Scanner
+                if: steps.cache-sonar-scanner.outputs.cache-hit != 'true'
+                shell: bash
+                run: |
+                    mkdir -p .sonar/scanner
+                    dotnet tool update dotnet-sonarscanner --tool-path .sonar/scanner
+
+            -   name: Ensure SonarCloud Scanner Present
+                shell: bash
+                run: |
+                    if [[ ! -x .sonar/scanner/dotnet-sonarscanner ]]; then
+                      mkdir -p .sonar/scanner
+                      dotnet tool update dotnet-sonarscanner --tool-path .sonar/scanner
+                    fi
+
+            -   name: Download Coverage Reports
+                uses: actions/download-artifact@v8
+                with:
+                    pattern: coverage-raw-net10.0-*
+                    merge-multiple: true
+                    path: coverage
+
+            -   name: Verify Cobertura Reports For Sonar
+                shell: bash
+                run: |
+                    mapfile -t files < <(find coverage -name coverage.cobertura.xml -type f 2>/dev/null || true)
+                    if [ ${#files[@]} -eq 0 ]; then
+                      echo "No coverage.cobertura.xml found for SonarCloud import." >&2
+                      echo "Expected Cobertura from the build job (Microsoft.Testing.Extensions.CodeCoverage)." >&2
+                      find coverage -type f -print 2>/dev/null || true
+                      exit 1
+                    fi
+                    echo "Found ${#files[@]} Cobertura report(s) for SonarCloud."
+
+            -   name: Restore
+                shell: bash
+                run: dotnet restore braid.slnx
+
+            -   name: Analyze With SonarCloud
+                shell: bash
+                env:
+                    GITHUB_EVENT_NAME: ${{ github.event_name }}
+                    SONAR_PR_KEY: ${{ github.event.pull_request.number }}
+                    SONAR_PR_BRANCH: ${{ github.head_ref }}
+                    SONAR_PR_BASE: ${{ github.base_ref }}
+                    SONAR_PR_GITHUB_REPOSITORY: ${{ github.repository }}
+                run: |
+                    set -euo pipefail
+
+                    begin_args=(
+                      begin
+                      "/k:${SONAR_PROJECT_KEY}"
+                      "/o:${SONAR_ORGANIZATION}"
+                      "/d:sonar.token=${SONAR_TOKEN}"
+                      "/d:sonar.host.url=https://sonarcloud.io"
+                      "/d:sonar.qualitygate.wait=false"
+                      "/d:sonar.exclusions=**/bin/**,**/obj/**,**/.sonar/**,**/examples/**,**/tests/**"
+                      "/d:sonar.coverage.exclusions=**/examples/**,**/tests/**"
+                      "/d:sonar.cs.cobertura.reportsPaths=${GITHUB_WORKSPACE}/coverage/**/coverage.cobertura.xml"
+                    )
+
+                    if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+                      begin_args+=(
+                        "/d:sonar.pullrequest.key=${SONAR_PR_KEY}"
+                        "/d:sonar.pullrequest.branch=${SONAR_PR_BRANCH}"
+                        "/d:sonar.pullrequest.base=${SONAR_PR_BASE}"
+                        "/d:sonar.pullrequest.provider=GitHub"
+                        "/d:sonar.pullrequest.github.repository=${SONAR_PR_GITHUB_REPOSITORY}"
+                      )
+                    fi
+
+                    .sonar/scanner/dotnet-sonarscanner "${begin_args[@]}"
+                    dotnet build braid.slnx --configuration Release --no-restore
+                    .sonar/scanner/dotnet-sonarscanner end "/d:sonar.token=${SONAR_TOKEN}"
+
+    # PVS-Studio Team: full analysis of the production package; fail CI when warnings remain.
+    # Secret: PVS_STUDIO_CREDENTIALS = "<license-name> <license-key>"
+    # Skipped on fork PRs (secrets unavailable). No SARIF upload.
+    # TEMPORARILY DISABLED: set back to the repository condition once the license is available.
+    pvs-studio:
+        name: PVS-Studio
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        permissions:
+            contents: read
+        if: false
+        steps:
+            -   name: Require PVS_STUDIO_CREDENTIALS
+                shell: bash
+                env:
+                    PVS_STUDIO_CREDENTIALS: ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+                run: |
+                    if [[ -z "${PVS_STUDIO_CREDENTIALS}" ]]; then
+                      echo "Missing secrets.PVS_STUDIO_CREDENTIALS." >&2
+                      echo "Add GitHub Actions secret PVS_STUDIO_CREDENTIALS as: <name> <license-key>" >&2
+                      exit 1
+                    fi
+
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup .NET
+                uses: actions/setup-dotnet@v6
+                with:
+                    global-json-file: global.json
+
+            -   name: Cache NuGet Packages
+                uses: actions/cache@v6
+                with:
+                    path: ~/.nuget/packages
+                    key: ${{ runner.os }}-dotnet10-nuget-${{ hashFiles('**/global.json', '**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
+                    restore-keys: |
+                        ${{ runner.os }}-dotnet10-nuget-
+
+            -   name: Install PVS-Studio
+                shell: bash
+                run: |
+                    set -euo pipefail
+                    # --max-redirect=0: refuse HTTP→attacker redirect of the apt signing material (S6506).
+                    wget --max-redirect=0 -qO- https://files.pvs-studio.com/etc/pubkey.txt \
+                      | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/viva64.gpg
+                    # Use the primary pvs-studio host instead of the wcdn CDN edge, which occasionally
+                    # serves a mid-sync repo index (size/hash mismatch during a mirror update).
+                    echo "deb [arch=amd64] https://files.pvs-studio.com/deb viva64-release pvs-studio" \
+                      | sudo tee /etc/apt/sources.list.d/viva64.list >/dev/null
+                    # The pvs-studio mirror occasionally serves a mid-sync index (size/hash mismatch);
+                    # retry the index fetch a few times to ride through the transient mirror update.
+                    for attempt in 1 2 3 4 5; do
+                        if sudo apt-get update; then
+                            break
+                        fi
+                        if [[ "$attempt" -eq 5 ]]; then
+                            echo "apt-get update failed after 5 attempts (pvs-studio mirror)." >&2
+                            exit 1
+                        fi
+                        sleep 15
+                    done
+                    sudo apt-get install -y pvs-studio-dotnet
+
+            -   name: Restore production project
+                run: dotnet restore src/braid/Braid.csproj
+
+            -   name: Configure PVS-Studio License
+                shell: bash
+                env:
+                    PVS_STUDIO_CREDENTIALS: ${{ secrets.PVS_STUDIO_CREDENTIALS }}
+                run: |
+                    set -euo pipefail
+                    # shellcheck disable=SC2086
+                    pvs-studio-analyzer credentials ${PVS_STUDIO_CREDENTIALS}
+
+            -   name: Analyze With PVS-Studio
+                id: analyze
+                shell: bash
+                timeout-minutes: 20
+                run: |
+                    set -uo pipefail
+                    mkdir -p pvs-studio-out
+                    echo "report=false" >> "$GITHUB_OUTPUT"
+                    exit_code=0
+                    pvs-studio-dotnet \
+                      -t src/braid/Braid.csproj \
+                      -o pvs-studio-out/pvs-studio-report.json \
+                      -c Release \
+                      -C .pvsconfig \
+                      -r \
+                      --disableLicenseExpirationCheck \
+                      --selectProjects "Braid" \
+                      || exit_code=$?
+
+                    echo "pvs-studio-dotnet exit_code=${exit_code}"
+
+                    if [[ -f pvs-studio-out/pvs-studio-report.json ]]; then
+                      echo "report=true" >> "$GITHUB_OUTPUT"
+                    fi
+
+                    if [[ "$exit_code" -eq 126 || "$exit_code" -eq 127 ]]; then
+                      echo "pvs-studio-dotnet failed to launch (exit_code=${exit_code})." >&2
+                      exit 1
+                    fi
+
+                    if (( (exit_code & 1) != 0 )); then
+                      echo "PVS-Studio license error (exit bit 1)." >&2
+                      exit 1
+                    fi
+                    if (( (exit_code & 2) != 0 )); then
+                      echo "PVS-Studio analyzer error (exit bit 2)." >&2
+                      exit 1
+                    fi
+                    if (( (exit_code & ~4 & ~8) != 0 )); then
+                      echo "Unexpected pvs-studio-dotnet exit_code=${exit_code}" >&2
+                      exit 1
+                    fi
+
+                    if [[ ! -f pvs-studio-out/pvs-studio-report.json ]]; then
+                      echo "PVS-Studio report missing." >&2
+                      exit 1
+                    fi
+
+                    pvs_all_groups='GA:1,2,3;64:1,2,3;OP:1,2,3;CS:1,2,3;MISRA:1,2,3;AUTOSAR:1,2,3;OWASP:1,2,3'
+
+                    plog-converter \
+                      pvs-studio-out/pvs-studio-report.json \
+                      -t totals \
+                      -a "${pvs_all_groups}" \
+                      -o pvs-studio-out/pvs-studio-totals.txt \
+                      || true
+                    if [[ -f pvs-studio-out/pvs-studio-totals.txt ]]; then
+                      {
+                        echo "## PVS-Studio totals (all groups/levels)"
+                        echo '```'
+                        cat pvs-studio-out/pvs-studio-totals.txt
+                        echo '```'
+                      } >> "$GITHUB_STEP_SUMMARY"
+                      cat pvs-studio-out/pvs-studio-totals.txt
+                    fi
+
+                    plog-converter \
+                      pvs-studio-out/pvs-studio-report.json \
+                      -t errorfile \
+                      -a "${pvs_all_groups}" \
+                      -o pvs-studio-out/pvs-studio-all.txt \
+                      || true
+                    if [[ -f pvs-studio-out/pvs-studio-all.txt ]]; then
+                      {
+                        echo "## PVS-Studio findings (all)"
+                        echo '```'
+                        cat pvs-studio-out/pvs-studio-all.txt
+                        echo '```'
+                      } >> "$GITHUB_STEP_SUMMARY"
+                      echo "--- all findings ---"
+                      cat pvs-studio-out/pvs-studio-all.txt
+                    fi
+
+                    gate_code=0
+                    plog-converter \
+                      pvs-studio-out/pvs-studio-report.json \
+                      -t totals \
+                      -a "${pvs_all_groups}" \
+                      -o pvs-studio-out/pvs-studio-gate-totals.txt \
+                      --indicate-warnings \
+                      || gate_code=$?
+                    if [[ -f pvs-studio-out/pvs-studio-gate-totals.txt ]]; then
+                      echo "--- gate filter (all groups/levels) ---"
+                      cat pvs-studio-out/pvs-studio-gate-totals.txt
+                    fi
+                    if [[ "$gate_code" -eq 2 ]]; then
+                      echo "PVS-Studio gate failed: warnings remain (all groups/levels)." >&2
+                      exit 1
+                    fi
+                    if [[ "$gate_code" -ne 0 ]]; then
+                      echo "plog-converter gate failed with exit_code=${gate_code}" >&2
+                      exit 1
+                    fi
+
+            -   name: Convert Report To HTML
+                if: always() && steps.analyze.outputs.report == 'true'
+                shell: bash
+                run: |
+                    set -euo pipefail
+                    mkdir -p pvs-studio-out
+                    plog-converter \
+                      pvs-studio-out/pvs-studio-report.json \
+                      -t fullhtml \
+                      -a 'GA:1,2,3;64:1,2,3;OP:1,2,3;CS:1,2,3;MISRA:1,2,3;AUTOSAR:1,2,3;OWASP:1,2,3' \
+                      -o pvs-studio-out \
+                      -n html
+
+            -   name: Upload PVS-Studio Report
+                if: always() && steps.analyze.outputs.report == 'true'
+                uses: actions/upload-artifact@v7
+                with:
+                    name: pvs-studio-report
+                    retention-days: 14
+                    if-no-files-found: warn
+                    path: |
+                        pvs-studio-out/pvs-studio-report.json
+                        pvs-studio-out/pvs-studio-totals.txt
+                        pvs-studio-out/pvs-studio-all.txt
+                        pvs-studio-out/pvs-studio-gate-totals.txt
+                        pvs-studio-out/html.fullhtml/**

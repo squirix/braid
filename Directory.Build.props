@@ -59,6 +59,17 @@
         <PackageReference Include="xunit.analyzers" PrivateAssets="all"/>
     </ItemGroup>
 
+    <!-- MTP native code coverage for every test executable. -->
+    <ItemGroup Label="MtpCodeCoverage" Condition="'$(IsBraidTestProject)' == 'true'">
+        <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage"/>
+    </ItemGroup>
+
+    <!-- PVS-Studio project-level rules for every analyzed project (incl. tests);
+     without the link, IDE/plugin discovery would not attach the root rules file. -->
+    <ItemGroup Label="PvsStudioConfig">
+        <None Include="$(MSBuildThisFileDirectory).pvsconfig" Link=".pvsconfig"/>
+    </ItemGroup>
+
     <ItemGroup Label="AnalyzerConfig">
         <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" Visible="false"/>
         <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Visible="false"/>

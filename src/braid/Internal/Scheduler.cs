@@ -241,7 +241,7 @@ internal sealed class Scheduler : IDisposable
         var held = SchedulerSearch.CollectProbeWaitDiagnostics(_tasks, RunTaskState.Held);
 
         (int OneBasedIndex, BraidStep Step)[] unused;
-        if (hasReplay && _schedule is not null && _nextScheduleStep < _schedule.Count)
+        if (hasReplay && _nextScheduleStep < _schedule!.Count)
         {
             var remaining = _schedule.Count - _nextScheduleStep;
             unused = new (int, BraidStep)[remaining];
