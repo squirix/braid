@@ -225,14 +225,13 @@ jobs:
     # PVS-Studio Team: full analysis of the production package; fail CI when warnings remain.
     # Secret: PVS_STUDIO_CREDENTIALS = "<license-name> <license-key>"
     # Skipped on fork PRs (secrets unavailable). No SARIF upload.
-    # TEMPORARILY DISABLED: set back to the repository condition once the license is available.
     pvs-studio:
         name: PVS-Studio
         runs-on: ubuntu-latest
         timeout-minutes: 60
         permissions:
             contents: read
-        if: false
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         steps:
             -   name: Require PVS_STUDIO_CREDENTIALS
                 shell: bash
@@ -430,3 +429,69 @@ jobs:
                         pvs-studio-out/pvs-studio-all.txt
                         pvs-studio-out/pvs-studio-gate-totals.txt
                         pvs-studio-out/html.fullhtml/**
+
+    # NDepend (Team): full analysis via the official NDepend GitHub Action with braid.ndproj.
+    # Fails CI when any configured quality gate fails (stopIfQGFailed=true).
+    # Baseline = base branch (PRs) or most recent analysis on the same branch (push/dispatch),
+    # mirroring the "PR base / previous commit" regression rule.
+    # Secret: NDependLicense = NDepend GitHub Action activation data
+    # (https://www.ndepend.com/activation_githubaction). Skipped on fork PRs (secrets unavailable).
+    # The action uploads an `ndepend` artifact and posts a summary comment on same-repo PRs.
+    ndepend:
+        name: NDepend
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        permissions:
+            contents: read
+            actions: read
+            pull-requests: write
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        steps:
+            -   name: Require NDependLicense
+                shell: bash
+                env:
+                    NDEPEND_LICENSE: ${{ secrets.NDependLicense }}
+                run: |
+                    if [[ -z "${NDEPEND_LICENSE}" ]]; then
+                      echo "Missing secrets.NDependLicense." >&2
+                      echo "Add the NDepend GitHub Action activation data as secret NDependLicense." >&2
+                      echo "See https://www.ndepend.com/activation_githubaction" >&2
+                      exit 1
+                    fi
+
+            -   name: Checkout
+                uses: actions/checkout@v7
+                with:
+                    persist-credentials: false
+
+            -   name: Setup .NET
+                uses: actions/setup-dotnet@v6
+                with:
+                    global-json-file: global.json
+
+            -   name: Cache NuGet Packages
+                uses: actions/cache@v6
+                with:
+                    path: ~/.nuget/packages
+                    key: ${{ runner.os }}-dotnet10-nuget-${{ hashFiles('**/global.json', '**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
+                    restore-keys: |
+                        ${{ runner.os }}-dotnet10-nuget-
+
+            -   name: Restore
+                run: dotnet restore braid.slnx
+
+            -   name: Build
+                run: dotnet build braid.slnx --configuration Release --no-restore
+
+            -   name: Synchronize NDepend project
+                run: python3 build/ndepend/sync_ndproj.py
+
+            -   name: Run NDepend Analysis
+                uses: ndepend/ndepend-action@v2
+                with:
+                    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                    license: ${{ secrets.NDependLicense }}
+                    customconfig: braid.ndproj
+                    baseline: ${{ github.event_name == 'pull_request' && format('{0}_recent', github.base_ref) || 'recent' }}
+                    stopIfQGFailed: true
+                    retention-days: 14
