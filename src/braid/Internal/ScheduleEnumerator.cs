@@ -56,6 +56,17 @@ internal static class ScheduleEnumerator
                 break;
 
             var frame = stack.Pop();
+            if (frame.Steps.Count == maxSteps)
+            {
+                if (frame.Steps.Count > 0 && yielded < maxSchedules)
+                {
+                    yielded++;
+                    yield return CopySteps(frame.Steps);
+                }
+
+                continue;
+            }
+
             if (AllWorkersCompleted(workerIds, lists, frame.Progress))
             {
                 if (frame.Steps.Count > 0 && frame.Steps.Count <= maxSteps && yielded < maxSchedules)
@@ -66,9 +77,6 @@ internal static class ScheduleEnumerator
 
                 continue;
             }
-
-            if (frame.Steps.Count > maxSteps)
-                continue;
 
             ScheduleNextWorker(workerIds, lists, frame, stack);
         }

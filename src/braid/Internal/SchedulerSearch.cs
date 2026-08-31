@@ -2,6 +2,13 @@ namespace Braid.Internal;
 
 internal static class SchedulerSearch
 {
+    /// <summary>
+    /// Collects tasks whose state matches and that report a probe name.
+    /// The caller must hold the scheduler gate so <see cref="RunTask.State" /> reads stay consistent.
+    /// </summary>
+    /// <param name="tasks">The scheduler task list.</param>
+    /// <param name="state">The state to match.</param>
+    /// <returns>The matching diagnostics ordered by task id.</returns>
     internal static BraidProbeWaitDiagnostic[] CollectProbeWaitDiagnostics(List<RunTask> tasks, RunTaskState state)
     {
         var matches = new List<RunTask>();
@@ -26,6 +33,13 @@ internal static class SchedulerSearch
         return diagnostics;
     }
 
+    /// <summary>
+    /// Collects tasks in <see cref="RunTaskState.Waiting" /> ordered by <see cref="RunTask.Id" />.
+    /// The caller must hold the scheduler gate, because the sizing pass and the fill pass
+    /// must observe the same task states (otherwise the fixed-size array can overflow).
+    /// </summary>
+    /// <param name="tasks">The scheduler task list.</param>
+    /// <returns>The waiting tasks ordered by id, or an empty array.</returns>
     internal static RunTask[] CollectWaitingTasksSortedById(List<RunTask> tasks)
     {
         var waitingCount = 0;
@@ -49,6 +63,12 @@ internal static class SchedulerSearch
         return waitingTasks;
     }
 
+    /// <summary>
+    /// Returns the first task holding a failure, or null.
+    /// The caller must hold the scheduler gate so task state reads stay consistent.
+    /// </summary>
+    /// <param name="tasks">The scheduler task list.</param>
+    /// <returns>The first recorded failure, or null.</returns>
     internal static Exception? FindFirstFailedException(List<RunTask> tasks)
     {
         for (var index = 0; index < tasks.Count; index++)
@@ -61,6 +81,11 @@ internal static class SchedulerSearch
         return null;
     }
 
+    /// <summary>Finds the task held at the given probe, or null. The caller must hold the scheduler gate.</summary>
+    /// <param name="tasks">The scheduler task list.</param>
+    /// <param name="workerId">The stable worker id.</param>
+    /// <param name="probeName">The probe name.</param>
+    /// <returns>The held task, or null.</returns>
     internal static RunTask? FindHeldTask(List<RunTask> tasks, string workerId, string probeName)
     {
         for (var index = 0; index < tasks.Count; index++)
@@ -74,6 +99,10 @@ internal static class SchedulerSearch
         return null;
     }
 
+    /// <summary>Finds a task blocked at a probe for the worker, or null. The caller must hold the scheduler gate.</summary>
+    /// <param name="tasks">The scheduler task list.</param>
+    /// <param name="workerId">The stable worker id.</param>
+    /// <returns>The blocked task, or null.</returns>
     internal static RunTask? FindSameWorkerBlockedTask(List<RunTask> tasks, string workerId)
     {
         for (var index = 0; index < tasks.Count; index++)
