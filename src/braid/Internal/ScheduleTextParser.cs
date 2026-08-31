@@ -146,21 +146,8 @@ internal static class ScheduleTextParser
                 workerId = tokens[1];
                 probeName = tokens[2];
                 break;
-            default:
-                error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
-                return false;
         }
 
-        if (workerId.Length == 0)
-        {
-            error = $"Line {lineNumber}: Worker id must not be empty.";
-            return false;
-        }
-
-        if (probeName.Length != 0)
-            return true;
-
-        error = $"Line {lineNumber}: Probe name must not be empty.";
-        return false;
+        return true;
     }
 }

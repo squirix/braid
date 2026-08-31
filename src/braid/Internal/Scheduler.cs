@@ -153,15 +153,21 @@ internal sealed class Scheduler : IDisposable
 
     public void Dispose()
     {
+        RunTask[] tasks;
+        lock (_gate)
+            tasks = [.. _tasks];
+
         if (!_shutdownCts.IsCancellationRequested)
             _shutdownCts.Cancel();
 
+        // All disposed resources tolerate repeated Dispose calls, so multiple
+        // calls to Dispose are safe (the scheduler is not reused after dispose).
         _shutdownCts.Dispose();
         _stateChanged.Dispose();
         _joinMutex.Dispose();
 
-        for (var index = 0; index < _tasks.Count; index++)
-            _tasks[index].Dispose();
+        for (var index = 0; index < tasks.Length; index++)
+            tasks[index].Dispose();
     }
 
     internal IReadOnlyList<string> GetTraceSnapshot()
@@ -199,11 +205,15 @@ internal sealed class Scheduler : IDisposable
 
     private bool AllJoinWorkCompleted()
     {
-        if (_tasks.Count != 0 && !_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
+        if (!_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
             return false;
 
         if (_schedule is not null && _nextScheduleStep < _schedule.Count)
-            throw CreateException("Scripted schedule contained unused steps after all workers completed.", null);
+            throw CreateException(
+                _tasks.Count == 0
+                    ? "Scripted schedule contained unused steps, but no workers were forked."
+                    : "Scripted schedule contained unused steps after all workers completed.",
+                null);
 
         return true;
     }
