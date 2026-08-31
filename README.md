@@ -1,11 +1,13 @@
 # braid
 
-Deterministic concurrency testing for .NET libraries using explicit async probe points and replay tokens.
+Deterministic concurrency testing for .NET libraries using explicit async probe
+points and replay tokens.
 
 **Find the interleaving. Copy the replay token. Keep the race fixed forever.**
 
-Tests fork logical workers, workers stop at named probes, and braid controls which worker is released next. When a race is understood, keep the reproducing interleaving as a
-copyable replay token. Roadmap: [docs/roadmap.md](docs/roadmap.md). Contributing: [contributing.md](contributing.md).
+Tests fork logical workers, workers stop at named probes, and braid controls
+which worker is released next. When a race is understood, keep the
+reproducing interleaving as a copyable replay token.
 
 [![Powered by NDepend](docs/assets/powered-by-ndepend.png)](https://www.ndepend.com/)
 
@@ -17,70 +19,36 @@ dotnet add package braid
 
 braid targets **.NET 10**.
 
-For release validation and consumer smoke-test instructions, see [docs/release-process.md](docs/release-process.md).
-
-## What braid does
-
-- Runs ordinary async .NET code under a deterministic scheduler.
-- Uses explicit probe points instead of runtime rewriting.
-- Supports seeded random scheduling while you search for useful interleavings.
-- Supports typed replay schedules with `BraidSchedule` and `BraidStep`, and **text** replay schedules via `BraidSchedule.Parse` / `TryParse`.
-- Reports failures with seed, iteration, schedule, trace, inner exception details, and, when a replay schedule was configured, a copyable **replay token** (canonical replay text)
-  plus scheduler-state diagnostics.
-
-## What braid does not do
-
-- It is not a `TaskScheduler` replacement.
-- It does not intercept every `await`.
-- It does not rewrite binaries.
-- It is not a distributed-system test framework.
-- It is not exhaustive model checking.
-
 ## Quick start
 
 ```csharp
 using Braid;
-using Xunit;
 
-public sealed class BraidQuickStartTests
+var workerCompleted = false;
+var options = new BraidOptions
 {
-    [Fact]
-    public async Task ForkProbeJoinCompletesUnderReplay()
+    Iterations = 1,
+    Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready")),
+};
+
+await BraidRunner.RunAsync(
+    async context =>
     {
-        var workerCompleted = false;
-
-        var options = new BraidOptions
+        context.Fork(async () =>
         {
-            Iterations = 1,
-            Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready")),
-        };
+            await BraidProbe.HitAsync("ready");
+            workerCompleted = true;
+        });
 
-        await BraidRunner.RunAsync(
-            async context =>
-            {
-                context.Fork(async () =>
-                {
-                    await BraidProbe.HitAsync("ready");
-                    workerCompleted = true;
-                });
-
-                await context.JoinAsync();
-            },
-            options);
-
-        Assert.True(workerCompleted);
-    }
-}
+        await context.JoinAsync();
+    },
+    options);
 ```
 
-Outside a braid run, `BraidProbe.HitAsync` completes immediately. Inside a braid run, it becomes an explicit scheduling point.
+Outside a braid run, `BraidProbe.HitAsync` completes immediately. Inside a
+braid run, it becomes an explicit scheduling point.
 
-Upgrading from v0.5.x: replace `Braid.RunAsync` with `BraidRunner.RunAsync`.
-
-## Bounded exploration
-
-Use `BraidRunner.ExploreAsync` when you know the workers and probe points but not the failing interleaving. Exploration runs one discovery pass to learn per-worker probe sequences,
-then tries bounded hit-schedule permutations until a test assertion fails.
+Don't know the failing interleaving yet? Try bounded exploration:
 
 ```csharp
 await BraidRunner.ExploreAsync(
@@ -99,14 +67,8 @@ await BraidRunner.ExploreAsync(
     cancellationToken);
 ```
 
-`WorkerAsync` registers stable worker ids for replay schedules. On failure, use `BraidRunException.TryGetReplayText` the same way as `RunAsync`.
-See [docs/design/explore-async-rfc.md](docs/design/explore-async-rfc.md).
-
-`RunAsync` remains the primary API for known replay schedules or repeated random iterations. Exploration is bounded by construction and stops at the first test failure. When bounds
-are too tight to reach a failing interleaving, `ExploreAsync` completes without throwing.
-
-Persist failing `(seed, replay text)` pairs in test data or CI artifacts when you want a lightweight seed corpus;
-see [docs/design/explore-async-rfc.md](docs/design/explore-async-rfc.md).
+When a run fails, use `BraidRunException.TryGetReplayText` to export a replay token
+for a stable regression test.
 
 ## Replay schedules
 
@@ -115,7 +77,6 @@ A replay schedule describes the exact worker/probe order to reproduce.
 ```csharp
 var options = new BraidOptions
 {
-    Seed = 12345,
     Iterations = 1,
     Schedule = BraidSchedule.Replay(
         BraidStep.Hit("worker-1", "after-read"),
@@ -125,194 +86,32 @@ var options = new BraidOptions
 };
 ```
 
-Replay matching is ordinal and case-sensitive for both worker ids and probe names.
+Schedules can also be parsed from text:
+`BraidSchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read")`.
+The parsed text is the same format braid emits as a replay token on failure.
 
-### Text replay schedules
-
-Replay schedules can also be parsed from text:
-
-```csharp
-var schedule = BraidSchedule.Parse("""
-hit worker-1 after-read
-hit worker-2 after-read
-arrive worker-1 before-write
-hit worker-2 updated
-release worker-1 before-write
-""");
-```
-
-The text format is line based:
-
-```text
-hit <worker> <probe>
-arrive <worker> <probe>
-release <worker> <probe>
-```
-
-Operation names (`hit`, `arrive`, `release`) are **case-insensitive**. Worker ids and probe names stay **case-sensitive**. Empty lines and full-line `#` comments (after trimming)
-are ignored; **inline** `#` comments are not supported—extra tokens are rejected.
-
-Use `BraidSchedule.TryParse` when you need a non-throwing parse attempt.
-
-`ToReplayText()` writes the canonical lower-case format accepted by `BraidSchedule.Parse(...)` for schedules that can be represented (no whitespace inside worker or probe tokens).
-
-```csharp
-var text = schedule.ToReplayText();
-var replay = BraidSchedule.Parse(text);
-```
-
-An empty typed schedule exports to an empty string; `BraidSchedule.Parse` still requires at least one step for non-empty text.
-
-## Replay token
-
-A **replay token** is the canonical replay text Braid emits and `BraidSchedule.Parse` accepts—the same format as [text replay schedules](#text-replay-schedules) above. There is no
-separate syntax.
-
-```text
-hit worker-1 after-read
-hit worker-2 after-read
-```
-
-From a failing run with a typed schedule configured, export without parsing `ToString()`:
-
-```csharp
-catch (BraidRunException ex)
-{
-    if (ex.TryGetReplayText(out var token, out _))
-    {
-        var regression = BraidSchedule.Parse(token);
-        // use regression in BraidOptions.Schedule
-    }
-}
-```
-
-Workflow (random failure → probes → token → regression test): [docs/replay-token-workflow.md](docs/replay-token-workflow.md).
-
-## True interleaving replay
-
-`BraidStep.Hit(worker, probe)` releases a worker when it is blocked at that probe.
-
-For stricter interleaving assertions, use the two-phase arrive/release flow:
-
-- `BraidStep.Arrive(worker, probe)` waits until the worker reaches the probe and keeps it blocked.
-- `BraidStep.Release(worker, probe)` releases a worker that was previously held by `Arrive`.
-
-```csharp
-var options = new BraidOptions
-{
-    Iterations = 1,
-    Schedule = BraidSchedule.Replay(
-        BraidStep.Arrive("worker-1", "cache-hit"),
-        BraidStep.Hit("worker-2", "mutation-done"),
-        BraidStep.Release("worker-1", "cache-hit")),
-};
-```
-
-This expresses: worker-1 is already blocked at `cache-hit`, worker-2 mutates state, then worker-1 resumes.
-
-## Failure reproduction
-
-When a run fails, braid wraps scheduler and callback failures in `BraidRunException` where appropriate.
-
-**When a typed replay schedule was configured**, failure reports include a **replay token** (canonical replay text) you can paste into `BraidSchedule.Parse(...)` for a stable
-regression test—unless the schedule cannot be exported (for example worker or probe names containing whitespace). Prefer `BraidRunException.TryGetReplayText`.
-
-Reports also include **scheduler-state diagnostics** when the scheduler captured them: last matched replay step, workers waiting at probes, workers held after `Arrive`, and unused
-replay steps. Sections are omitted when empty.
-
-For **random scheduling only** (no replay schedule in options), failure reports do **not** synthesize a full replay token; use the seed and trace to investigate, then capture a
-typed or text schedule once you understand the interleaving.
-
-Failure reports always aim to include:
-
-- seed;
-- iteration;
-- replay schedule (when configured);
-- replay text and diagnostics as described above;
-- execution trace;
-- original inner exception, when present.
-
-Use the reported seed to reproduce random scheduling behavior. Once a race is understood, prefer a typed or text replay schedule for stable regression tests.
-
-Example report:
-
-```text
-braid run failed.
-Seed: 12345
-Iteration: 0
-Schedule:
-  1. worker-1 @ after-read
-  2. worker-2 @ after-read
-Replay text:
-hit worker-1 after-read
-hit worker-2 after-read
-Last matched replay step:
-  2. hit worker-2 after-read
-Trace:
-  1. worker-1 forked
-  2. worker-2 forked
-  3. worker-1 hit after-read
-  4. worker-1 released at after-read
-```
-
-## Run lifecycle
-
-- `BraidRunner.RunAsync` awaits `JoinAsync` after the callback completes, so an explicit final `JoinAsync` is optional.
-- `BraidContext` is valid only during the active `BraidRunner.RunAsync` callback.
-- A canceled `CancellationToken` passed to `BraidRunner.RunAsync` is honored before the callback runs.
-- Empty callbacks complete when no replay schedule is configured.
-- Non-empty replay schedules must be fully consumed.
-- `BraidSchedule.Replay()` with no steps is allowed for empty or probe-free runs.
-- Nested `BraidRunner.RunAsync` calls are not supported.
-- Only one logical probe wait may be in flight per forked worker (including flowing child tasks on that worker); see [docs/runtime-boundaries.md](docs/runtime-boundaries.md).
-- Fork delegates must return a non-null `Task`.
-- Probe names cannot be null, empty, or whitespace.
-- Reusing one `BraidOptions` instance across independent runs is supported.
-- Failure reports are scoped to the current run and iteration only.
+For stricter two-phase interleaving control, use `BraidStep.Arrive` / `BraidStep.Release`
+instead of `BraidStep.Hit`.
 
 ## When to use braid
-
-Use braid when the bug is about the order of a small number of async operations and you can name the important scheduling points:
 
 - cache, CAS, TTL, and state-machine library tests;
 - race reproduction after a flaky failure is understood;
 - regression tests where a specific interleaving should stay fixed;
 - small async scenarios where explicit probes are acceptable.
 
-Stress tests are still useful for discovering that something is flaky. Braid is useful when you want the failure to become deterministic, explainable, and replayable.
+Braid is not a `TaskScheduler` replacement, does not rewrite binaries, and is
+not a distributed-system test framework.
 
-Implicit scheduling or runtime interception can cover code without manual probes, but it is harder to explain and is not braid's current model. Braid keeps the boundary explicit:
-code reaches a named `BraidProbe.HitAsync`, then the replay schedule decides which worker continues.
+## Learn more
 
-## Featured examples
-
-- **Lost update** — a read-modify-write race that fails under a four-step replay token;
-  see [examples/single-file/lost-update/lost-update.cs](examples/single-file/lost-update/lost-update.cs) and [docs/examples/lost-update.md](docs/examples/lost-update.md).
-- **Explore lost update** — the same race discovered by `ExploreAsync` without a hand-written schedule;
-  see [examples/single-file/explore-lost-update/explore-lost-update.cs](examples/single-file/explore-lost-update/explore-lost-update.cs)
-  and [docs/examples/explore-lost-update.md](docs/examples/explore-lost-update.md).
-- **Cache / CAS race** — a versioned cell where a stale compare-and-set must return `VersionMismatch`; uses `Arrive` / `Hit` / `Release`;
-  see [examples/single-file/cache-cas-race/cache-cas-race.cs](examples/single-file/cache-cas-race/cache-cas-race.cs)
-  and [docs/examples/cache-cas-race.md](docs/examples/cache-cas-race.md).
-- **Cancellation before observation** — cancellation wins before an operation is recorded as observed;
-  see [examples/single-file/cancellation-before-observation/cancellation-before-observation.cs](examples/single-file/cancellation-before-observation/cancellation-before-observation.cs)
-  and [docs/examples/cancellation-before-observation.md](docs/examples/cancellation-before-observation.md).
-
-Supplementary example: [user operation limiter](examples/single-file/user-operation-limiter/user-operation-limiter.cs) shows an unsafe read/check/write interleaving next to a
-lock-protected fix.
-
-Run any featured example with `dotnet run <path-to-example.cs>`. Run all with [examples/single-file/run-examples.sh](examples/single-file/run-examples.sh) (bash)
-or [examples/single-file/run-examples.ps1](examples/single-file/run-examples.ps1) (PowerShell).
-
-## Current limitations
-
-- Explicit probes are required.
-- Await interception is not automatic.
-- Braid is not a `TaskScheduler` replacement, does not rewrite binaries, and is not a distributed-system test framework; determinism stays probe-driven (see **What braid does not
-  do** above).
-- Exhaustive search is not implemented.
-- Random-run failures do not automatically include a complete replay schedule unless you configured one in `BraidOptions.Schedule`.
+- [Replay token workflow](docs/replay-token-workflow.md)
+- [Roadmap](docs/roadmap.md)
+- [Runtime boundaries](docs/runtime-boundaries.md)
+- [Release process](docs/release-process.md)
+- Contributing: [contributing.md](contributing.md)
 
 ## SAST Tools
 
-[PVS-Studio](https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static code analyzer for Enterprise (C, C++, C#, Go, and Java) and Web (JS and TS) development.
+[PVS-Studio](https://pvs-studio.com/pvs-studio/?utm_source=website&utm_medium=github&utm_campaign=open_source) - static
+code analyzer for Enterprise (C, C++, C#, Go, and Java) and Web (JS and TS) development.
