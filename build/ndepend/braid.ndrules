@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<NDepend>
+  <Queries>
+    <CustomJustMyCodeQueries>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Discard generated source types from JustMyCode</Name>
+// Exclude Roslyn/tooling *.g.cs, protobuf compiler outputs, and common generated folders.
+// Shared path predicate is duplicated per element kind — NDepend notmycode requires Types, Methods, and Fields separately.
+notmycode
+let IsGeneratedSourceFile = new Func<string, bool>(filePath =>
+    filePath.ToLower().Replace('/', '\\').EndsWith(".g.cs") ||
+    filePath.ToLower().Replace('/', '\\').EndsWith(".pb.cs") ||
+    filePath.ToLower().Replace('/', '\\').Contains("\\obj\\") ||
+    filePath.ToLower().Replace('/', '\\').Contains("\\generated\\"))
+from t in Types
+where t.SourceFileDeclAvailable &&
+      t.SourceDecls.Any(s => IsGeneratedSourceFile(s.SourceFile.FilePath.ToString()))
+select t]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Discard generated source methods from JustMyCode</Name>
+notmycode
+let IsGeneratedSourceFile = new Func<string, bool>(filePath =>
+    filePath.ToLower().Replace('/', '\\').EndsWith(".g.cs") ||
+    filePath.ToLower().Replace('/', '\\').EndsWith(".pb.cs") ||
+    filePath.ToLower().Replace('/', '\\').Contains("\\obj\\") ||
+    filePath.ToLower().Replace('/', '\\').Contains("\\generated\\"))
+from m in Methods
+where m.SourceFileDeclAvailable &&
+      m.SourceDecls.Any(s => IsGeneratedSourceFile(s.SourceFile.FilePath.ToString()))
+select m]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Discard generated source fields from JustMyCode</Name>
+notmycode
+let IsGeneratedSourceFile = new Func<string, bool>(filePath =>
+    filePath.ToLower().Replace('/', '\\').EndsWith(".g.cs") ||
+    filePath.ToLower().Replace('/', '\\').EndsWith(".pb.cs") ||
+    filePath.ToLower().Replace('/', '\\').Contains("\\obj\\") ||
+    filePath.ToLower().Replace('/', '\\').Contains("\\generated\\"))
+from f in Fields
+where f.SourceFileDeclAvailable &&
+      f.SourceDecls.Any(s => IsGeneratedSourceFile(s.SourceFile.FilePath.ToString()))
+select f]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Discard GeneratedCodeAttribute types from JustMyCode</Name>
+notmycode
+from t in Types
+where t.HasAttribute("System.CodeDom.Compiler.GeneratedCodeAttribute".AllowNoMatch())
+select t]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Discard GeneratedCodeAttribute methods from JustMyCode</Name>
+notmycode
+from m in Methods
+where m.HasAttribute("System.CodeDom.Compiler.GeneratedCodeAttribute".AllowNoMatch())
+select m]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Exclude compiler-generated collection helpers</Name>
+// Collection expressions synthesize <>z__ReadOnly* types that throw reserved exception types.
+notmycode
+from t in Types
+where t.IsGeneratedByCompiler || t.Name.StartsWith("<>z__")
+select t]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Exclude compiler-generated collection methods</Name>
+notmycode
+from m in Methods
+where m.ParentType != null &&
+      (m.ParentType.IsGeneratedByCompiler || m.ParentType.Name.StartsWith("<>z__"))
+select m]]></Query>
+      <Query Active="True" DisplayList="False" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False"><![CDATA[// <Name>Discard test assemblies from JustMyCode</Name>
+// Test harness cohesion and transitive SCA hits are not product-layer debt.
+notmycode
+from a in Application.Assemblies.WithNameIn(
+      "Braid.Tests")
+select a]]></Query>
+    </CustomJustMyCodeQueries>
+    <CustomRuleOverrides>
+      <Query Active="True" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND2500" Group="System.Threading"><![CDATA[// <Name>Don't create threads explicitly</Name>
+// <Id>ND2500:DontCreateThreadsExplicitly</Id>
+// ND2500 braid override: scope to JustMyCode (Braid.Tests excluded above).
+warnif count > 0
+from m in JustMyCode.Methods
+where m.CreateA("TYPE:System.Threading.Thread".AllowNoMatch())
+select new { m, Debt = 30.ToMinutes().ToDebt(), Severity = Severity.High }]]></Query>
+      <Query Active="True" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND2016" Group="Naming Conventions"><![CDATA[// <Name>Methods prefixed with 'Try' should return a boolean</Name>
+// <Id>ND2016:MethodsPrefixedWithTryShouldReturnABoolean</Id>
+// ND2016 braid override: stock rule uses Application.Methods and ignores notmycode.
+warnif count > 0
+from m in JustMyCode.Methods
+where m.SimpleNameLike("^Try") &&
+      m.ReturnType != null &&
+      m.ReturnType.FullName != "System.Boolean" &&
+      !m.ReturnType.Name.Contains("Task")
+      select new { m, m.ReturnType, Debt = 10.ToMinutes().ToDebt(), Severity = Severity.Medium }]]></Query>
+      <Query Active="False" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND2505" Group="System.Threading"><![CDATA[// <Name>Methods that read mutable state without synchronization</Name>
+// <Id>ND2505:MethodNonSynchronizedThatReadMutableStates</Id>
+// ND2505 braid override: ignore enum backing values, literals, and compiler-generated fields.
+// Test and benchmark assemblies are already excluded from JustMyCode by the queries above.
+warnif count > 0
+from m in JustMyCode.Methods
+where (m.ReadsMutableObjectState || m.ReadsMutableTypeState) &&
+      m.ParentType != null &&
+      !m.ParentType.IsGeneratedByCompiler &&
+      !m.IsUsing("System.Threading.Monitor".AllowNoMatch()) &&
+      !m.IsUsing("System.Threading.ReaderWriterLock".AllowNoMatch())
+let mutableFieldsUsed = m.FieldsUsed.Where(f =>
+      !f.IsImmutable &&
+      !f.IsEnumValue &&
+      !f.IsGeneratedByCompiler &&
+      !f.IsLiteral)
+where mutableFieldsUsed.Any()
+select new { m, mutableFieldsUsed, Debt = 10.ToMinutes().ToDebt(), Severity = Severity.Medium }]]></Query>
+      <Query Active="True" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND1910" Group="Immutability"><![CDATA[// <Name>Immutable types should be tagged with [Immutable]</Name>
+// <Id>ND1910:ImmutableTypesShouldBeTaggedWithImmutable</Id>
+// ND1910 braid override: report immutable types unless they are already tagged
+// with NDepend's [Immutable] attribute or are compiler-generated.
+warnif count > 0
+from t in JustMyCode.Types
+where t.IsImmutable &&
+      !t.HasAttribute("NDepend.Attributes.ImmutableAttribute".AllowNoMatch()) &&
+      !t.IsGeneratedByCompiler &&
+      !t.HasAttribute("System.CodeDom.Compiler.GeneratedCodeAttribute".AllowNoMatch())
+select new { t, t.NbLinesOfCode, Debt = 10.ToMinutes().ToDebt(), Severity = Severity.Medium }]]></Query>
+      <Query Active="True" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND1108" Group="Code Smells Regression"><![CDATA[// <Name>Avoid transforming an immutable type into a mutable one</Name>
+// <Id>ND1108:AvoidTransformingAnImmutableTypeIntoAMutableOne</Id>
+// ND1108 braid override: scope to JustMyCode and drop any type that hosts an
+// xUnit [Fact]/[Theory] test method. Test classes that live inside product
+// assemblies are not held to product-layer immutability standards: they may carry
+// mutable instance state (fixtures, collected values) without signalling a product
+// immutability regression. Product types remain fully covered by JustMyCode.
+warnif count > 0
+from t in JustMyCode.Types where
+   t.CodeWasChanged() &&
+   t.OlderVersion().IsImmutable &&
+  !t.IsImmutable &&
+  !t.IsStatic &&
+  !t.Methods.Any(m => m.HasAttribute("Xunit.FactAttribute".AllowNoMatch()) ||
+                       m.HasAttribute("Xunit.TheoryAttribute".AllowNoMatch()))
+let culpritFields = t.InstanceFields.Where(f => !f.IsImmutable)
+select new { t, culpritFields, Debt = (10 + 10 * culpritFields.Count()).ToMinutes().ToDebt(), Severity = Severity.High }
+]]></Query>
+      <Query Active="False" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND2802" Group="System.Reflection"><![CDATA[// <Name>Avoid mixing different versions of the same assembly (ND2802)</Name>
+// <Id>ND2802:AssembliesReferencedInMultipleVersions</Id>
+// ND2802 braid override (disabled): .NET SDK emits multi-version facade references for Roslyn/xUnit
+// during analyzers-only restore (benign, not loaded at runtime). Rule disabled as false-positive.
+warnif count > 0
+from assembly in Application.Assemblies
+from @using in assembly.AssembliesUsed
+where assembly.Name == @using.Name && @using.Version != assembly.Version
+select new { assembly, @using }]]></Query>
+      <Query Active="True" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND1305" Group="Design"><![CDATA[// <Name>Avoid namespaces with few types</Name>
+// <Id>ND1305:AvoidNamespacesWithFewTypes</Id>
+// ND1305 braid override: count only non-generated (real) types per namespace.
+warnif count > 0
+from n in Application.Namespaces
+let realTypeCount = JustMyCode.Types.Count(t => t.ParentNamespace != null && t.ParentNamespace.FullName == n.FullName)
+where realTypeCount > 0 && realTypeCount <= 3
+select new { n, RealTypeCount = realTypeCount, Debt = 5.ToMinutes().ToDebt(), Severity = Severity.Low }]]></Query>
+    </CustomRuleOverrides>
+  </Queries>
+</NDepend>

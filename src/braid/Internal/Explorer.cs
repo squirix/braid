@@ -27,8 +27,7 @@ internal static class Explorer
             discoveryFailure = ex;
         }
 
-        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences
-            ?? new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? new Dictionary<string, List<string>>(StringComparer.Ordinal);
         if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count == 0)
             throw discoveryFailure;
 
@@ -61,9 +60,9 @@ internal static class Explorer
             {
                 throw;
             }
-            catch (BraidRunException)
+            catch (BraidRunException ex)
             {
-                // Invalid or non-failing schedules are skipped during bounded search.
+                System.Diagnostics.Trace.TraceInformation($"Braid: skipping non-target schedule ({ex.Message}).");
             }
         }
     }
