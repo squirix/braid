@@ -61,50 +61,49 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     [Fact]
     public async Task FlowingChildProbeOverlapsParentFails()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () =>
                 {
-                    context.Fork(static async () =>
-                    {
-                        var childProbeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    var childProbeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-                        var childTask = StartNewOnThreadPoolAsync(
-                            async () =>
-                            {
-                                var childProbeTask = BraidProbe.HitAsync("child", DefaultCancellationToken).AsTask();
+                    var childTask = StartNewOnThreadPoolAsync(
+                        async () =>
+                        {
+                            var childProbeTask = BraidProbe.HitAsync("child", DefaultCancellationToken).AsTask();
 
-                                childProbeEntered.SetResult();
+                            childProbeEntered.SetResult();
 
-                                await childProbeTask;
-                            },
-                            DefaultCancellationToken);
+                            await childProbeTask;
+                        },
+                        DefaultCancellationToken);
 
-                        await childProbeEntered.Task.WaitAsync(DefaultCancellationToken);
+                    await childProbeEntered.Task.WaitAsync(DefaultCancellationToken);
 
-                        await BraidProbe.HitAsync("parent", DefaultCancellationToken);
+                    await BraidProbe.HitAsync("parent", DefaultCancellationToken);
 
-                        await childTask;
-                    });
+                    await childTask;
+                });
 
-                    context.Fork(static async () =>
-                    {
-                        await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
-                        await BraidProbe.HitAsync("other", DefaultCancellationToken);
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions
+                context.Fork(static async () =>
                 {
-                    Iterations = 1,
-                    Seed = 12345,
-                    Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "child"), BraidStep.Hit("worker-2", "other")),
-                    Timeout = TimeSpan.FromSeconds(2),
-                },
-                DefaultCancellationToken);
-        });
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
+                    await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                });
+
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions
+            {
+                Iterations = 1,
+                Seed = 12345,
+                Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "child"), BraidStep.Hit("worker-2", "other")),
+                Timeout = TimeSpan.FromSeconds(2),
+            },
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         var report = exception.ToString();
 

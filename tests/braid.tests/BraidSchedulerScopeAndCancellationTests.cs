@@ -12,16 +12,14 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     {
         using var cts = new CancellationTokenSource();
 
-        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException>(
+            BraidRunner.RunAsync(
                 async _ =>
                 {
                     await cts.CancelAsync();
                     cts.Token.ThrowIfCancellationRequested();
                 },
-                cts.Token);
-        });
+                cts.Token));
     }
 
     /// <summary>Verifies canceling token after completion does not affect completed runs.</summary>
@@ -52,7 +50,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await BraidRunner.RunAsync(static _ => Task.CompletedTask, cts.Token));
+        _ = Assertions.Expects<OperationCanceledException>(() => { _ = BraidRunner.RunAsync(static _ => Task.CompletedTask, cts.Token); });
     }
 
     /// <summary>Verifies large replay schedules can be created and reused.</summary>
@@ -150,9 +148,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         static async Task RunIsolatedFailedRunAsync(int runId)
         {
             var ownProbe = $"probe-run-{runId}";
-            var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
+            var exception = await Assertions.ExpectsAsync<BraidRunException>(
+                BraidRunner.RunAsync(
                     async context =>
                     {
                         context.Fork(async () => await BraidProbe.HitAsync(ownProbe, DefaultCancellationToken));
@@ -160,8 +157,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                         throw new InvalidOperationException($"run-{runId}-fail");
                     },
                     new BraidOptions { Iterations = 1, Seed = 8000 + runId },
-                    DefaultCancellationToken);
-            });
+                    DefaultCancellationToken));
 
             var report = exception.ToString();
             Assert.Contains(ownProbe, report, StringComparison.Ordinal);
@@ -193,9 +189,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
             var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             try
             {
-                _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
-                {
-                    await BraidRunner.RunAsync(
+                _ = await Assertions.ExpectsAsync<BraidRunException>(
+                    BraidRunner.RunAsync(
                         async context =>
                         {
                             context.Fork(async () =>
@@ -207,8 +202,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                             await context.JoinAsync(DefaultCancellationToken);
                         },
                         new BraidOptions { Iterations = 1, Seed = 9000 + runId, Timeout = TimeSpan.FromMilliseconds(50) },
-                        DefaultCancellationToken);
-                });
+                        DefaultCancellationToken));
             }
             finally
             {
@@ -222,9 +216,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task ProbeNameMatchingIsCaseSensitive()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
@@ -236,8 +229,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     Seed = 9012,
                     Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "READY")),
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("READY", report, StringComparison.Ordinal);
@@ -249,9 +241,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task WorkerIdMatchingIsCaseSensitive()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
@@ -263,8 +254,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     Seed = 9011,
                     Schedule = BraidSchedule.Replay(new BraidStep("Worker-1", "ready")),
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("Worker-1", report, StringComparison.Ordinal);
@@ -276,9 +266,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task WorkerLocalCancelAfterProbeAsFailure()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
@@ -292,8 +281,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 new BraidOptions { Iterations = 1, Seed = 4012 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         _ = Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
         Assert.Contains("ready", exception.ToString(), StringComparison.Ordinal);
@@ -304,9 +292,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task WorkerLocalCancelBeforeProbeAsFailure()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
@@ -319,8 +306,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 new BraidOptions { Iterations = 1, Seed = 4013 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
@@ -333,9 +319,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     [Fact]
     public async Task WorkerStartupReleaseReportedFirstProbe()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
@@ -343,11 +328,19 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new BraidOptions { Iterations = 1, Seed = 4004 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         AssertAppearsBefore(exception.Trace, "worker-1 forked", "worker-1 released");
         AssertAppearsBefore(exception.Trace, "worker-1 released", "worker-1 hit ready");
+    }
+
+    private static void AssertAppearsBefore(IReadOnlyList<string> trace, string first, string second)
+    {
+        var firstIndex = IndexOfContains(trace, first);
+        var secondIndex = IndexOfContains(trace, second);
+        Assert.True(firstIndex >= 0, $"Could not find trace entry containing '{first}'.");
+        Assert.True(secondIndex >= 0, $"Could not find trace entry containing '{second}'.");
+        Assert.True(firstIndex < secondIndex, $"Expected '{first}' before '{second}', but got indexes {firstIndex} and {secondIndex}.");
     }
 
     private static int IndexOfContains(IReadOnlyList<string> trace, string contains)
@@ -361,9 +354,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
 
     private static async Task RunFailedScopeLeakCheckAsync(int runIndex)
     {
-        _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("p", DefaultCancellationToken));
@@ -371,8 +363,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                     throw new InvalidOperationException($"fail-{runIndex}");
                 },
                 new BraidOptions { Iterations = 1, Seed = 6000 + runIndex },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         await BraidProbe.HitAsync($"outside-fail-{runIndex}", DefaultCancellationToken);
     }
@@ -382,9 +373,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var runTask = Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
+            var runTask = Assertions.ExpectsAsync<BraidRunException>(
+                BraidRunner.RunAsync(
                     async context =>
                     {
                         context.Fork(async () =>
@@ -401,8 +391,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                         Seed = 7000 + runIndex,
                         Timeout = TimeSpan.FromMilliseconds(50),
                     },
-                    DefaultCancellationToken);
-            });
+                    DefaultCancellationToken));
 
             await AssertCompletesBeforeWatchdogAsync(runTask, "Timed out run should complete with exception.", TimeSpan.FromSeconds(3), false);
         }
@@ -412,14 +401,5 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         }
 
         await BraidProbe.HitAsync($"outside-timeout-{runIndex}", DefaultCancellationToken);
-    }
-
-    private static void AssertAppearsBefore(IReadOnlyList<string> trace, string first, string second)
-    {
-        var firstIndex = IndexOfContains(trace, first);
-        var secondIndex = IndexOfContains(trace, second);
-        Assert.True(firstIndex >= 0, $"Could not find trace entry containing '{first}'.");
-        Assert.True(secondIndex >= 0, $"Could not find trace entry containing '{second}'.");
-        Assert.True(firstIndex < secondIndex, $"Expected '{first}' before '{second}', but got indexes {firstIndex} and {secondIndex}.");
     }
 }

@@ -153,9 +153,8 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     [Fact]
     public async Task RunAsyncStopsForkedWorkersBeforeJoin()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
@@ -163,8 +162,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
                     throw new InvalidOperationException("callback failed");
                 },
                 new BraidOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("callback failed", report, StringComparison.Ordinal);

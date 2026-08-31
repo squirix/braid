@@ -12,17 +12,16 @@ public sealed class BraidExploreOptionsTests : TestBase
     {
         var ran = false;
 
-        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-        {
-            await BraidRunner.ExploreAsync(
-                new BraidExploreOptionsBuilder().WithMaxSchedules(0).Build(),
-                async braid =>
-                {
-                    ran = true;
-                    await braid.WorkerAsync("worker-1", static () => Task.CompletedTask);
-                },
-                DefaultCancellationToken);
-        });
+        var operation = BraidRunner.ExploreAsync(
+            new BraidExploreOptionsBuilder().WithMaxSchedules(0).Build(),
+            async braid =>
+            {
+                ran = true;
+                await braid.WorkerAsync("worker-1", static () => Task.CompletedTask);
+            },
+            DefaultCancellationToken);
+
+        _ = await Assertions.ExpectsAsync<ArgumentOutOfRangeException>(operation);
 
         Assert.False(ran);
     }
@@ -34,17 +33,16 @@ public sealed class BraidExploreOptionsTests : TestBase
     {
         var ran = false;
 
-        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
-        {
-            await BraidRunner.ExploreAsync(
-                new BraidExploreOptionsBuilder().WithMaxStepsPerSchedule(0).Build(),
-                async braid =>
-                {
-                    ran = true;
-                    await braid.WorkerAsync("worker-1", static () => Task.CompletedTask);
-                },
-                DefaultCancellationToken);
-        });
+        var operation = BraidRunner.ExploreAsync(
+            new BraidExploreOptionsBuilder().WithMaxStepsPerSchedule(0).Build(),
+            async braid =>
+            {
+                ran = true;
+                await braid.WorkerAsync("worker-1", static () => Task.CompletedTask);
+            },
+            DefaultCancellationToken);
+
+        _ = await Assertions.ExpectsAsync<ArgumentOutOfRangeException>(operation);
 
         Assert.False(ran);
     }

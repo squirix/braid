@@ -10,22 +10,21 @@ public sealed class BraidProbeTests : TestBase
     [Fact]
     public async Task HitAsyncOutsideRunCompletesFailedRun()
     {
-        _ = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () =>
                 {
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
-                        throw new InvalidOperationException("scope-failure");
-                    });
+                    await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
+                    throw new InvalidOperationException("scope-failure");
+                });
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 12345 },
+            DefaultCancellationToken);
+
+        _ = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
     }

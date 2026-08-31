@@ -6,14 +6,122 @@ namespace Braid.Tests;
 /// <summary>Covers run exception report behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidRunExceptionReportTests : TestBase
 {
+    /// <summary>Verifies exception schedule snapshots are immutable for callers.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task BraidRunExceptionScheduleCannotBeMutated()
+    {
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions
+                {
+                    Iterations = 1,
+                    Seed = 33,
+                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
+                },
+                DefaultCancellationToken));
+
+        var list = Assert.IsAssignableFrom<IList<BraidStep>>(exception.Schedule);
+        _ = Assertions.ExpectsAny<Exception>(() => list[0] = new BraidStep("worker-9", "changed"));
+
+        Assert.Contains("worker-1 @ expected", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>Verifies exception trace snapshots are immutable for callers.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task BraidRunExceptionTraceCannotBeMutated()
+    {
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions
+                {
+                    Iterations = 1,
+                    Seed = 34,
+                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
+                },
+                DefaultCancellationToken));
+
+        var traceList = Assert.IsAssignableFrom<IList<string>>(exception.Trace);
+        _ = Assertions.ExpectsAny<Exception>(() => traceList[0] = "mutated");
+
+        Assert.Contains("worker-1 hit actual", exception.ToString(), StringComparison.Ordinal);
+    }
+
+    /// <summary>Verifies callback failures after forking include fork trace entries.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task CallbackFailureAfterForkReportsTrace()
+    {
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
+                static context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    throw new InvalidOperationException("fail-after-fork");
+                },
+                new BraidOptions { Iterations = 1, Seed = 27 },
+                DefaultCancellationToken));
+
+        var report = exception.ToString();
+        Assert.Contains("fail-after-fork", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
+        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>Verifies callback failures before forking still report a trace section.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task CallbackFailureBeforeForkEmptyTrace()
+    {
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(static _ => throw new InvalidOperationException("fail-before-fork"), new BraidOptions { Iterations = 1, Seed = 26 }, DefaultCancellationToken));
+
+        var report = exception.ToString();
+        Assert.Contains("fail-before-fork", report, StringComparison.Ordinal);
+        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("worker-", report, StringComparison.Ordinal);
+    }
+
+    /// <summary>Verifies a worker failure before any probe is surfaced on join with trace context.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunAsyncReportsWorkerFailureFirstProbe()
+    {
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static () => Task.FromException(new InvalidOperationException("before-probe failure")));
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = 12345 },
+                DefaultCancellationToken));
+
+        var report = exception.ToString();
+        Assert.Contains("before-probe failure", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+    }
+
     /// <summary>Verifies exception properties are reflected in formatted reports.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunExceptionPropertiesMatchReport()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
@@ -25,8 +133,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
                     Seed = 32,
                     Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains(exception.Seed.ToString(CultureInfo.InvariantCulture), report, StringComparison.Ordinal);
@@ -44,128 +151,6 @@ public sealed class BraidRunExceptionReportTests : TestBase
         }
     }
 
-    /// <summary>Verifies exception schedule snapshots are immutable for callers.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task BraidRunExceptionScheduleCannotBeMutated()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions
-                {
-                    Iterations = 1,
-                    Seed = 33,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
-                },
-                DefaultCancellationToken);
-        });
-
-        var list = Assert.IsAssignableFrom<IList<BraidStep>>(exception.Schedule);
-        _ = Assert.ThrowsAny<Exception>(() => list[0] = new BraidStep("worker-9", "changed"));
-
-        Assert.Contains("worker-1 @ expected", exception.ToString(), StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies exception trace snapshots are immutable for callers.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task BraidRunExceptionTraceCannotBeMutated()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions
-                {
-                    Iterations = 1,
-                    Seed = 34,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
-                },
-                DefaultCancellationToken);
-        });
-
-        var traceList = Assert.IsAssignableFrom<IList<string>>(exception.Trace);
-        _ = Assert.ThrowsAny<Exception>(() => traceList[0] = "mutated");
-
-        Assert.Contains("worker-1 hit actual", exception.ToString(), StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies callback failures after forking include fork trace entries.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CallbackFailureAfterForkReportsTrace()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
-                    throw new InvalidOperationException("fail-after-fork");
-                },
-                new BraidOptions { Iterations = 1, Seed = 27 },
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("fail-after-fork", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies callback failures before forking still report a trace section.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CallbackFailureBeforeForkEmptyTrace()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static _ => throw new InvalidOperationException("fail-before-fork"),
-                new BraidOptions { Iterations = 1, Seed = 26 },
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("fail-before-fork", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("worker-", report, StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies a worker failure before any probe is surfaced on join with trace context.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncReportsWorkerFailureFirstProbe()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => Task.FromException(new InvalidOperationException("before-probe failure")));
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("before-probe failure", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
-    }
-
     /// <summary>Verifies deterministic seeds produce stable failure reports.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
@@ -178,9 +163,8 @@ public sealed class BraidRunExceptionReportTests : TestBase
 
         static async Task<string> RunOnceAsync()
         {
-            var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-            {
-                await BraidRunner.RunAsync(
+            var exception = await Assertions.ExpectsAsync<BraidRunException>(
+                BraidRunner.RunAsync(
                     static async context =>
                     {
                         for (var workerIndex = 0; workerIndex < 4; workerIndex++)
@@ -190,11 +174,37 @@ public sealed class BraidRunExceptionReportTests : TestBase
                         throw new InvalidOperationException("forced deterministic callback failure");
                     },
                     new BraidOptions { Iterations = 1, Seed = 31337 },
-                    DefaultCancellationToken);
-            });
+                    DefaultCancellationToken));
 
             return exception.ToString().ReplaceLineEndings("\n");
         }
+    }
+
+    /// <summary>Verifies schedule mismatch reports include blocked probe details.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task ScheduleMismatchShowsBlockedWorkerProbe()
+    {
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions
+                {
+                    Iterations = 1,
+                    Seed = 28,
+                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
+                },
+                DefaultCancellationToken));
+
+        var report = exception.ToString();
+        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1", report, StringComparison.Ordinal);
+        Assert.Contains("expected", report, StringComparison.Ordinal);
+        Assert.Contains("actual", report, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies schedule mismatch traces include all blocked workers.</summary>
@@ -202,9 +212,8 @@ public sealed class BraidRunExceptionReportTests : TestBase
     [Fact]
     public async Task ScheduleMismatchShowsBlockedWorkersTrace()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("actual-a", DefaultCancellationToken));
@@ -217,42 +226,12 @@ public sealed class BraidRunExceptionReportTests : TestBase
                     Seed = 29,
                     Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("worker-1 hit actual-a", report, StringComparison.Ordinal);
         Assert.Contains("worker-2 hit actual-b", report, StringComparison.Ordinal);
         Assert.Contains("expected", report, StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies schedule mismatch reports include blocked probe details.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ScheduleMismatchShowsBlockedWorkerProbe()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions
-                {
-                    Iterations = 1,
-                    Seed = 28,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
-                },
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("expected", report, StringComparison.Ordinal);
-        Assert.Contains("actual", report, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies timeout reports still include forked workers before probes.</summary>
@@ -263,17 +242,16 @@ public sealed class BraidRunExceptionReportTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
-                    async context =>
-                    {
-                        context.Fork(async () => await gate.Task.WaitAsync(DefaultCancellationToken));
-                        await context.JoinAsync(DefaultCancellationToken);
-                    },
-                    new BraidOptions { Iterations = 1, Seed = 31, Timeout = TimeSpan.FromMilliseconds(50) },
-                    DefaultCancellationToken);
-            });
+            var run = BraidRunner.RunAsync(
+                async context =>
+                {
+                    context.Fork(async () => await gate.Task.WaitAsync(DefaultCancellationToken));
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = 31, Timeout = TimeSpan.FromMilliseconds(50) },
+                DefaultCancellationToken);
+
+            var exception = await Assertions.ExpectsAsync<BraidRunException>(run);
 
             var report = exception.ToString();
             Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
@@ -293,22 +271,21 @@ public sealed class BraidRunExceptionReportTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
-                    async context =>
+            var run = BraidRunner.RunAsync(
+                async context =>
+                {
+                    context.Fork(async () =>
                     {
-                        context.Fork(async () =>
-                        {
-                            await BraidProbe.HitAsync("a", DefaultCancellationToken);
-                            await gate.Task.WaitAsync(DefaultCancellationToken);
-                        });
-                        context.Fork(static async () => await BraidProbe.HitAsync("b", DefaultCancellationToken));
-                        await context.JoinAsync(DefaultCancellationToken);
-                    },
-                    new BraidOptions { Iterations = 1, Seed = 30, Timeout = TimeSpan.FromMilliseconds(50) },
-                    DefaultCancellationToken);
-            });
+                        await BraidProbe.HitAsync("a", DefaultCancellationToken);
+                        await gate.Task.WaitAsync(DefaultCancellationToken);
+                    });
+                    context.Fork(static async () => await BraidProbe.HitAsync("b", DefaultCancellationToken));
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = 30, Timeout = TimeSpan.FromMilliseconds(50) },
+                DefaultCancellationToken);
+
+            var exception = await Assertions.ExpectsAsync<BraidRunException>(run);
 
             var report = exception.ToString();
             Assert.Contains("braid run timed out.", report, StringComparison.Ordinal);
@@ -327,20 +304,19 @@ public sealed class BraidRunExceptionReportTests : TestBase
     public async Task TraceDoesNotLeakAcrossIterations()
     {
         var calls = 0;
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                async context =>
-                {
-                    var invocation = Interlocked.Increment(ref calls);
-                    context.Fork(async () => await BraidProbe.HitAsync($"iteration-{invocation}", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
-                    if (invocation == 3)
-                        throw new InvalidOperationException("fail on third invocation");
-                },
-                new BraidOptions { Iterations = 3, Seed = 150 },
-                DefaultCancellationToken);
-        });
+        var run = BraidRunner.RunAsync(
+            async context =>
+            {
+                var invocation = Interlocked.Increment(ref calls);
+                context.Fork(async () => await BraidProbe.HitAsync($"iteration-{invocation}", DefaultCancellationToken));
+                await context.JoinAsync(DefaultCancellationToken);
+                if (invocation == 3)
+                    throw new InvalidOperationException("fail on third invocation");
+            },
+            new BraidOptions { Iterations = 3, Seed = 150 },
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(run);
 
         var report = exception.ToString();
         Assert.Contains("iteration-3", report, StringComparison.Ordinal);

@@ -93,9 +93,8 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
 
         try
         {
-            var exceptionTask = Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
+            var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
+                BraidRunner.RunAsync(
                     async context =>
                     {
                         context.Fork(async () =>
@@ -114,8 +113,7 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
                         await context.JoinAsync(DefaultCancellationToken);
                     },
                     new BraidOptions { Iterations = 1, Seed = 5504, Timeout = TimeSpan.FromMilliseconds(50) },
-                    DefaultCancellationToken);
-            });
+                    DefaultCancellationToken));
 
             await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Timeout run should fail deterministically.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
@@ -132,17 +130,15 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
 
     private static async Task RunCanceledProbeLeakCheckAsync(int runIndex)
     {
-        _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 new BraidOptions { Iterations = 1, Seed = 5200 + runIndex },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         await BraidProbe.HitAsync($"outside-canceled-{runIndex}", DefaultCancellationToken);
     }

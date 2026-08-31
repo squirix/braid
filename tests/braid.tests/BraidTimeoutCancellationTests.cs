@@ -192,17 +192,15 @@ public sealed class BraidTimeoutCancellationTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
+            var exception = await Assertions.ExpectsAsync<BraidRunException>(
+                BraidRunner.RunAsync(
                     async context =>
                     {
                         context.Fork(async () => await gate.Task.WaitAsync(DefaultCancellationToken));
                         await context.JoinAsync(DefaultCancellationToken);
                     },
                     new BraidOptions { Iterations = 1, Seed = 35, Timeout = TimeSpan.FromTicks(1) },
-                    DefaultCancellationToken);
-            });
+                    DefaultCancellationToken));
 
             Assert.Contains("timed out", exception.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -212,16 +210,13 @@ public sealed class BraidTimeoutCancellationTests : TestBase
         }
     }
 
-    private static Task<BraidRunException> RunLocalTokenCanceledProbeAsync(int seed) =>
-        Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(2) },
-                DefaultCancellationToken);
-        });
+    private static Task<BraidRunException> RunLocalTokenCanceledProbeAsync(int seed) => Assertions.ExpectsAsync<BraidRunException>(
+        BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(2) },
+            DefaultCancellationToken));
 }

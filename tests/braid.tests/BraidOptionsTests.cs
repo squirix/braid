@@ -59,9 +59,9 @@ public sealed class BraidOptionsTests : TestBase
     {
         var executed = 0;
 
-        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
@@ -83,9 +83,9 @@ public sealed class BraidOptionsTests : TestBase
     {
         var executed = 0;
 
-        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
@@ -107,9 +107,9 @@ public sealed class BraidOptionsTests : TestBase
     {
         var executed = 0;
 
-        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
@@ -131,9 +131,9 @@ public sealed class BraidOptionsTests : TestBase
     {
         var executed = 0;
 
-        var exception = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;

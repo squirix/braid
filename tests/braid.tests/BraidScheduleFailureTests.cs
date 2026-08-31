@@ -18,9 +18,8 @@ public sealed class BraidScheduleFailureTests : TestBase
             Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
@@ -30,8 +29,7 @@ public sealed class BraidScheduleFailureTests : TestBase
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("Scripted schedule was exhausted", report, StringComparison.Ordinal);
@@ -51,9 +49,8 @@ public sealed class BraidScheduleFailureTests : TestBase
             Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
@@ -61,8 +58,7 @@ public sealed class BraidScheduleFailureTests : TestBase
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("Scripted schedule step", report, StringComparison.Ordinal);

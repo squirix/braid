@@ -410,7 +410,3 @@ dotnet_diagnostic.EPC29.severity = none
 # Analyzer execution settings
 # Enable concurrent execution and generated code handling are set via MSBuild props
 
-
-[tests/**]
-# SQR0019 (closure-free testkit asserts) does not apply to braid's xUnit suite (no squirrel testkit).
-dotnet_diagnostic.SQR0019.severity = none

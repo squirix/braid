@@ -57,9 +57,8 @@ public sealed class BraidScheduleReplayTests : TestBase
                 new BraidStep("worker-2", "before-write")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     var value = 0;
@@ -85,8 +84,7 @@ public sealed class BraidScheduleReplayTests : TestBase
                     Assert.Equal(2, value);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.Equal(12345, exception.Seed);
         Assert.Contains(exception.Trace, static line => line.Contains("worker-1", StringComparison.Ordinal));
