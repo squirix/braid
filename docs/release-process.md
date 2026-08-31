@@ -40,7 +40,7 @@ Inspect the output `.nupkg` (and `.snupkg` when symbols are enabled):
 - Package id is `braid`.
 - README is at package root.
 - XML documentation is present in the assembly.
-- License expression matches repository intent (MIT).
+- License expression matches repository intent (Apache-2.0).
 
 Expected artifact names (substitute your `$Version` when checking paths):
 

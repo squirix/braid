@@ -9,7 +9,7 @@
         <Authors>Squirix</Authors>
         <RepositoryUrl>https://github.com/squirix/braid</RepositoryUrl>
         <PackageProjectUrl>https://github.com/squirix/braid</PackageProjectUrl>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
         <PackageTags>testing;concurrency;deterministic;async;dotnet;replay</PackageTags>
         <IncludeSymbols>true</IncludeSymbols>
