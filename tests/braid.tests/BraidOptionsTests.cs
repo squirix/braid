@@ -53,9 +53,8 @@ public sealed class BraidOptionsTests : TestBase
     }
 
     /// <summary>Verifies negative iterations are rejected before the run body starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncThrowsForNegativeIterations()
+    public void RunAsyncThrowsForNegativeIterations()
     {
         var executed = 0;
 
@@ -77,9 +76,8 @@ public sealed class BraidOptionsTests : TestBase
     }
 
     /// <summary>Verifies negative timeout is rejected before the run body starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncThrowsForNegativeTimeout()
+    public void RunAsyncThrowsForNegativeTimeout()
     {
         var executed = 0;
 
@@ -101,9 +99,8 @@ public sealed class BraidOptionsTests : TestBase
     }
 
     /// <summary>Verifies zero iterations are rejected before the run body starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncThrowsForZeroIterations()
+    public void RunAsyncThrowsForZeroIterations()
     {
         var executed = 0;
 
@@ -125,9 +122,8 @@ public sealed class BraidOptionsTests : TestBase
     }
 
     /// <summary>Verifies zero timeout is rejected before the run body starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncThrowsForZeroTimeout()
+    public void RunAsyncThrowsForZeroTimeout()
     {
         var executed = 0;
 

@@ -121,9 +121,8 @@ public sealed class BraidApiContractTests : TestBase
     }
 
     /// <summary>Verifies invalid timeouts are rejected before the run starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncRejectsInvalidTimeoutAtStart()
+    public void RunAsyncRejectsInvalidTimeoutAtStart()
     {
         var ran = false;
 
@@ -144,9 +143,8 @@ public sealed class BraidApiContractTests : TestBase
     }
 
     /// <summary>Verifies run validation rejects a null test delegate.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncThrowsForNullTestDelegate() =>
+    public void RunAsyncThrowsForNullTestDelegate() =>
         _ = Assertions.Expects<ArgumentNullException>(static () => _ = BraidRunner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
 
     /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
@@ -175,9 +173,8 @@ public sealed class BraidApiContractTests : TestBase
     }
 
     /// <summary>Verifies invalid iteration counts are rejected before the run starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunRejectsInvalidIterationsBeforeStart()
+    public void RunRejectsInvalidIterationsBeforeStart()
     {
         var ran = false;
 

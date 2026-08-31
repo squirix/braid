@@ -158,42 +158,45 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
     public async Task TimeoutWinsOverLateWorkerFailure()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var workerExited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        try
-        {
-            var runTask = BraidRunner.RunAsync(
-                async context =>
+        var runTask = BraidRunner.RunAsync(
+            async context =>
+            {
+                context.Fork(async () =>
                 {
-                    context.Fork(async () =>
+                    try
                     {
                         await BraidProbe.HitAsync("block", DefaultCancellationToken);
                         await gate.Task.WaitAsync(DefaultCancellationToken);
                         throw new InvalidOperationException("too late after timeout");
-                    });
+                    }
+                    finally
+                    {
+                        _ = workerExited.TrySetResult();
+                    }
+                });
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
-                DefaultCancellationToken);
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
+            DefaultCancellationToken);
 
-            var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
-            if (await Task.WhenAny(runTask, watchdog) != runTask)
-                Assert.Fail("Braid run did not complete before watchdog timeout.");
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        if (await Task.WhenAny(runTask, watchdog) != runTask)
+            Assert.Fail("Braid run did not complete before watchdog timeout.");
 
-            try
-            {
-                await runTask;
-                Assert.Fail("Expected BraidRunException.");
-            }
-            catch (BraidRunException exception)
-            {
-                Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
-                Assert.DoesNotContain("too late after timeout", exception.ToString(), StringComparison.Ordinal);
-            }
+        try
+        {
+            await runTask;
+            Assert.Fail("Expected BraidRunException.");
         }
-        finally
+        catch (BraidRunException exception)
         {
             _ = gate.TrySetResult();
+            await workerExited.Task.WaitAsync(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+            Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("too late after timeout", exception.ToString(), StringComparison.Ordinal);
         }
     }
 
