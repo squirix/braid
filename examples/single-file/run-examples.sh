@@ -10,6 +10,6 @@ for dir in "$root"/*/; do
 
     if [[ -f "$file" ]]; then
         echo "Running $file"
-        dotnet run "$file" --configuration "$configuration"
+        dotnet run --file "$file" --configuration "$configuration"
     fi
 done

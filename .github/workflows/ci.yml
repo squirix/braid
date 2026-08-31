@@ -225,14 +225,13 @@ jobs:
     # PVS-Studio Team: full analysis of the production package; fail CI when warnings remain.
     # Secret: PVS_STUDIO_CREDENTIALS = "<license-name> <license-key>"
     # Skipped on fork PRs (secrets unavailable). No SARIF upload.
-    # TEMPORARILY DISABLED: set back to the repository condition once the license is available.
     pvs-studio:
         name: PVS-Studio
         runs-on: ubuntu-latest
         timeout-minutes: 60
         permissions:
             contents: read
-        if: false
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         steps:
             -   name: Require PVS_STUDIO_CREDENTIALS
                 shell: bash
