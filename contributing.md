@@ -58,4 +58,4 @@ Expected: 1 passing test (`ReplayTokenCapturesLostUpdateInterleaving`).
 
 ## License
 
-By contributing, you agree your code is under the [MIT License](./LICENSE).
+By contributing, you agree your code is under the [Apache 2.0 License](./LICENSE).
