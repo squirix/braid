@@ -11,9 +11,9 @@ public sealed class BraidInnerExceptionStackTraceTests : TestBase
     [Fact]
     public async Task CallbackFailurePreservesStackTrace()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () => await BraidRunner.RunAsync(
-            static _ => ThrowFromCallbackHelperAsync(),
-            DefaultCancellationToken));
+        var operation = BraidRunner.RunAsync(static _ => ThrowFromCallbackHelperAsync(), DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         Assert.NotNull(exception.InnerException);
         Assert.Contains(nameof(ThrowFromCallbackHelperAsync), exception.InnerException.StackTrace ?? string.Empty, StringComparison.Ordinal);
@@ -24,17 +24,16 @@ public sealed class BraidInnerExceptionStackTraceTests : TestBase
     [Fact]
     public async Task WorkerFailurePreservesStackTrace()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => StartNewOnThreadPoolAsync(ThrowFromWorkerHelper, DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 4010 },
-                DefaultCancellationToken);
-        });
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static () => StartNewOnThreadPoolAsync(ThrowFromWorkerHelper, DefaultCancellationToken));
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 4010 },
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         Assert.NotNull(exception.InnerException);
         Assert.Contains(nameof(ThrowFromWorkerHelper), exception.InnerException.StackTrace ?? string.Empty, StringComparison.Ordinal);

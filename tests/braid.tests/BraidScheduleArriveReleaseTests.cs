@@ -159,17 +159,15 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Arrive("worker-1", "A")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("A", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("duplicate Arrive for held worker-1 at A", report, StringComparison.Ordinal);
@@ -190,17 +188,15 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Release("worker-1", "B")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("A", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("release held worker-1 at B", report, StringComparison.Ordinal);
@@ -220,9 +216,8 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Release("worker-2", "A")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("A", DefaultCancellationToken));
@@ -230,8 +225,7 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("release held worker-2 at A", report, StringComparison.Ordinal);
@@ -253,17 +247,15 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Release("worker-1", "A")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("A", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("release held worker-1 at A", report, StringComparison.Ordinal);
@@ -368,17 +360,15 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("B", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("arrive worker-1 at A", report, StringComparison.Ordinal);
@@ -471,17 +461,15 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Hit("worker-2", "B")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await BraidProbe.HitAsync("B", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 options,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.Contains("could not be satisfied: arrive worker-1 at A", exception.ToString(), StringComparison.Ordinal);
     }
@@ -498,10 +486,8 @@ public sealed class BraidScheduleArriveReleaseTests : TestBase
             Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () => await BraidRunner.RunAsync(
-            static async context => await context.JoinAsync(DefaultCancellationToken),
-            options,
-            DefaultCancellationToken));
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(static async context => await context.JoinAsync(DefaultCancellationToken), options, DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);

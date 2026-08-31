@@ -49,9 +49,8 @@ public sealed class BraidDeterministicSeedTests : TestBase
 
     private static async Task<IReadOnlyList<string>> CaptureRandomTraceAsync(int seed)
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     for (var index = 0; index < 5; index++)
@@ -61,8 +60,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
                     throw new InvalidOperationException("capture trace");
                 },
                 new BraidOptions { Iterations = 1, Seed = seed },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         return exception.Trace;
     }
@@ -70,9 +68,8 @@ public sealed class BraidDeterministicSeedTests : TestBase
     private static async Task<(IReadOnlyList<string> Trace, IReadOnlyList<string> ReleaseOrder)> CaptureScriptedRunAsync(int seed, BraidSchedule schedule)
     {
         var releases = new List<string>();
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 async context =>
                 {
                     for (var index = 0; index < 3; index++)
@@ -82,8 +79,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
                     throw new InvalidOperationException("capture trace");
                 },
                 new BraidOptions { Iterations = 1, Seed = seed, Schedule = schedule },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         return (exception.Trace, releases);
     }

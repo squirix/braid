@@ -10,9 +10,8 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task MultipleWorkersOneFailureBothTraced()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
@@ -35,8 +34,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                     Seed = 5103,
                     Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "first"), new BraidStep("worker-2", "second")),
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.True(
@@ -51,9 +49,8 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task SynchronouslyCompletingWorkerFullTrace()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static () => Task.CompletedTask);
@@ -61,8 +58,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new BraidOptions { Iterations = 1, Seed = 5106 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
@@ -76,17 +72,15 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task SynchronouslyThrowingWorkerReported()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static () => throw new InvalidOperationException("sync throw"));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
                 new BraidOptions { Iterations = 1, Seed = 5107 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("sync throw", report, StringComparison.Ordinal);
@@ -102,9 +96,8 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exceptionTask = Assert.ThrowsAsync<BraidRunException>(async () =>
-            {
-                await BraidRunner.RunAsync(
+            var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
+                BraidRunner.RunAsync(
                     async context =>
                     {
                         context.Fork(static () => Task.FromException(new InvalidOperationException("primary worker failure")));
@@ -117,8 +110,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                         await context.JoinAsync(DefaultCancellationToken);
                     },
                     new BraidOptions { Iterations = 1, Seed = 5102 },
-                    DefaultCancellationToken);
-            });
+                    DefaultCancellationToken));
 
             await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
             var exception = await exceptionTask;
@@ -135,9 +127,8 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task WorkerFailureStopsWaitingSiblingCleanly()
     {
-        var exceptionTask = Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
@@ -156,8 +147,7 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                     Seed = 5104,
                     Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "fail-ready"), new BraidStep("worker-2", "blocked")),
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false);
         var exception = await exceptionTask;

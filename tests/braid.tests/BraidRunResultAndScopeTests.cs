@@ -5,39 +5,6 @@ namespace Braid.Tests;
 /// <summary>Covers run-result snapshots, public-surface immutability, and run-scope cleanup.</summary>
 public sealed class BraidRunResultAndScopeTests : TestBase
 {
-    /// <summary>Verifies failure reports snapshot schedule and are not affected by later caller mutations.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunExceptionSnapshotsTraceAndSchedule()
-    {
-        var backing = new[] { new BraidStep("worker-1", "ready") };
-        var schedule = BraidSchedule.Replay(backing);
-
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () =>
-                    {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
-                        throw new InvalidOperationException("after-ready");
-                    });
-
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345, Schedule = schedule },
-                DefaultCancellationToken);
-        });
-
-        backing[0] = new BraidStep("worker-9", "mutated");
-
-        var report = exception.ToString();
-        Assert.Contains("worker-1 @ ready", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("worker-9", report, StringComparison.Ordinal);
-        Assert.Equal(new BraidStep("worker-1", "ready"), exception.Schedule[0]);
-    }
-
     /// <summary>
     /// Verifies <see cref="BraidRunException.ToString" /> does not mutate between calls.
     /// </summary>
@@ -50,25 +17,6 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         var second = exception.ToString();
 
         Assert.Equal(first, second);
-    }
-
-    /// <summary>
-    /// Verifies schedule steps exposed from <see cref="BraidSchedule" /> cannot be mutated as a list.
-    /// </summary>
-    [Fact]
-    public void ScheduleStepsCannotBeMutatedPublic()
-    {
-        var schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"));
-        var steps = schedule.Steps;
-
-        Assert.Equal(new BraidStep("worker-1", "ready"), steps[0]);
-
-        var list = Assert.IsAssignableFrom<IList<BraidStep>>(steps);
-        _ = Assert.Throws<NotSupportedException>(() => list.Add(new BraidStep("worker-2", "x")));
-        _ = Assert.Throws<NotSupportedException>(list.Clear);
-        _ = Assert.Throws<NotSupportedException>(() => list[0] = new BraidStep("worker-9", "mutated"));
-
-        Assert.Equal(new BraidStep("worker-1", "ready"), schedule.Steps[0]);
     }
 
     /// <summary>Verifies AsyncLocal scope is cleared after a successful run.</summary>
@@ -153,9 +101,9 @@ public sealed class BraidRunResultAndScopeTests : TestBase
 
         var executed = false;
 
-        _ = await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+        _ = Assertions.Expects<OperationCanceledException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     executed = true;
@@ -167,5 +115,55 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         });
 
         Assert.False(executed);
+    }
+
+    /// <summary>Verifies failure reports snapshot schedule and are not affected by later caller mutations.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunExceptionSnapshotsTraceAndSchedule()
+    {
+        var backing = new[] { new BraidStep("worker-1", "ready") };
+        var schedule = BraidSchedule.Replay(backing);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
+                static async context =>
+                {
+                    context.Fork(static async () =>
+                    {
+                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                        throw new InvalidOperationException("after-ready");
+                    });
+
+                    await context.JoinAsync(DefaultCancellationToken);
+                },
+                new BraidOptions { Iterations = 1, Seed = 12345, Schedule = schedule },
+                DefaultCancellationToken));
+
+        backing[0] = new BraidStep("worker-9", "mutated");
+
+        var report = exception.ToString();
+        Assert.Contains("worker-1 @ ready", report, StringComparison.Ordinal);
+        Assert.DoesNotContain("worker-9", report, StringComparison.Ordinal);
+        Assert.Equal(new BraidStep("worker-1", "ready"), exception.Schedule[0]);
+    }
+
+    /// <summary>
+    /// Verifies schedule steps exposed from <see cref="BraidSchedule" /> cannot be mutated as a list.
+    /// </summary>
+    [Fact]
+    public void ScheduleStepsCannotBeMutatedPublic()
+    {
+        var schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"));
+        var steps = schedule.Steps;
+
+        Assert.Equal(new BraidStep("worker-1", "ready"), steps[0]);
+
+        var list = Assert.IsAssignableFrom<IList<BraidStep>>(steps);
+        _ = Assertions.Expects<NotSupportedException>(() => list.Add(new BraidStep("worker-2", "x")));
+        _ = Assertions.Expects<NotSupportedException>(list.Clear);
+        _ = Assertions.Expects<NotSupportedException>(() => list[0] = new BraidStep("worker-9", "mutated"));
+
+        Assert.Equal(new BraidStep("worker-1", "ready"), schedule.Steps[0]);
     }
 }

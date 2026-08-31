@@ -10,22 +10,19 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreAsyncFindsLostUpdateReplayToken()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.ExploreAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.ExploreAsync(
                 static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
                 RunLostUpdateExploreAsync,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
         Assert.Contains("after-read", replayText, StringComparison.Ordinal);
         Assert.Contains("before-write", replayText, StringComparison.Ordinal);
 
         var schedule = BraidSchedule.Parse(replayText);
-        _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 static async context =>
                 {
                     var value = 0;
@@ -59,8 +56,7 @@ public sealed class BraidExploreAsyncTests : TestBase
                     Seed = 12_345,
                     Schedule = schedule,
                 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
     }
 
     /// <summary>Verifies the same seed and bounds report the same first failure.</summary>
@@ -97,13 +93,11 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreAsyncUsesNamedWorkerIdsReplay()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.ExploreAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.ExploreAsync(
                 static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
                 RunNamedLostUpdateExploreAsync,
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
         Assert.Contains("reader", replayText, StringComparison.Ordinal);
@@ -165,13 +159,11 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreSurfacesUserInvalidOpDiscovery()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.ExploreAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.ExploreAsync(
                 static options => options.WithSeed(7).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
                 static _ => throw new InvalidOperationException("user test failure"),
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.Equal(BraidRunFailureOrigin.UserTest, exception.FailureOrigin);
         _ = Assert.IsType<InvalidOperationException>(exception.InnerException);
@@ -198,21 +190,14 @@ public sealed class BraidExploreAsyncTests : TestBase
             static step => string.Equals(step.WorkerId, "writer", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
     }
 
-    private static Task<BraidRunException> ExploreLostUpdateAsync() => Assert.ThrowsAsync<BraidRunException>(static async () =>
-    {
-        await BraidRunner.ExploreAsync(
-            static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10),
-            RunLostUpdateExploreAsync,
-            DefaultCancellationToken);
-    });
+    private static Task<BraidRunException> ExploreLostUpdateAsync() => Assertions.ExpectsAsync<BraidRunException>(
+        BraidRunner.ExploreAsync(static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10), RunLostUpdateExploreAsync, DefaultCancellationToken));
 
-    private static Task<BraidRunException> ExploreReaderWriterStableIdsAsync() => Assert.ThrowsAsync<BraidRunException>(static async () =>
-    {
-        await BraidRunner.ExploreAsync(
+    private static Task<BraidRunException> ExploreReaderWriterStableIdsAsync() => Assertions.ExpectsAsync<BraidRunException>(
+        BraidRunner.ExploreAsync(
             static options => options.WithSeed(5).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
             RegisterReaderWriterWorkersAsync,
-            DefaultCancellationToken);
-    });
+            DefaultCancellationToken));
 
     private static async Task RegisterReaderWriterWorkersAsync(BraidExploreContext braid)
     {

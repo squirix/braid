@@ -17,18 +17,16 @@ public sealed class BraidCancellationTests : TestBase
             Timeout = TimeSpan.FromMilliseconds(50),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await Task.Delay(TimeSpan.FromMilliseconds(200), TimeProvider.System, DefaultCancellationToken));
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () => await Task.Delay(TimeSpan.FromMilliseconds(200), TimeProvider.System, DefaultCancellationToken));
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            options,
+            DefaultCancellationToken);
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         var report = exception.ToString();
         Assert.Contains("braid run timed out.", report, StringComparison.Ordinal);

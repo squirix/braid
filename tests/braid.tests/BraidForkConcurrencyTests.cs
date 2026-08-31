@@ -13,22 +13,20 @@ public sealed class BraidForkConcurrencyTests : TestBase
     {
         var completed = new CompletionCounter();
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                async context =>
-                {
-                    var forks = new Task[20];
-                    for (var forkIndex = 0; forkIndex < forks.Length; forkIndex++)
-                        forks[forkIndex] = ScheduleConcurrentForkAsync(context, completed);
+        var operation = BraidRunner.RunAsync(
+            async context =>
+            {
+                var forks = new Task[20];
+                for (var forkIndex = 0; forkIndex < forks.Length; forkIndex++)
+                    forks[forkIndex] = ScheduleConcurrentForkAsync(context, completed);
 
-                    await Task.WhenAll(forks);
-                    await context.JoinAsync(DefaultCancellationToken);
-                    throw new InvalidOperationException("forced-failure");
-                },
-                new BraidOptions { Iterations = 1, Seed = 5502 },
-                DefaultCancellationToken);
-        });
+                await Task.WhenAll(forks);
+                await context.JoinAsync(DefaultCancellationToken);
+                throw new InvalidOperationException("forced-failure");
+            },
+            new BraidOptions { Iterations = 1, Seed = 5502 },
+            DefaultCancellationToken);
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         Assert.Equal(20, completed.Value);
 
@@ -153,19 +151,17 @@ public sealed class BraidForkConcurrencyTests : TestBase
     [Fact]
     public async Task ManySynchronouslyFailingNoHangJoin()
     {
-        var exceptionTask = Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    for (var workerIndex = 0; workerIndex < 20; workerIndex++)
-                        ForkSyncFailWorker(context, workerIndex);
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                for (var workerIndex = 0; workerIndex < 20; workerIndex++)
+                    ForkSyncFailWorker(context, workerIndex);
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 5301 },
-                DefaultCancellationToken);
-        });
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 5301 },
+            DefaultCancellationToken);
+        var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(operation);
 
         await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false);
         var exception = await exceptionTask;
@@ -235,29 +231,27 @@ public sealed class BraidForkConcurrencyTests : TestBase
 
             try
             {
-                var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-                {
-                    await BraidRunner.RunAsync(
-                        static async context =>
+                var operation = BraidRunner.RunAsync(
+                    static async context =>
+                    {
+                        context.Fork(static async () =>
                         {
-                            context.Fork(static async () =>
-                            {
-                                await BraidProbe.HitAsync("a", DefaultCancellationToken);
-                                await BraidProbe.HitAsync("a2", DefaultCancellationToken);
-                            });
+                            await BraidProbe.HitAsync("a", DefaultCancellationToken);
+                            await BraidProbe.HitAsync("a2", DefaultCancellationToken);
+                        });
 
-                            context.Fork(static async () =>
-                            {
-                                await BraidProbe.HitAsync("b", DefaultCancellationToken);
-                                await BraidProbe.HitAsync("b2", DefaultCancellationToken);
-                            });
+                        context.Fork(static async () =>
+                        {
+                            await BraidProbe.HitAsync("b", DefaultCancellationToken);
+                            await BraidProbe.HitAsync("b2", DefaultCancellationToken);
+                        });
 
-                            await context.JoinAsync(DefaultCancellationToken);
-                            throw new InvalidOperationException("forced-failure");
-                        },
-                        new BraidOptions { Iterations = 1, Seed = 5401 },
-                        DefaultCancellationToken);
-                });
+                        await context.JoinAsync(DefaultCancellationToken);
+                        throw new InvalidOperationException("forced-failure");
+                    },
+                    new BraidOptions { Iterations = 1, Seed = 5401 },
+                    DefaultCancellationToken);
+                var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
                 return exception.ToString().ReplaceLineEndings("\n");
             }

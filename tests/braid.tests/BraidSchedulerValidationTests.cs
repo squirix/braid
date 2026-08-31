@@ -35,18 +35,17 @@ public sealed class BraidSchedulerValidationTests : TestBase
             Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"), new BraidStep("worker-1", "ready")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            options,
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         Assert.Contains("Scripted schedule contained unused steps after all workers completed.", exception.Message, StringComparison.Ordinal);
     }
@@ -56,17 +55,16 @@ public sealed class BraidSchedulerValidationTests : TestBase
     [Fact]
     public async Task ForkOperationReturningNullFailsClearly()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(NullTestValues.NullReturningFork);
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(NullTestValues.NullReturningFork);
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions { Iterations = 1, Seed = 12345 },
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         var report = exception.ToString();
         Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
@@ -86,9 +84,9 @@ public sealed class BraidSchedulerValidationTests : TestBase
                 {
                     context.Fork(static async () =>
                     {
-                        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-                        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
-                        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(" ", DefaultCancellationToken));
+                        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
+                        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
+                        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(" ", DefaultCancellationToken));
                         await BraidProbe.HitAsync("ok", DefaultCancellationToken);
                     });
 
@@ -104,9 +102,9 @@ public sealed class BraidSchedulerValidationTests : TestBase
     [Fact]
     public async Task HitAsyncRejectsInvalidProbeOutsideRun()
     {
-        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
-        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(" ", DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(" ", DefaultCancellationToken));
     }
 
     /// <summary>Verifies callback null-task failures are clearly reported.</summary>
@@ -114,13 +112,46 @@ public sealed class BraidSchedulerValidationTests : TestBase
     [Fact]
     public async Task RunAsyncCallbackReturnsNullFailsClearly()
     {
-        var exception =
-            await Assert.ThrowsAsync<BraidRunException>(static async () => await BraidRunner.RunAsync(NullTestValues.NullReturningRunCallback, DefaultCancellationToken));
+        var operation = BraidRunner.RunAsync(NullTestValues.NullReturningRunCallback, DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         var report = exception.ToString();
         Assert.DoesNotContain(nameof(NullReferenceException), report, StringComparison.Ordinal);
         Assert.Contains("null", report, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("callback", report, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Verifies empty runs complete with empty replay schedules.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunAsyncCompletesNoWorkersEmptySchedule()
+    {
+        var options = new BraidOptions { Iterations = 1, Seed = 24, Schedule = BraidSchedule.Replay() };
+        await BraidRunner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
+        Assert.Empty(options.Schedule.Steps);
+    }
+
+    /// <summary>Verifies empty runs fail with non-empty replay schedules.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public async Task RunAsyncFailsNoWorkersNonEmptySchedule()
+    {
+        var operation = BraidRunner.RunAsync(
+            static _ => Task.CompletedTask,
+            new BraidOptions
+            {
+                Iterations = 1,
+                Seed = 25,
+                Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+            },
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
+
+        var report = exception.ToString();
+        Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Schedule:", report, StringComparison.Ordinal);
     }
 
     /// <summary>Verifies a scripted schedule with steps that no worker can satisfy after the run completes is reported as a failure.</summary>
@@ -135,53 +166,19 @@ public sealed class BraidSchedulerValidationTests : TestBase
             Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "never")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                options,
-                DefaultCancellationToken);
-        });
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            options,
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         Assert.Contains("Scripted schedule contained unused steps after all workers completed.", exception.Message, StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies empty runs fail with non-empty replay schedules.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncFailsNoWorkersNonEmptySchedule()
-    {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static _ => Task.CompletedTask,
-                new BraidOptions
-                {
-                    Iterations = 1,
-                    Seed = 25,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
-                },
-                DefaultCancellationToken);
-        });
-
-        var report = exception.ToString();
-        Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Schedule:", report, StringComparison.Ordinal);
-    }
-
-    /// <summary>Verifies empty runs complete with empty replay schedules.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncCompletesNoWorkersEmptySchedule()
-    {
-        var options = new BraidOptions { Iterations = 1, Seed = 24, Schedule = BraidSchedule.Replay() };
-        await BraidRunner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
-        Assert.Empty(options.Schedule.Steps);
     }
 
     /// <summary>Verifies probe-free workers complete with empty replay schedules.</summary>
@@ -230,22 +227,21 @@ public sealed class BraidSchedulerValidationTests : TestBase
     [Fact]
     public async Task WorkerNoProbesFailsWhenProbeSteps()
     {
-        var exception = await Assert.ThrowsAsync<BraidRunException>(static async () =>
-        {
-            await BraidRunner.RunAsync(
-                static async context =>
-                {
-                    context.Fork(static () => Task.CompletedTask);
-                    await context.JoinAsync(DefaultCancellationToken);
-                },
-                new BraidOptions
-                {
-                    Iterations = 1,
-                    Seed = 22,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
-                },
-                DefaultCancellationToken);
-        });
+        var operation = BraidRunner.RunAsync(
+            static async context =>
+            {
+                context.Fork(static () => Task.CompletedTask);
+                await context.JoinAsync(DefaultCancellationToken);
+            },
+            new BraidOptions
+            {
+                Iterations = 1,
+                Seed = 22,
+                Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+            },
+            DefaultCancellationToken);
+
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
 
         var report = exception.ToString();
         Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);

@@ -15,7 +15,7 @@ public sealed class BraidApiContractTests : TestBase
             {
                 await context.JoinAsync(DefaultCancellationToken);
 
-                var exception = Assert.Throws<BraidRunException>(() => context.Fork(static () => Task.CompletedTask));
+                var exception = Assertions.Expects<BraidRunException>(() => context.Fork(static () => Task.CompletedTask));
                 Assert.Contains("Cannot fork after JoinAsync has started.", exception.Message, StringComparison.Ordinal);
             },
             new BraidOptions { Iterations = 1, Seed = 12345 },
@@ -30,7 +30,7 @@ public sealed class BraidApiContractTests : TestBase
         return BraidRunner.RunAsync(
             static context =>
             {
-                _ = Assert.Throws<ArgumentNullException>(() => context.Fork(NullTestValues.ForkOperation));
+                _ = Assertions.Expects<ArgumentNullException>(() => context.Fork(NullTestValues.ForkOperation));
                 return Task.CompletedTask;
             },
             new BraidOptions { Iterations = 1, Seed = 12345 },
@@ -45,7 +45,7 @@ public sealed class BraidApiContractTests : TestBase
         return BraidRunner.RunAsync(
             static context =>
             {
-                _ = Assert.Throws<ArgumentNullException>(() => context.Fork(NullTestValues.String, static () => Task.CompletedTask));
+                _ = Assertions.Expects<ArgumentNullException>(() => context.Fork(NullTestValues.String, static () => Task.CompletedTask));
                 return Task.CompletedTask;
             },
             new BraidOptions { Iterations = 1, Seed = 12345 },
@@ -79,9 +79,9 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public async Task HitAsyncRejectsInvalidProbeNames()
     {
-        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
-        _ = await Assert.ThrowsAnyAsync<ArgumentException>(static async () => await BraidProbe.HitAsync(" ", DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(" ", DefaultCancellationToken));
     }
 
     /// <summary>Verifies replay schedules snapshot the supplied steps.</summary>
@@ -98,7 +98,7 @@ public sealed class BraidApiContractTests : TestBase
 
     /// <summary>Verifies replay validation rejects a null steps array.</summary>
     [Fact]
-    public void ReplayThrowsForNullStepsArray() => _ = Assert.Throws<ArgumentNullException>(static () => BraidSchedule.Replay(NullTestValues.ReplaySteps));
+    public void ReplayThrowsForNullStepsArray() => _ = Assertions.Expects<ArgumentNullException>(static () => _ = BraidSchedule.Replay(NullTestValues.ReplaySteps));
 
     /// <summary>Verifies null options use default options.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -121,15 +121,14 @@ public sealed class BraidApiContractTests : TestBase
     }
 
     /// <summary>Verifies invalid timeouts are rejected before the run starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncRejectsInvalidTimeoutAtStart()
+    public void RunAsyncRejectsInvalidTimeoutAtStart()
     {
         var ran = false;
 
-        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        _ = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
@@ -144,10 +143,9 @@ public sealed class BraidApiContractTests : TestBase
     }
 
     /// <summary>Verifies run validation rejects a null test delegate.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunAsyncThrowsForNullTestDelegate() =>
-        _ = await Assert.ThrowsAsync<ArgumentNullException>(static async () => await BraidRunner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
+    public void RunAsyncThrowsForNullTestDelegate() =>
+        _ = Assertions.Expects<ArgumentNullException>(static () => _ = BraidRunner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
 
     /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
     [Fact]
@@ -175,15 +173,14 @@ public sealed class BraidApiContractTests : TestBase
     }
 
     /// <summary>Verifies invalid iteration counts are rejected before the run starts.</summary>
-    /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
-    public async Task RunRejectsInvalidIterationsBeforeStart()
+    public void RunRejectsInvalidIterationsBeforeStart()
     {
         var ran = false;
 
-        _ = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        _ = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            await BraidRunner.RunAsync(
+            _ = BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;

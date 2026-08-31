@@ -62,9 +62,8 @@ public sealed class BraidRunTests : TestBase
     {
         var invocations = 0;
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
@@ -72,8 +71,7 @@ public sealed class BraidRunTests : TestBase
                     return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 3, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.Equal(1, exception.Iteration);
     }
@@ -85,9 +83,8 @@ public sealed class BraidRunTests : TestBase
     {
         var invocations = 0;
 
-        _ = await Assert.ThrowsAsync<BraidRunException>(async () =>
-        {
-            await BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAsync<BraidRunException>(
+            BraidRunner.RunAsync(
                 context =>
                 {
                     _ = context;
@@ -95,8 +92,7 @@ public sealed class BraidRunTests : TestBase
                     return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
                 new BraidOptions { Iterations = 5, Seed = 12345 },
-                DefaultCancellationToken);
-        });
+                DefaultCancellationToken));
 
         Assert.Equal(2, invocations);
     }
