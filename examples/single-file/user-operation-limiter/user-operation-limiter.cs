@@ -23,18 +23,18 @@ public sealed class UserOperationLimiterTests
         var limiter = new LockedUserOperationLimiter("user-1", 1);
         var firstAllowed = false;
         var secondAllowed = false;
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(
-                new BraidStep("worker-1", "before-enter"),
-                new BraidStep("worker-2", "before-enter"),
-                new BraidStep("worker-1", "after-enter"),
-                new BraidStep("worker-2", "after-enter")),
+            Schedule = ReplaySchedule.Replay(
+                new ReplayStep("worker-1", "before-enter"),
+                new ReplayStep("worker-2", "before-enter"),
+                new ReplayStep("worker-1", "after-enter"),
+                new ReplayStep("worker-2", "after-enter")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 context.Fork(async () => firstAllowed = await limiter.TryEnterAsync(TestCancellationToken));
@@ -69,20 +69,20 @@ public sealed class UserOperationLimiterTests
         var limiter = new UnsafeUserOperationLimiter("user-1", 1);
         var firstAllowed = false;
         var secondAllowed = false;
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(
-                new BraidStep("worker-1", "after-read"),
-                new BraidStep("worker-2", "after-read"),
-                new BraidStep("worker-1", "before-write"),
-                new BraidStep("worker-2", "before-write")),
+            Schedule = ReplaySchedule.Replay(
+                new ReplayStep("worker-1", "after-read"),
+                new ReplayStep("worker-2", "after-read"),
+                new ReplayStep("worker-1", "before-write"),
+                new ReplayStep("worker-2", "before-write")),
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        var exception = await Assert.ThrowsAsync<RunException>(async () =>
         {
-            await BraidRunner.RunAsync(
+            await Runner.RunAsync(
                 async context =>
                 {
                     context.Fork(async () => firstAllowed = await limiter.TryEnterAsync(TestCancellationToken));

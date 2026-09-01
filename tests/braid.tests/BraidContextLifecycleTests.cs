@@ -11,18 +11,18 @@ public sealed class BraidContextLifecycleTests : TestBase
     public Task ConcurrentJoinAsyncNoCorruptScheduler()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     var join1 = context.JoinAsync(DefaultCancellationToken);
                     var join2 = context.JoinAsync(DefaultCancellationToken);
                     await Task.WhenAll(join1, join2);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Concurrent JoinAsync should not deadlock or surface SemaphoreFullException.");
     }
@@ -32,9 +32,9 @@ public sealed class BraidContextLifecycleTests : TestBase
     [Fact]
     public async Task ContextUseAfterFailedRunFailsClearly()
     {
-        BraidContext? capturedContext = null;
-        _ = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        RunContext? capturedContext = null;
+        _ = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 context =>
                 {
                     capturedContext = context;
@@ -44,14 +44,14 @@ public sealed class BraidContextLifecycleTests : TestBase
 
         Assert.NotNull(capturedContext);
         var context = capturedContext;
-        var forkException = Assertions.ExpectsAny<Exception>(() => context.Fork(static () => Task.CompletedTask));
+        var forkException = Assertions.ExpectsAny<Exception, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
         Assert.True(
-            forkException is InvalidOperationException or BraidRunException,
+            forkException is InvalidOperationException or RunException,
             $"Expected clear context-lifecycle failure. Got {forkException.GetType().FullName}: {forkException.Message}");
 
-        var joinException = Assertions.ExpectsAny<Exception>(() => _ = context.JoinAsync(DefaultCancellationToken));
+        var joinException = await Assertions.ExpectsAnyAsync<Exception, RunContext>(context, static state => state.JoinAsync(DefaultCancellationToken));
         Assert.True(
-            joinException is InvalidOperationException or BraidRunException,
+            joinException is InvalidOperationException or RunException,
             $"Expected clear context-lifecycle failure. Got {joinException.GetType().FullName}: {joinException.Message}");
     }
 
@@ -60,8 +60,8 @@ public sealed class BraidContextLifecycleTests : TestBase
     [Fact]
     public async Task ContextUseAfterSuccessfulRunFailsClearly()
     {
-        BraidContext? capturedContext = null;
-        await BraidRunner.RunAsync(
+        RunContext? capturedContext = null;
+        await Runner.RunAsync(
             context =>
             {
                 capturedContext = context;
@@ -71,14 +71,14 @@ public sealed class BraidContextLifecycleTests : TestBase
 
         Assert.NotNull(capturedContext);
         var context = capturedContext;
-        var forkException = Assertions.ExpectsAny<Exception>(() => context.Fork(static () => Task.CompletedTask));
+        var forkException = Assertions.ExpectsAny<Exception, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
         Assert.True(
-            forkException is InvalidOperationException or BraidRunException,
+            forkException is InvalidOperationException or RunException,
             $"Expected clear context-lifecycle failure. Got {forkException.GetType().FullName}: {forkException.Message}");
 
-        var joinException = Assertions.ExpectsAny<Exception>(() => _ = context.JoinAsync(DefaultCancellationToken));
+        var joinException = await Assertions.ExpectsAnyAsync<Exception, RunContext>(context, static state => state.JoinAsync(DefaultCancellationToken));
         Assert.True(
-            joinException is InvalidOperationException or BraidRunException,
+            joinException is InvalidOperationException or RunException,
             $"Expected clear context-lifecycle failure. Got {joinException.GetType().FullName}: {joinException.Message}");
     }
 
@@ -88,19 +88,19 @@ public sealed class BraidContextLifecycleTests : TestBase
     public async Task ContextUseAfterTimedOutRunFailsClearly()
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        BraidContext? capturedContext = null;
+        RunContext? capturedContext = null;
 
         try
         {
-            _ = await Assertions.ExpectsAsync<BraidRunException>(
-                BraidRunner.RunAsync(
+            _ = await Assertions.ExpectsAsync<RunException>(
+                Runner.RunAsync(
                     async context =>
                     {
                         capturedContext = context;
                         context.Fork(async () => await gate.Task.WaitAsync(DefaultCancellationToken));
                         await context.JoinAsync(DefaultCancellationToken);
                     },
-                    new BraidOptions { Iterations = 1, Seed = 444, Timeout = TimeSpan.FromMilliseconds(50) },
+                    new RunOptions { Iterations = 1, Seed = 444, Timeout = TimeSpan.FromMilliseconds(50) },
                     DefaultCancellationToken));
         }
         finally
@@ -110,14 +110,14 @@ public sealed class BraidContextLifecycleTests : TestBase
 
         Assert.NotNull(capturedContext);
         var context = capturedContext;
-        var forkException = Assertions.ExpectsAny<Exception>(() => context.Fork(static () => Task.CompletedTask));
+        var forkException = Assertions.ExpectsAny<Exception, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
         Assert.True(
-            forkException is InvalidOperationException or BraidRunException,
+            forkException is InvalidOperationException or RunException,
             $"Expected clear context-lifecycle failure. Got {forkException.GetType().FullName}: {forkException.Message}");
 
-        var joinException = Assertions.ExpectsAny<Exception>(() => _ = context.JoinAsync(DefaultCancellationToken));
+        var joinException = await Assertions.ExpectsAnyAsync<Exception, RunContext>(context, static state => state.JoinAsync(DefaultCancellationToken));
         Assert.True(
-            joinException is InvalidOperationException or BraidRunException,
+            joinException is InvalidOperationException or RunException,
             $"Expected clear context-lifecycle failure. Got {joinException.GetType().FullName}: {joinException.Message}");
     }
 
@@ -127,15 +127,15 @@ public sealed class BraidContextLifecycleTests : TestBase
     public Task JoinAsyncCalledTwiceAfterCompletion()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Sequential second JoinAsync should not deadlock or throw SemaphoreFullException.");
     }
@@ -146,26 +146,26 @@ public sealed class BraidContextLifecycleTests : TestBase
     public Task NestedRunInRunCallbackNoLeakScope()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
                     _ = Assertions.Expects<InvalidOperationException>(static () =>
                     {
-                        _ = BraidRunner.RunAsync(
+                        _ = Runner.RunAsync(
                             static inner =>
                             {
                                 _ = inner;
                                 return Task.CompletedTask;
                             },
-                            new BraidOptions { Iterations = 1, Seed = 777 },
+                            new RunOptions { Iterations = 1, Seed = 777 },
                             DefaultCancellationToken);
                     });
 
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Nested run in callback should fail before corrupting outer scope.");
     }
@@ -176,36 +176,36 @@ public sealed class BraidContextLifecycleTests : TestBase
     public Task NestedRunInWorkerNoLeakOuterRun()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("outer-before-nested", DefaultCancellationToken);
+                        await Probe.HitAsync("outer-before-nested", DefaultCancellationToken);
                         _ = Assertions.Expects<InvalidOperationException>(static () =>
                         {
-                            _ = BraidRunner.RunAsync(
+                            _ = Runner.RunAsync(
                                 static async inner =>
                                 {
-                                    inner.Fork(static async () => await BraidProbe.HitAsync("inner-ready", DefaultCancellationToken));
+                                    inner.Fork(static async () => await Probe.HitAsync("inner-ready", DefaultCancellationToken));
 
                                     await inner.JoinAsync(DefaultCancellationToken);
                                 },
-                                new BraidOptions { Iterations = 1, Seed = 999 },
+                                new RunOptions { Iterations = 1, Seed = 999 },
                                 DefaultCancellationToken);
                         });
 
-                        await BraidProbe.HitAsync("outer-after-nested", DefaultCancellationToken);
+                        await Probe.HitAsync("outer-after-nested", DefaultCancellationToken);
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Nested run inside worker should fail clearly without corrupting outer run.");
     }
 
-    /// <summary>Verifies BraidRunner.RunAsync joins forked workers after the callback returns without an explicit join.</summary>
+    /// <summary>Verifies Runner.RunAsync joins forked workers after the callback returns without an explicit join.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task RunAsyncAutoJoinsWithoutExplicitJoin()
@@ -213,24 +213,24 @@ public sealed class BraidContextLifecycleTests : TestBase
         var completed = 0;
 
         await AssertCompletesBeforeWatchdogAsync(
-            () => BraidRunner.RunAsync(
+            () => Runner.RunAsync(
                 context =>
                 {
                     context.Fork(async () =>
                     {
-                        await BraidProbe.HitAsync("a", DefaultCancellationToken);
+                        await Probe.HitAsync("a", DefaultCancellationToken);
                         _ = Interlocked.Increment(ref completed);
                     });
 
                     context.Fork(async () =>
                     {
-                        await BraidProbe.HitAsync("b", DefaultCancellationToken);
+                        await Probe.HitAsync("b", DefaultCancellationToken);
                         _ = Interlocked.Increment(ref completed);
                     });
 
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Auto-join after callback should complete both workers.");
 
@@ -243,15 +243,15 @@ public sealed class BraidContextLifecycleTests : TestBase
     public Task RunAsyncDoesNotReleaseTwiceAfterJoin()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
-            "Double join should complete without SemaphoreFullException or BraidRunException.");
+            "Double join should complete without SemaphoreFullException or RunException.");
     }
 }

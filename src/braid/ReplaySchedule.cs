@@ -5,22 +5,22 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>Represents a typed replay schedule for a braid run.</summary>
-public sealed class BraidSchedule
+public sealed class ReplaySchedule
 {
-    private BraidSchedule(IReadOnlyList<BraidStep> steps)
+    private ReplaySchedule(IReadOnlyList<ReplayStep> steps)
     {
         Steps = steps;
     }
 
     /// <summary>Gets the replay steps in order.</summary>
-    public IReadOnlyList<BraidStep> Steps { get; }
+    public IReadOnlyList<ReplayStep> Steps { get; }
 
     /// <summary>Parses a line-based textual replay schedule. Operation names are case-insensitive; worker ids and probe names are case-sensitive.</summary>
     /// <param name="text">The schedule text. Empty lines and full-line # comments are ignored. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text" /> is null.</exception>
     /// <exception cref="FormatException">The text is not a valid schedule.</exception>
-    public static BraidSchedule Parse(string text)
+    public static ReplaySchedule Parse(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
 
@@ -30,7 +30,7 @@ public sealed class BraidSchedule
     /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
     /// <param name="steps">The worker replay steps.</param>
     /// <returns>A replay schedule.</returns>
-    public static BraidSchedule Replay(params BraidStep[] steps)
+    public static ReplaySchedule Replay(params ReplayStep[] steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
         return CreateReplaySchedule(steps, steps.Length);
@@ -39,7 +39,7 @@ public sealed class BraidSchedule
     /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
     /// <param name="steps">The worker replay steps.</param>
     /// <returns>A replay schedule.</returns>
-    public static BraidSchedule Replay(IReadOnlyList<BraidStep> steps)
+    public static ReplaySchedule Replay(IReadOnlyList<ReplayStep> steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
         return CreateReplaySchedule(steps, steps.Count);
@@ -50,7 +50,7 @@ public sealed class BraidSchedule
     /// <param name="schedule">The parsed schedule when this method returns <see langword="true" />.</param>
     /// <param name="error">A diagnostic message when this method returns <see langword="false" />.</param>
     /// <returns><see langword="true" /> if parsing succeeded; otherwise <see langword="false" />.</returns>
-    public static bool TryParse(string? text, [NotNullWhen(true)] out BraidSchedule? schedule, [NotNullWhen(false)] out string? error) =>
+    public static bool TryParse(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error) =>
         ScheduleTextParser.TryParse(text, out schedule, out error);
 
     /// <summary>
@@ -76,9 +76,9 @@ public sealed class BraidSchedule
 
             var operation = step.Kind switch
             {
-                BraidStepKind.Hit => "hit",
-                BraidStepKind.Arrive => "arrive",
-                BraidStepKind.Release => "release",
+                ReplayStepKind.Hit => "hit",
+                ReplayStepKind.Arrive => "arrive",
+                ReplayStepKind.Release => "release",
                 _ => throw new InvalidOperationException($"Braid step kind '{step.Kind}' cannot be exported to replay text."),
             };
 
@@ -94,16 +94,16 @@ public sealed class BraidSchedule
             Steps[index].Validate();
     }
 
-    private static BraidSchedule CreateReplaySchedule(IReadOnlyList<BraidStep> steps, int count)
+    private static ReplaySchedule CreateReplaySchedule(IReadOnlyList<ReplayStep> steps, int count)
     {
-        var copy = new BraidStep[count];
+        var copy = new ReplayStep[count];
         for (var index = 0; index < count; index++)
         {
             copy[index] = steps[index];
             copy[index].Validate();
         }
 
-        return new BraidSchedule(Array.AsReadOnly(copy));
+        return new ReplaySchedule(Array.AsReadOnly(copy));
     }
 
     private static void EnsureReplayTextRepresentable(string value, bool isWorkerId)

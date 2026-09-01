@@ -25,18 +25,18 @@ braid targets **.NET 10**.
 using Braid;
 
 var workerCompleted = false;
-var options = new BraidOptions
+var options = new RunOptions
 {
     Iterations = 1,
-    Schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "ready")),
+    Schedule = ReplaySchedule.Replay(ReplayStep.Hit("worker-1", "ready")),
 };
 
-await BraidRunner.RunAsync(
+await Runner.RunAsync(
     async context =>
     {
         context.Fork(async () =>
         {
-            await BraidProbe.HitAsync("ready");
+            await Probe.HitAsync("ready");
             workerCompleted = true;
         });
 
@@ -45,13 +45,13 @@ await BraidRunner.RunAsync(
     options);
 ```
 
-Outside a braid run, `BraidProbe.HitAsync` completes immediately. Inside a
+Outside a braid run, `Probe.HitAsync` completes immediately. Inside a
 braid run, it becomes an explicit scheduling point.
 
 Don't know the failing interleaving yet? Try bounded exploration:
 
 ```csharp
-await BraidRunner.ExploreAsync(
+await Runner.ExploreAsync(
     options => options
         .WithSeed(123)
         .WithMaxSchedules(1_000)
@@ -67,7 +67,7 @@ await BraidRunner.ExploreAsync(
     cancellationToken);
 ```
 
-When a run fails, use `BraidRunException.TryGetReplayText` to export a replay token
+When a run fails, use `RunException.TryGetReplayText` to export a replay token
 for a stable regression test.
 
 ## Replay schedules
@@ -75,23 +75,23 @@ for a stable regression test.
 A replay schedule describes the exact worker/probe order to reproduce.
 
 ```csharp
-var options = new BraidOptions
+var options = new RunOptions
 {
     Iterations = 1,
-    Schedule = BraidSchedule.Replay(
-        BraidStep.Hit("worker-1", "after-read"),
-        BraidStep.Hit("worker-2", "after-read"),
-        BraidStep.Hit("worker-1", "before-write"),
-        BraidStep.Hit("worker-2", "before-write")),
+    Schedule = ReplaySchedule.Replay(
+        ReplayStep.Hit("worker-1", "after-read"),
+        ReplayStep.Hit("worker-2", "after-read"),
+        ReplayStep.Hit("worker-1", "before-write"),
+        ReplayStep.Hit("worker-2", "before-write")),
 };
 ```
 
 Schedules can also be parsed from text:
-`BraidSchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read")`.
+`ReplaySchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read")`.
 The parsed text is the same format braid emits as a replay token on failure.
 
-For stricter two-phase interleaving control, use `BraidStep.Arrive` / `BraidStep.Release`
-instead of `BraidStep.Hit`.
+For stricter two-phase interleaving control, use `ReplayStep.Arrive` / `ReplayStep.Release`
+instead of `ReplayStep.Hit`.
 
 ## When to use braid
 

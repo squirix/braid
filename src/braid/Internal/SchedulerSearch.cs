@@ -9,7 +9,7 @@ internal static class SchedulerSearch
     /// <param name="tasks">The scheduler task list.</param>
     /// <param name="state">The state to match.</param>
     /// <returns>The matching diagnostics ordered by task id.</returns>
-    internal static BraidProbeWaitDiagnostic[] CollectProbeWaitDiagnostics(List<RunTask> tasks, RunTaskState state)
+    internal static ProbeWaitDiagnostic[] CollectProbeWaitDiagnostics(List<RunTask> tasks, RunTaskState state)
     {
         var matches = new List<RunTask>();
         for (var index = 0; index < tasks.Count; index++)
@@ -23,11 +23,11 @@ internal static class SchedulerSearch
             return [];
 
         matches.Sort(static (left, right) => left.Id.CompareTo(right.Id));
-        var diagnostics = new BraidProbeWaitDiagnostic[matches.Count];
+        var diagnostics = new ProbeWaitDiagnostic[matches.Count];
         for (var matchIndex = 0; matchIndex < matches.Count; matchIndex++)
         {
             var task = matches[matchIndex];
-            diagnostics[matchIndex] = new BraidProbeWaitDiagnostic(task.WorkerId, task.LastProbeName!);
+            diagnostics[matchIndex] = new ProbeWaitDiagnostic(task.WorkerId, task.LastProbeName!);
         }
 
         return diagnostics;
@@ -134,7 +134,7 @@ internal static class SchedulerSearch
         if (state is not Func<Task> operation)
             throw new InvalidOperationException("Invalid fork operation.");
 
-        Task? task = operation();
+        var task = operation();
         return task ?? Task.FromException(new InvalidOperationException("Fork operation returned a null task."));
     }
 }

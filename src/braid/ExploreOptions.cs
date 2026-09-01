@@ -1,9 +1,9 @@
 namespace Braid;
 
 /// <summary>Bounds and seed options for bounded exploration.</summary>
-public sealed class BraidExploreOptions
+public sealed class ExploreOptions
 {
-    internal BraidExploreOptions(int seed, int maxSchedules, int maxStepsPerSchedule, TimeSpan timeout)
+    internal ExploreOptions(int seed, int maxSchedules, int maxStepsPerSchedule, TimeSpan timeout)
     {
         Seed = seed;
         MaxSchedules = maxSchedules;

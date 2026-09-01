@@ -2,7 +2,7 @@ namespace Braid.Internal;
 
 internal static class ScheduleEnumerator
 {
-    internal static IEnumerable<IReadOnlyList<BraidStep>> EnumerateHitSchedules(
+    internal static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateHitSchedules(
         IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
         int maxSchedules,
         int maxStepsPerSchedule)
@@ -34,16 +34,16 @@ internal static class ScheduleEnumerator
         return copy;
     }
 
-    private static BraidStep[] CopySteps(List<BraidStep> steps)
+    private static ReplayStep[] CopySteps(List<ReplayStep> steps)
     {
-        var copy = new BraidStep[steps.Count];
+        var copy = new ReplayStep[steps.Count];
         for (var index = 0; index < steps.Count; index++)
             copy[index] = steps[index];
 
         return copy;
     }
 
-    private static IEnumerable<IReadOnlyList<BraidStep>> EnumerateHitSchedulesCore(IReadOnlyDictionary<string, IReadOnlyList<string>> sequences, int maxSchedules, int maxSteps)
+    private static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateHitSchedulesCore(IReadOnlyDictionary<string, IReadOnlyList<string>> sequences, int maxSchedules, int maxSteps)
     {
         if (!TryCreateWorkerState(sequences, out var workerIds, out var lists))
             yield break;
@@ -93,9 +93,9 @@ internal static class ScheduleEnumerator
 
             var nextProgress = CloneProgress(frame.Progress);
             nextProgress[workerIndex]++;
-            var nextSteps = new List<BraidStep>(frame.Steps)
+            var nextSteps = new List<ReplayStep>(frame.Steps)
             {
-                BraidStep.Hit(workerIds[workerIndex], sequences[workerIndex][frame.Progress[workerIndex]]),
+                ReplayStep.Hit(workerIds[workerIndex], sequences[workerIndex][frame.Progress[workerIndex]]),
             };
 
             stack.Push(new SearchFrame(frame.Progress, frame.Steps, workerIndex + 1));
@@ -152,12 +152,12 @@ internal static class ScheduleEnumerator
         return true;
     }
 
-    private readonly struct SearchFrame(int[] progress, List<BraidStep> steps, int nextWorkerIndex)
+    private readonly struct SearchFrame(int[] progress, List<ReplayStep> steps, int nextWorkerIndex)
     {
         internal int NextWorkerIndex { get; } = nextWorkerIndex;
 
         internal int[] Progress { get; } = progress;
 
-        internal List<BraidStep> Steps { get; } = steps;
+        internal List<ReplayStep> Steps { get; } = steps;
     }
 }

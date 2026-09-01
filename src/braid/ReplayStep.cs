@@ -4,25 +4,25 @@ namespace Braid;
 /// <param name="WorkerId">The stable worker id, such as worker-1.</param>
 /// <param name="ProbeName">The probe name that must be waiting before the worker is released.</param>
 /// <param name="Kind">The step kind.</param>
-public readonly record struct BraidStep(string WorkerId, string ProbeName, BraidStepKind Kind = BraidStepKind.Hit)
+public readonly record struct ReplayStep(string WorkerId, string ProbeName, ReplayStepKind Kind = ReplayStepKind.Hit)
 {
     /// <summary>Creates a step that observes worker arrival at a probe and keeps it blocked.</summary>
     /// <param name="workerId">The stable worker id.</param>
     /// <param name="probeName">The probe name.</param>
     /// <returns>An arrival step.</returns>
-    public static BraidStep Arrive(string workerId, string probeName) => new(workerId, probeName, BraidStepKind.Arrive);
+    public static ReplayStep Arrive(string workerId, string probeName) => new(workerId, probeName, ReplayStepKind.Arrive);
 
     /// <summary>Creates a classic replay step that matches and releases a waiting worker at a probe.</summary>
     /// <param name="workerId">The stable worker id.</param>
     /// <param name="probeName">The probe name.</param>
     /// <returns>A hit step.</returns>
-    public static BraidStep Hit(string workerId, string probeName) => new(workerId, probeName);
+    public static ReplayStep Hit(string workerId, string probeName) => new(workerId, probeName);
 
     /// <summary>Creates a step that releases a worker previously held at a probe.</summary>
     /// <param name="workerId">The stable worker id.</param>
     /// <param name="probeName">The probe name.</param>
     /// <returns>A release step.</returns>
-    public static BraidStep Release(string workerId, string probeName) => new(workerId, probeName, BraidStepKind.Release);
+    public static ReplayStep Release(string workerId, string probeName) => new(workerId, probeName, ReplayStepKind.Release);
 
     internal void Validate()
     {
@@ -31,13 +31,13 @@ public readonly record struct BraidStep(string WorkerId, string ProbeName, Braid
         ValidateKind(Kind, nameof(Kind));
     }
 
-    private static void ValidateKind(BraidStepKind kind, string paramName)
+    private static void ValidateKind(ReplayStepKind kind, string paramName)
     {
         switch (kind)
         {
-            case BraidStepKind.Hit:
-            case BraidStepKind.Arrive:
-            case BraidStepKind.Release:
+            case ReplayStepKind.Hit:
+            case ReplayStepKind.Arrive:
+            case ReplayStepKind.Release:
                 return;
             default:
                 throw new ArgumentOutOfRangeException(paramName, kind, "Unknown braid step kind.");

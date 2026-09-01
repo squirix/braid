@@ -10,7 +10,7 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     [Fact]
     public Task ConcurrentProbeHitsSameWorkerFailClearly()
     {
-        return AssertConcurrentProbeRaceMustFailAsync(static () => BraidRunner.RunAsync(
+        return AssertConcurrentProbeRaceMustFailAsync(static () => Runner.RunAsync(
             static async context =>
             {
                 context.Fork(
@@ -22,14 +22,14 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                         var firstProbeTask = StartNewOnThreadPoolAsync(
                             async () =>
                             {
-                                var hitTask = BraidProbe.HitAsync("first", DefaultCancellationToken).AsTask();
+                                var hitTask = Probe.HitAsync("first", DefaultCancellationToken).AsTask();
                                 firstProbeInFlight.SetResult();
                                 await hitTask;
                             },
                             DefaultCancellationToken);
 
                         await firstProbeInFlight.Task.WaitAsync(DefaultCancellationToken);
-                        await BraidProbe.HitAsync("second", DefaultCancellationToken);
+                        await Probe.HitAsync("second", DefaultCancellationToken);
                         await firstProbeTask;
                     });
 
@@ -38,17 +38,17 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                     static async () =>
                     {
                         await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
-                        await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                        await Probe.HitAsync("other", DefaultCancellationToken);
                     });
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions
+            new RunOptions
             {
                 Iterations = 1,
                 Seed = 12345,
                 Timeout = TimeSpan.FromSeconds(2),
-                Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "first"), BraidStep.Hit("worker-2", "other")),
+                Schedule = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "first"), ReplayStep.Hit("worker-2", "other")),
             },
             DefaultCancellationToken));
     }
@@ -61,7 +61,7 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     [Fact]
     public async Task FlowingChildProbeOverlapsParentFails()
     {
-        var operation = BraidRunner.RunAsync(
+        var operation = Runner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () =>
@@ -71,7 +71,7 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                     var childTask = StartNewOnThreadPoolAsync(
                         async () =>
                         {
-                            var childProbeTask = BraidProbe.HitAsync("child", DefaultCancellationToken).AsTask();
+                            var childProbeTask = Probe.HitAsync("child", DefaultCancellationToken).AsTask();
 
                             childProbeEntered.SetResult();
 
@@ -81,7 +81,7 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
 
                     await childProbeEntered.Task.WaitAsync(DefaultCancellationToken);
 
-                    await BraidProbe.HitAsync("parent", DefaultCancellationToken);
+                    await Probe.HitAsync("parent", DefaultCancellationToken);
 
                     await childTask;
                 });
@@ -89,21 +89,21 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                 context.Fork(static async () =>
                 {
                     await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
-                    await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                    await Probe.HitAsync("other", DefaultCancellationToken);
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions
+            new RunOptions
             {
                 Iterations = 1,
                 Seed = 12345,
-                Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "child"), BraidStep.Hit("worker-2", "other")),
+                Schedule = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "child"), ReplayStep.Hit("worker-2", "other")),
                 Timeout = TimeSpan.FromSeconds(2),
             },
             DefaultCancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
+        var exception = await Assertions.ExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
 
@@ -116,18 +116,18 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     public Task ProbeInsideFlowingAfterParentSucceeds()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("parent", DefaultCancellationToken);
-                        await StartNewOnThreadPoolAsync(static () => BraidProbe.HitAsync("child", DefaultCancellationToken).AsTask(), DefaultCancellationToken);
+                        await Probe.HitAsync("parent", DefaultCancellationToken);
+                        await StartNewOnThreadPoolAsync(static () => Probe.HitAsync("child", DefaultCancellationToken).AsTask(), DefaultCancellationToken);
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Serialized child probe should complete.");
     }
@@ -137,13 +137,13 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     [Fact]
     public Task ProbeInsideFlowingFailsOrSerializes()
     {
-        return AssertConcurrentProbeRaceToleratesAsync(static () => BraidRunner.RunAsync(
+        return AssertConcurrentProbeRaceToleratesAsync(static () => Runner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () => await RunTwoThreadProbeRaceAsync("parent", "child"));
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken));
     }
 
@@ -152,14 +152,14 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
     [Fact]
     public async Task ProbeInsideSuppressedContextCompletes()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "real")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "real")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () =>
@@ -169,13 +169,13 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                     using (ExecutionContext.SuppressFlow())
                     {
                         suppressedProbeTask = StartNewOnThreadPoolAsync(
-                            static () => BraidProbe.HitAsync("suppressed", DefaultCancellationToken).AsTask(),
+                            static () => Probe.HitAsync("suppressed", DefaultCancellationToken).AsTask(),
                             DefaultCancellationToken);
                     }
 
                     await suppressedProbeTask;
 
-                    await BraidProbe.HitAsync("real", DefaultCancellationToken);
+                    await Probe.HitAsync("real", DefaultCancellationToken);
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
@@ -184,6 +184,6 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
             DefaultCancellationToken);
 
         _ = Assert.Single(options.Schedule.Steps);
-        await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        await Probe.HitAsync("outside-run", DefaultCancellationToken);
     }
 }

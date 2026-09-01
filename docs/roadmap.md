@@ -24,9 +24,9 @@ Goal: provide a small .NET library for reproducible async interleavings through 
 Delivered (per [CHANGELOG.md](../CHANGELOG.md) **0.1.0**):
 
 - deterministic explicit-probe concurrency testing with `Braid.RunAsync`
-- fork/join orchestration through `BraidContext`
-- probe control with `BraidProbe.HitAsync`
-- typed replay schedules through `BraidSchedule` and `BraidStep`
+- fork/join orchestration through `RunContext`
+- probe control with `Probe.HitAsync`
+- typed replay schedules through `ReplaySchedule` and `ReplayStep`
 - failure reports with seed, iteration, schedule, and trace
 
 ### v0.2.0 — Arrive / release replay control
@@ -35,7 +35,7 @@ Goal: support interleaving assertions where a worker can be observed at a probe 
 
 Delivered (per [CHANGELOG.md](../CHANGELOG.md) **0.2.0**):
 
-- typed arrive/hold/release replay steps for true interleaving assertions (`BraidStep.Arrive`, `BraidStep.Release`, alongside existing `Hit` replay)
+- typed arrive/hold/release replay steps for true interleaving assertions (`ReplayStep.Arrive`, `ReplayStep.Release`, alongside existing `Hit` replay)
 
 ### v0.2.1 — Replay scheduler hardening
 
@@ -55,8 +55,8 @@ Goal: make replay schedules copyable, parseable, and easier to move from failure
 
 Delivered:
 
-- `BraidSchedule.Parse(...)` / `BraidSchedule.TryParse(...)`
-- `BraidSchedule.ToReplayText()` and canonical replay text format
+- `ReplaySchedule.Parse(...)` / `ReplaySchedule.TryParse(...)`
+- `ReplaySchedule.ToReplayText()` and canonical replay text format
 - replay text in failure reports when a typed replay schedule was configured and can be exported
 - scheduler-state diagnostics in failure reports when available (for example last matched replay step, waiting workers, held workers, unused replay steps)
 - `examples/single-file/cache-cas-race` with walkthrough for versioned compare-and-set under `Arrive` / `Hit` / `Release` replay
@@ -79,7 +79,7 @@ Goal: make failures copy-paste friendly and document runtime probe rules without
 
 Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.4.0**):
 
-- `BraidRunException.TryGetReplayText`
+- `RunException.TryGetReplayText`
 - rejection for overlapping probe waits on the same logical worker
 - replay-token terminology and [replay-token-workflow.md](replay-token-workflow.md)
 - runtime-boundary documentation
@@ -102,9 +102,9 @@ Goal: bounded schedule search with replay token on failure. Explicit probes only
 
 Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.6.0** and [design/explore-async-rfc.md](design/explore-async-rfc.md)):
 
-- `BraidRunner.ExploreAsync` with `BraidExploreOptionsBuilder` (`WithSeed`, `WithMaxSchedules`, `WithMaxStepsPerSchedule`)
-- `BraidExploreContext.WorkerAsync` worker-oriented facade
-- `BraidContext.Fork(string workerId, ...)` for stable worker ids
+- `Runner.ExploreAsync` with `ExploreOptionsBuilder` (`WithSeed`, `WithMaxSchedules`, `WithMaxStepsPerSchedule`)
+- `ExploreContext.WorkerAsync` worker-oriented facade
+- `RunContext.Fork(string workerId, ...)` for stable worker ids
 - bounded depth-first hit-schedule enumeration with discovery trace parsing
 - README exploration section and RFC
 - `examples/single-file/explore-lost-update` with walkthrough for discovery → replay token → `RunAsync` regression

@@ -10,29 +10,29 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task MultipleWorkersOneFailureBothTraced()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("first", DefaultCancellationToken);
+                        await Probe.HitAsync("first", DefaultCancellationToken);
                         throw new InvalidOperationException("worker one failed");
                     });
 
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("second", DefaultCancellationToken);
+                        await Probe.HitAsync("second", DefaultCancellationToken);
                         throw new InvalidOperationException("worker two failed");
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 5103,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "first"), new BraidStep("worker-2", "second")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "first"), new ReplayStep("worker-2", "second")),
                 },
                 DefaultCancellationToken));
 
@@ -49,15 +49,15 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task SynchronouslyCompletingWorkerFullTrace()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static () => Task.CompletedTask);
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions { Iterations = 1, Seed = 5106 },
+                new RunOptions { Iterations = 1, Seed = 5106 },
                 DefaultCancellationToken));
 
         var report = exception.ToString();
@@ -72,14 +72,14 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task SynchronouslyThrowingWorkerReported()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static () => throw new InvalidOperationException("sync throw"));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 5107 },
+                new RunOptions { Iterations = 1, Seed = 5107 },
                 DefaultCancellationToken));
 
         var report = exception.ToString();
@@ -96,20 +96,20 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
-                BraidRunner.RunAsync(
+            var exceptionTask = Assertions.ExpectsAsync<RunException>(
+                Runner.RunAsync(
                     async context =>
                     {
                         context.Fork(static () => Task.FromException(new InvalidOperationException("primary worker failure")));
                         context.Fork(async () =>
                         {
-                            await BraidProbe.HitAsync("waiter", DefaultCancellationToken);
+                            await Probe.HitAsync("waiter", DefaultCancellationToken);
                             await gate.Task.WaitAsync(DefaultCancellationToken);
                         });
 
                         await context.JoinAsync(DefaultCancellationToken);
                     },
-                    new BraidOptions { Iterations = 1, Seed = 5102 },
+                    new RunOptions { Iterations = 1, Seed = 5102 },
                     DefaultCancellationToken));
 
             await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
@@ -127,25 +127,25 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     [Fact]
     public async Task WorkerFailureStopsWaitingSiblingCleanly()
     {
-        var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exceptionTask = Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("fail-ready", DefaultCancellationToken);
+                        await Probe.HitAsync("fail-ready", DefaultCancellationToken);
                         throw new InvalidOperationException("failing worker");
                     });
 
-                    context.Fork(static async () => await BraidProbe.HitAsync("blocked", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("blocked", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 5104,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "fail-ready"), new BraidStep("worker-2", "blocked")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "fail-ready"), new ReplayStep("worker-2", "blocked")),
                 },
                 DefaultCancellationToken));
 

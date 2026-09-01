@@ -68,7 +68,7 @@ If the installed xUnit template does not support `-f net10.0`, run `dotnet new x
 dotnet add package braid --version $Version --source "$Repo\src\braid\bin\Release"
 ```
 
-Add a tiny test (for example `SmokeTest.cs`) that runs one replay iteration and optionally checks `BraidSchedule.Parse` / `ToReplayText()` round-trip.
+Add a tiny test (for example `SmokeTest.cs`) that runs one replay iteration and optionally checks `ReplaySchedule.Parse` / `ToReplayText()` round-trip.
 
 ```powershell
 dotnet test --configuration Release
@@ -76,7 +76,7 @@ dotnet test --configuration Release
 
 After publishing to NuGet.org, you can repeat `dotnet add package braid --version $Version` **without** `--source` once the package is indexed, and run the same tests.
 
-Optionally smoke-test **text replay** against the live package: parse a short schedule with `BraidSchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering. Use the same `$Version` as in `src/braid/Braid.csproj`.
+Optionally smoke-test **text replay** against the live package: parse a short schedule with `ReplaySchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering. Use the same `$Version` as in `src/braid/Braid.csproj`.
 
 ## GitHub release
 

@@ -10,21 +10,21 @@ public sealed class BraidScheduleFailureTests : TestBase
     [Fact]
     public async Task RunAsyncFailsWhenScheduleExhausted()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
             Timeout = TimeSpan.FromMilliseconds(100),
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
         };
 
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
@@ -42,18 +42,18 @@ public sealed class BraidScheduleFailureTests : TestBase
     [Fact]
     public async Task RunAsyncFailsWhenStepCannotBeMet()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready")),
         };
 
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },

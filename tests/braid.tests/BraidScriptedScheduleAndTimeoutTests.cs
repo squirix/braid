@@ -20,26 +20,26 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
     public async Task ScheduleWaitsForWorkerExpectedProbe()
     {
         var probesHit = new CompletionCounter();
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 5105,
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "later"), new BraidStep("worker-2", "other")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "later"), new ReplayStep("worker-2", "other")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
                     await Task.Yield();
-                    await BraidProbe.HitAsync("later", DefaultCancellationToken);
+                    await Probe.HitAsync("later", DefaultCancellationToken);
                     _ = probesHit.Increment();
                 });
 
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("other", DefaultCancellationToken);
+                    await Probe.HitAsync("other", DefaultCancellationToken);
                     _ = probesHit.Increment();
                 });
 
@@ -49,7 +49,7 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
             DefaultCancellationToken);
 
         Assert.Equal(2, probesHit.Value);
-        await BraidProbe.HitAsync("outside-schedule-wait", DefaultCancellationToken);
+        await Probe.HitAsync("outside-schedule-wait", DefaultCancellationToken);
     }
 
     /// <summary>Verifies a scripted schedule replays independently for each iteration.</summary>
@@ -62,21 +62,21 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
     public async Task ScriptedScheduleReplaysForEachIteration(int iterations, int seed)
     {
         var completed = new CompletionCounter();
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", DefaultCancellationToken);
                     _ = completed.Increment();
                 });
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions
+            new RunOptions
             {
                 Iterations = iterations,
                 Seed = seed,
-                Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+                Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
             },
             DefaultCancellationToken);
 
@@ -93,15 +93,15 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
 
         try
         {
-            var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
-                BraidRunner.RunAsync(
+            var exceptionTask = Assertions.ExpectsAsync<RunException>(
+                Runner.RunAsync(
                     async context =>
                     {
                         context.Fork(async () =>
                         {
                             try
                             {
-                                await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                                await Probe.HitAsync("ready", DefaultCancellationToken);
                                 await gate.Task.WaitAsync(DefaultCancellationToken);
                             }
                             finally
@@ -112,7 +112,7 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
 
                         await context.JoinAsync(DefaultCancellationToken);
                     },
-                    new BraidOptions { Iterations = 1, Seed = 5504, Timeout = TimeSpan.FromMilliseconds(50) },
+                    new RunOptions { Iterations = 1, Seed = 5504, Timeout = TimeSpan.FromMilliseconds(50) },
                     DefaultCancellationToken));
 
             await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Timeout run should fail deterministically.", TimeSpan.FromSeconds(3), false);
@@ -125,21 +125,21 @@ public sealed class BraidScriptedScheduleAndTimeoutTests : TestBase
         }
 
         await AssertCompletesBeforeWatchdogAsync(workerFinallyObserved.Task, "Worker finally should complete after timeout.", TimeSpan.FromSeconds(3), false);
-        await BraidProbe.HitAsync("outside-after-timeout", DefaultCancellationToken);
+        await Probe.HitAsync("outside-after-timeout", DefaultCancellationToken);
     }
 
     private static async Task RunCanceledProbeLeakCheckAsync(int runIndex)
     {
-        _ = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static () => BraidProbe.HitAsync("ready", new CancellationToken(true)).AsTask());
+                    context.Fork(static () => Probe.HitAsync("ready", new CancellationToken(true)).AsTask());
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 5200 + runIndex },
+                new RunOptions { Iterations = 1, Seed = 5200 + runIndex },
                 DefaultCancellationToken));
 
-        await BraidProbe.HitAsync($"outside-canceled-{runIndex}", DefaultCancellationToken);
+        await Probe.HitAsync($"outside-canceled-{runIndex}", DefaultCancellationToken);
     }
 }

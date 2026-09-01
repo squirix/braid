@@ -3,7 +3,7 @@ using Xunit;
 namespace Braid.Tests;
 
 /// <summary>
-/// Covers canonical replay text export from <see cref="BraidSchedule" />.
+/// Covers canonical replay text export from <see cref="ReplaySchedule" />.
 /// </summary>
 public sealed class BraidScheduleToReplayTextTests : TestBase
 {
@@ -11,7 +11,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextDoesNotAddTrailingWhitespace()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Hit("w1", "p1"), BraidStep.Hit("w2", "p2"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Hit("w1", "p1"), ReplayStep.Hit("w2", "p2"));
 
         var text = schedule.ToReplayText();
 
@@ -24,7 +24,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextEmptyStringForEmptySchedule()
     {
-        var schedule = BraidSchedule.Replay();
+        var schedule = ReplaySchedule.Replay();
 
         Assert.Equal(string.Empty, schedule.ToReplayText());
     }
@@ -33,13 +33,13 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextPreservesProbeCase()
     {
-        var original = BraidSchedule.Replay(BraidStep.Hit("w", "Cache-Hit"));
+        var original = ReplaySchedule.Replay(ReplayStep.Hit("w", "Cache-Hit"));
 
         var text = original.ToReplayText();
 
         Assert.Equal("hit w Cache-Hit", text);
 
-        var parsed = BraidSchedule.Parse(text);
+        var parsed = ReplaySchedule.Parse(text);
         Assert.Equal("Cache-Hit", Assert.Single(parsed.Steps).ProbeName);
     }
 
@@ -47,13 +47,13 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextPreservesWorkerCase()
     {
-        var original = BraidSchedule.Replay(BraidStep.Hit("Worker-1", "x"));
+        var original = ReplaySchedule.Replay(ReplayStep.Hit("Worker-1", "x"));
 
         var text = original.ToReplayText();
 
         Assert.Equal("hit Worker-1 x", text);
 
-        var parsed = BraidSchedule.Parse(text);
+        var parsed = ReplaySchedule.Parse(text);
         Assert.Equal("Worker-1", Assert.Single(parsed.Steps).WorkerId);
     }
 
@@ -61,7 +61,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextRejectsProbeWithWhitespace()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Hit("w", "probe name"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Hit("w", "probe name"));
 
         var ex = Assert.Throws<InvalidOperationException>(schedule.ToReplayText);
 
@@ -73,7 +73,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextRejectsWorkerWithWhitespace()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Hit("worker 1", "p"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Hit("worker 1", "p"));
 
         var ex = Assert.Throws<InvalidOperationException>(schedule.ToReplayText);
 
@@ -85,7 +85,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextReturnsArriveStep()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "cache-hit"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "cache-hit"));
 
         Assert.Equal("arrive worker-1 cache-hit", schedule.ToReplayText());
     }
@@ -94,7 +94,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextReturnsHitStep()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "after-read"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Hit("worker-1", "after-read"));
 
         Assert.Equal("hit worker-1 after-read", schedule.ToReplayText());
     }
@@ -103,7 +103,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextReturnsMultipleStepsInOrder()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Hit("worker-1", "after-read"), BraidStep.Arrive("worker-2", "before-write"), BraidStep.Release("worker-2", "before-write"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Hit("worker-1", "after-read"), ReplayStep.Arrive("worker-2", "before-write"), ReplayStep.Release("worker-2", "before-write"));
 
         Assert.Equal(
             "hit worker-1 after-read" + Environment.NewLine + "arrive worker-2 before-write" + Environment.NewLine + "release worker-2 before-write",
@@ -114,7 +114,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextReturnsReleaseStep()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Release("worker-1", "cache-hit"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Release("worker-1", "cache-hit"));
 
         Assert.Equal("release worker-1 cache-hit", schedule.ToReplayText());
     }
@@ -123,9 +123,9 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextRoundTripsArriveRelease()
     {
-        var original = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "A"), BraidStep.Hit("worker-2", "B"), BraidStep.Release("worker-1", "A"));
+        var original = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "A"), ReplayStep.Hit("worker-2", "B"), ReplayStep.Release("worker-1", "A"));
 
-        var parsed = BraidSchedule.Parse(original.ToReplayText());
+        var parsed = ReplaySchedule.Parse(original.ToReplayText());
 
         AssertSchedulesEqual(original, parsed);
     }
@@ -134,9 +134,9 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextRoundTripsHit()
     {
-        var original = BraidSchedule.Replay(BraidStep.Hit("worker-1", "after-read"));
+        var original = ReplaySchedule.Replay(ReplayStep.Hit("worker-1", "after-read"));
 
-        var parsed = BraidSchedule.Parse(original.ToReplayText());
+        var parsed = ReplaySchedule.Parse(original.ToReplayText());
 
         AssertSchedulesEqual(original, parsed);
     }
@@ -145,9 +145,9 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextRoundTripsMultipleSteps()
     {
-        var original = BraidSchedule.Replay(BraidStep.Hit("worker-1", "after-read"), BraidStep.Arrive("worker-2", "before-write"), BraidStep.Release("worker-2", "before-write"));
+        var original = ReplaySchedule.Replay(ReplayStep.Hit("worker-1", "after-read"), ReplayStep.Arrive("worker-2", "before-write"), ReplayStep.Release("worker-2", "before-write"));
 
-        var parsed = BraidSchedule.Parse(original.ToReplayText());
+        var parsed = ReplaySchedule.Parse(original.ToReplayText());
 
         AssertSchedulesEqual(original, parsed);
     }
@@ -156,7 +156,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
     [Fact]
     public void ToReplayTextUsesLowercaseOperationNames()
     {
-        var schedule = BraidSchedule.Replay(BraidStep.Hit("a", "b"), BraidStep.Arrive("c", "d"), BraidStep.Release("e", "f"));
+        var schedule = ReplaySchedule.Replay(ReplayStep.Hit("a", "b"), ReplayStep.Arrive("c", "d"), ReplayStep.Release("e", "f"));
 
         var text = schedule.ToReplayText();
 
@@ -168,7 +168,7 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
         Assert.DoesNotContain("Release", text, StringComparison.Ordinal);
     }
 
-    private static void AssertSchedulesEqual(BraidSchedule expected, BraidSchedule actual)
+    private static void AssertSchedulesEqual(ReplaySchedule expected, ReplaySchedule actual)
     {
         Assert.Equal(expected.Steps.Count, actual.Steps.Count);
         for (var index = 0; index < expected.Steps.Count; index++)

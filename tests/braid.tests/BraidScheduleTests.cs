@@ -9,15 +9,15 @@ public sealed class BraidScheduleTests : TestBase
     [Fact]
     public void ReplayThrowsForBlankProbeName()
     {
-        _ = Assertions.Expects<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep("worker-1", string.Empty)));
-        _ = Assertions.Expects<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep("worker-1", " ")));
+        _ = Assertions.Expects<ArgumentException>(static () => ReplaySchedule.Replay(new ReplayStep("worker-1", string.Empty)));
+        _ = Assertions.Expects<ArgumentException>(static () => ReplaySchedule.Replay(new ReplayStep("worker-1", " ")));
     }
 
     /// <summary>Verifies replay rejects blank worker ids.</summary>
     [Fact]
     public void ReplayThrowsForBlankWorkerId()
     {
-        _ = Assertions.Expects<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep(string.Empty, "ready")));
-        _ = Assertions.Expects<ArgumentException>(static () => BraidSchedule.Replay(new BraidStep(" ", "ready")));
+        _ = Assertions.Expects<ArgumentException>(static () => ReplaySchedule.Replay(new ReplayStep(string.Empty, "ready")));
+        _ = Assertions.Expects<ArgumentException>(static () => ReplaySchedule.Replay(new ReplayStep(" ", "ready")));
     }
 }

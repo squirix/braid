@@ -15,10 +15,10 @@ The bad interleaving requires worker 1 to block **after** the read but **before*
 We use a three-step replay schedule:
 
 ```csharp
-BraidSchedule.Replay(
-    BraidStep.Arrive("worker-1", "before-cas"),
-    BraidStep.Hit("worker-2", "updated"),
-    BraidStep.Release("worker-1", "before-cas"))
+ReplaySchedule.Replay(
+    ReplayStep.Arrive("worker-1", "before-cas"),
+    ReplayStep.Hit("worker-2", "updated"),
+    ReplayStep.Release("worker-1", "before-cas"))
 ```
 
 The same schedule as text (see [README](../../README.md#text-replay-schedules) for formatting rules):
@@ -29,7 +29,7 @@ hit worker-2 updated
 release worker-1 before-cas
 ```
 
-Load it with `BraidSchedule.Parse(...)` or paste equivalent lines from a failure report’s **Replay text** block when debugging.
+Load it with `ReplaySchedule.Parse(...)` or paste equivalent lines from a failure report’s **Replay text** block when debugging.
 
 Meaning:
 

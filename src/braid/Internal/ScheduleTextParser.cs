@@ -4,7 +4,7 @@ namespace Braid.Internal;
 
 internal static class ScheduleTextParser
 {
-    public static bool TryParse(string? text, [NotNullWhen(true)] out BraidSchedule? schedule, [NotNullWhen(false)] out string? error)
+    public static bool TryParse(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
     {
         schedule = null;
         error = null;
@@ -21,7 +21,7 @@ internal static class ScheduleTextParser
             return false;
         }
 
-        var steps = new List<BraidStep>();
+        var steps = new List<ReplayStep>();
         var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
@@ -37,14 +37,14 @@ internal static class ScheduleTextParser
         return false;
     }
 
-    private static bool TryCreateSchedule(List<BraidStep> steps, out BraidSchedule? schedule, [NotNullWhen(false)] out string? error)
+    private static bool TryCreateSchedule(List<ReplayStep> steps, out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
     {
         schedule = null;
         error = null;
 
         try
         {
-            schedule = BraidSchedule.Replay(steps);
+            schedule = ReplaySchedule.Replay(steps);
             return true;
         }
         catch (ArgumentException ex)
@@ -54,19 +54,19 @@ internal static class ScheduleTextParser
         }
     }
 
-    private static bool TryCreateStep(BraidStepKind kind, string workerId, string probeName, int lineNumber, out BraidStep step, [NotNullWhen(false)] out string? error)
+    private static bool TryCreateStep(ReplayStepKind kind, string workerId, string probeName, int lineNumber, out ReplayStep step, [NotNullWhen(false)] out string? error)
     {
         error = null;
         switch (kind)
         {
-            case BraidStepKind.Hit:
-                step = BraidStep.Hit(workerId, probeName);
+            case ReplayStepKind.Hit:
+                step = ReplayStep.Hit(workerId, probeName);
                 return true;
-            case BraidStepKind.Arrive:
-                step = BraidStep.Arrive(workerId, probeName);
+            case ReplayStepKind.Arrive:
+                step = ReplayStep.Arrive(workerId, probeName);
                 return true;
-            case BraidStepKind.Release:
-                step = BraidStep.Release(workerId, probeName);
+            case ReplayStepKind.Release:
+                step = ReplayStep.Release(workerId, probeName);
                 return true;
             default:
                 step = default;
@@ -75,7 +75,7 @@ internal static class ScheduleTextParser
         }
     }
 
-    private static bool TryParseLine(string rawLine, int lineNumber, List<BraidStep> steps, [NotNullWhen(false)] out string? error)
+    private static bool TryParseLine(string rawLine, int lineNumber, List<ReplayStep> steps, [NotNullWhen(false)] out string? error)
     {
         error = null;
         var line = rawLine.Trim();
@@ -106,23 +106,23 @@ internal static class ScheduleTextParser
         return true;
     }
 
-    private static bool TryParseOperation(string token, out BraidStepKind kind)
+    private static bool TryParseOperation(string token, out ReplayStepKind kind)
     {
         if (token.Equals("hit", StringComparison.OrdinalIgnoreCase))
         {
-            kind = BraidStepKind.Hit;
+            kind = ReplayStepKind.Hit;
             return true;
         }
 
         if (token.Equals("arrive", StringComparison.OrdinalIgnoreCase))
         {
-            kind = BraidStepKind.Arrive;
+            kind = ReplayStepKind.Arrive;
             return true;
         }
 
         if (token.Equals("release", StringComparison.OrdinalIgnoreCase))
         {
-            kind = BraidStepKind.Release;
+            kind = ReplayStepKind.Release;
             return true;
         }
 

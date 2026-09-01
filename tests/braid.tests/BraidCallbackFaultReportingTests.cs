@@ -13,19 +13,19 @@ public sealed class BraidCallbackFaultReportingTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exceptionTask = Assertions.ExpectsAsync<BraidRunException>(
-                BraidRunner.RunAsync(
+            var exceptionTask = Assertions.ExpectsAsync<RunException>(
+                Runner.RunAsync(
                     context =>
                     {
                         context.Fork(async () =>
                         {
-                            await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                            await Probe.HitAsync("ready", DefaultCancellationToken);
                             await gate.Task.WaitAsync(DefaultCancellationToken);
                         });
 
                         throw new InvalidOperationException("callback boom");
                     },
-                    new BraidOptions { Iterations = 1, Seed = 5101 },
+                    new RunOptions { Iterations = 1, Seed = 5101 },
                     DefaultCancellationToken));
 
             await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail quickly with callback failure.", TimeSpan.FromSeconds(3), false);
@@ -43,8 +43,8 @@ public sealed class BraidCallbackFaultReportingTests : TestBase
     [Fact]
     public async Task RunAsyncCallbackFaultedTaskIsReported()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(static _ => Task.FromException(new InvalidOperationException("callback faulted")), DefaultCancellationToken));
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(static _ => Task.FromException(new InvalidOperationException("callback faulted")), DefaultCancellationToken));
 
         Assert.Contains("callback faulted", exception.ToString(), StringComparison.Ordinal);
     }
@@ -55,14 +55,15 @@ public sealed class BraidCallbackFaultReportingTests : TestBase
     public async Task RunCallbackCanceledTaskSurfacesCanceled()
     {
         using var cts = new CancellationTokenSource();
-        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException>(
-            BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException, CancellationTokenSource>(
+            cts,
+            static state => Runner.RunAsync(
                 async _ =>
                 {
-                    await cts.CancelAsync();
-                    await Task.FromCanceled(cts.Token);
+                    await state.CancelAsync();
+                    await Task.FromCanceled(state.Token);
                 },
-                cts.Token));
+                state.Token));
     }
 
     /// <summary>Verifies callback canceled task with unrelated token is treated as callback failure.</summary>
@@ -71,7 +72,7 @@ public sealed class BraidCallbackFaultReportingTests : TestBase
     public async Task RunCallbackCanceledUnrelatedAsFailure()
     {
         var cancellationToken = new CancellationToken(true);
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(BraidRunner.RunAsync(_ => Task.FromCanceled(cancellationToken), DefaultCancellationToken));
+        var exception = await Assertions.ExpectsAsync<RunException>(Runner.RunAsync(_ => Task.FromCanceled(cancellationToken), DefaultCancellationToken));
 
         Assert.True(exception.InnerException is OperationCanceledException);
         Assert.Contains("braid run failed.", exception.Message, StringComparison.Ordinal);

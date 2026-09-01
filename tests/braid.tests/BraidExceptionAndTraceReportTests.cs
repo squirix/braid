@@ -10,14 +10,14 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task CallbackFailureWithSchedulePrintsSection()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static _ => throw new InvalidOperationException("callback-failed"),
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4009,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
                 },
                 DefaultCancellationToken));
 
@@ -32,8 +32,8 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task CallbackFailureWithoutScheduleNoSection()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(static _ => throw new InvalidOperationException("callback-failed"), DefaultCancellationToken));
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(static _ => throw new InvalidOperationException("callback-failed"), DefaultCancellationToken));
 
         var report = exception.ToString();
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
@@ -45,18 +45,18 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task EmptyReplayScheduleDoesNotPrintEntries()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static () => Task.FromException(new InvalidOperationException("worker-failed")));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 9015,
-                    Schedule = BraidSchedule.Replay(),
+                    Schedule = ReplaySchedule.Replay(),
                 },
                 DefaultCancellationToken));
 
@@ -71,19 +71,19 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     public async Task LongProbeNameIsReportedWithoutCrashing()
     {
         var probeName = new string('x', 512);
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 async context =>
                 {
-                    context.Fork(async () => await BraidProbe.HitAsync(probeName, DefaultCancellationToken));
+                    context.Fork(async () => await Probe.HitAsync(probeName, DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 9013,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", probeName)),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", probeName)),
                 },
                 DefaultCancellationToken));
 
@@ -96,19 +96,19 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     public async Task ProbeNameAllowsNonWhitespaceNames()
     {
         const string probeName = "phase:read/write#1";
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync(probeName, DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync(probeName, DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 9010,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", probeName)),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", probeName)),
                 },
                 DefaultCancellationToken));
 
@@ -120,25 +120,25 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task RepeatedProbeHitsRepeatedTraceEntries()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("loop", DefaultCancellationToken);
-                        await BraidProbe.HitAsync("loop", DefaultCancellationToken);
-                        await BraidProbe.HitAsync("loop", DefaultCancellationToken);
+                        await Probe.HitAsync("loop", DefaultCancellationToken);
+                        await Probe.HitAsync("loop", DefaultCancellationToken);
+                        await Probe.HitAsync("loop", DefaultCancellationToken);
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4005,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "loop"), new BraidStep("worker-1", "loop"), new BraidStep("worker-1", "loop")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "loop"), new ReplayStep("worker-1", "loop"), new ReplayStep("worker-1", "loop")),
                 },
                 DefaultCancellationToken));
 
@@ -150,7 +150,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public void RunExceptionToStringEmptyTraceSchedule()
     {
-        var ex = new BraidRunException("message", 7, 3, [], [], null);
+        var ex = new RunException("message", 7, 3, [], [], null);
         var report = ex.ToString();
         Assert.Contains("message", report, StringComparison.Ordinal);
         Assert.Contains("Seed: 7", report, StringComparison.Ordinal);
@@ -162,7 +162,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public void RunExceptionToStringNullInnerException()
     {
-        var ex = new BraidRunException("message", 17, 1, ["worker-1 forked"], [new BraidStep("worker-1", "ready")], null);
+        var ex = new RunException("message", 17, 1, ["worker-1 forked"], [new ReplayStep("worker-1", "ready")], null);
         var first = ex.ToString();
         var second = ex.ToString();
         Assert.DoesNotContain("Inner exception:", first, StringComparison.Ordinal);
@@ -174,18 +174,18 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task ScheduleMismatchNoAdvanceBeforeFailure()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("actual", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("actual", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4006,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "expected")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "expected")),
                 },
                 DefaultCancellationToken));
 
@@ -200,20 +200,20 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task TraceContainsSingleCompletionPerWorker()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4002,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready"), new ReplayStep("worker-2", "ready")),
                 },
                 DefaultCancellationToken));
 
@@ -226,19 +226,19 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task TraceDoesNotReleaseProbeBeforeHit()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4003,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
                 },
                 DefaultCancellationToken));
 
@@ -250,20 +250,20 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task TraceOrdersForkReleaseHitCompleteEvents()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4001,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready"), new BraidStep("worker-1", "ready")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready"), new ReplayStep("worker-1", "ready")),
                 },
                 DefaultCancellationToken));
 
@@ -280,18 +280,18 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task WrongProbeNameCorrectWorkerReportsProbe()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("probe-b", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("probe-b", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4007,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "probe-a")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "probe-a")),
                 },
                 DefaultCancellationToken));
 
@@ -307,18 +307,18 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     [Fact]
     public async Task WrongWorkerCorrectProbeReportsBlocked()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 4008,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready")),
                 },
                 DefaultCancellationToken));
 

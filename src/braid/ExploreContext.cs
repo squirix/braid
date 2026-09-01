@@ -1,11 +1,11 @@
 namespace Braid;
 
 /// <summary>Worker-oriented facade for bounded exploration.</summary>
-public sealed class BraidExploreContext
+public sealed class ExploreContext
 {
-    private readonly BraidContext _context;
+    private readonly RunContext _context;
 
-    internal BraidExploreContext(BraidContext context)
+    internal ExploreContext(RunContext context)
     {
         _context = context;
     }

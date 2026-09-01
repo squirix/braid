@@ -2,7 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>Covers <see cref="BraidSchedule.TryParse" /> behavior for valid and malformed inputs.</summary>
+/// <summary>Covers <see cref="ReplaySchedule.TryParse" /> behavior for valid and malformed inputs.</summary>
 public sealed class BraidScheduleTryParseTests : TestBase
 {
     /// <summary>Verifies try-parse does not throw for each malformed input.</summary>
@@ -22,7 +22,7 @@ public sealed class BraidScheduleTryParseTests : TestBase
     [Fact]
     public void TryParseNullReturnsFalseWithMessage()
     {
-        var ok = BraidSchedule.TryParse(null, out var schedule, out var error);
+        var ok = ReplaySchedule.TryParse(null, out var schedule, out var error);
 
         Assert.False(ok);
         Assert.Null(schedule);
@@ -33,7 +33,7 @@ public sealed class BraidScheduleTryParseTests : TestBase
     [Fact]
     public void TryParseReturnsFalseForInvalidText()
     {
-        var ok = BraidSchedule.TryParse("bogus a b", out var schedule, out var error);
+        var ok = ReplaySchedule.TryParse("bogus a b", out var schedule, out var error);
 
         Assert.False(ok);
         Assert.Null(schedule);
@@ -45,7 +45,7 @@ public sealed class BraidScheduleTryParseTests : TestBase
     [Fact]
     public void TryParseReturnsScheduleForValidText()
     {
-        var ok = BraidSchedule.TryParse("hit w-1 p1", out var schedule, out var error);
+        var ok = ReplaySchedule.TryParse("hit w-1 p1", out var schedule, out var error);
 
         Assert.True(ok);
         Assert.NotNull(schedule);

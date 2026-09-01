@@ -10,14 +10,14 @@ public sealed class BraidCancellationTests : TestBase
     [Fact]
     public async Task RunAsyncReportsTimeoutAsRunException()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
             Timeout = TimeSpan.FromMilliseconds(50),
         };
 
-        var operation = BraidRunner.RunAsync(
+        var operation = Runner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () => await Task.Delay(TimeSpan.FromMilliseconds(200), TimeProvider.System, DefaultCancellationToken));
@@ -26,7 +26,7 @@ public sealed class BraidCancellationTests : TestBase
             },
             options,
             DefaultCancellationToken);
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(operation);
+        var exception = await Assertions.ExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
         Assert.Contains("braid run timed out.", report, StringComparison.Ordinal);
@@ -44,18 +44,18 @@ public sealed class BraidCancellationTests : TestBase
         using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(TimeSpan.FromMilliseconds(30));
         var cancellationToken = cancellation.Token;
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
             Timeout = TimeSpan.FromSeconds(5),
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
-                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                 context.Fork(async () =>
                 {

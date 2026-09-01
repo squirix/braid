@@ -11,25 +11,25 @@ public sealed class BraidScheduleReplayTests : TestBase
     public async Task RunAsyncReleasesWorkersInScriptedOrder()
     {
         var releases = new List<string>();
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-2", "ready"), new BraidStep("worker-1", "ready")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready"), new ReplayStep("worker-1", "ready")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", DefaultCancellationToken);
                     releases.Add("worker-1");
                 });
 
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", DefaultCancellationToken);
                     releases.Add("worker-2");
                 });
 
@@ -46,19 +46,19 @@ public sealed class BraidScheduleReplayTests : TestBase
     [Fact]
     public async Task RunAsyncReplaysReproducesLostUpdate()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
-            Schedule = BraidSchedule.Replay(
-                new BraidStep("worker-1", "after-read"),
-                new BraidStep("worker-2", "after-read"),
-                new BraidStep("worker-1", "before-write"),
-                new BraidStep("worker-2", "before-write")),
+            Schedule = ReplaySchedule.Replay(
+                new ReplayStep("worker-1", "after-read"),
+                new ReplayStep("worker-2", "after-read"),
+                new ReplayStep("worker-1", "before-write"),
+                new ReplayStep("worker-2", "before-write")),
         };
 
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     var value = 0;
@@ -66,16 +66,16 @@ public sealed class BraidScheduleReplayTests : TestBase
                     context.Fork(async () =>
                     {
                         var current = value;
-                        await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                        await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                        await Probe.HitAsync("after-read", DefaultCancellationToken);
+                        await Probe.HitAsync("before-write", DefaultCancellationToken);
                         value = current + 1;
                     });
 
                     context.Fork(async () =>
                     {
                         var current = value;
-                        await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                        await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                        await Probe.HitAsync("after-read", DefaultCancellationToken);
+                        await Probe.HitAsync("before-write", DefaultCancellationToken);
                         value = current + 1;
                     });
 
@@ -87,9 +87,18 @@ public sealed class BraidScheduleReplayTests : TestBase
                 DefaultCancellationToken));
 
         Assert.Equal(12345, exception.Seed);
-        Assert.Contains(exception.Trace, static line => line.Contains("worker-1", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => line.Contains("worker-2", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => line.Contains("after-read", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => line.Contains("before-write", StringComparison.Ordinal));
+        foreach (var marker in new[] { "worker-1", "worker-2", "after-read", "before-write" })
+        {
+            var found = false;
+            foreach (var line in exception.Trace)
+            {
+                if (!line.Contains(marker, StringComparison.Ordinal))
+                    continue;
+                found = true;
+                break;
+            }
+
+            Assert.True(found, $"Trace should mention '{marker}'.");
+        }
     }
 }

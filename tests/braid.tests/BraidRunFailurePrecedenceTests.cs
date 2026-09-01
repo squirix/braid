@@ -13,12 +13,12 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
         using var runCts = new CancellationTokenSource();
         var runToken = runCts.Token;
 
-        var runTask = BraidRunner.RunAsync(
+        var runTask = Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("gate", DefaultCancellationToken);
+                    await Probe.HitAsync("gate", DefaultCancellationToken);
 
                     while (!runToken.IsCancellationRequested)
                         await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, DefaultCancellationToken);
@@ -28,7 +28,7 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
 
                 await context.JoinAsync(runToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             runToken);
 
         await Task.Delay(TimeSpan.FromMilliseconds(40), TimeProvider.System, DefaultCancellationToken);
@@ -54,14 +54,14 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
     [Fact]
     public async Task RunAsyncFailsWhenScheduleNoWorkers()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static _ => Task.CompletedTask,
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 12345,
-                    Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready")),
+                    Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
                 },
                 DefaultCancellationToken));
 
@@ -73,18 +73,18 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
     [Fact]
     public async Task RunAsyncStopsStartupOnThrowAfterFork()
     {
-        var runTask = BraidRunner.RunAsync(
+        var runTask = Runner.RunAsync(
             static context =>
             {
-                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
-                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
-                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                 throw new InvalidOperationException("callback failed before join");
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
 
         var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
@@ -94,9 +94,9 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
         try
         {
             await runTask;
-            Assert.Fail("Expected BraidRunException.");
+            Assert.Fail("Expected RunException.");
         }
-        catch (BraidRunException ex)
+        catch (RunException ex)
         {
             var report = ex.ToString();
             Assert.Contains("callback failed before join", report, StringComparison.Ordinal);
@@ -114,18 +114,18 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
 
         try
         {
-            var runTask = BraidRunner.RunAsync(
+            var runTask = Runner.RunAsync(
                 async context =>
                 {
                     context.Fork(async () =>
                     {
-                        await BraidProbe.HitAsync("started", DefaultCancellationToken);
+                        await Probe.HitAsync("started", DefaultCancellationToken);
                         await gate.Task.WaitAsync(DefaultCancellationToken);
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
+                new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
                 DefaultCancellationToken);
 
             var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
@@ -135,9 +135,9 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
             try
             {
                 await runTask;
-                Assert.Fail("Expected BraidRunException.");
+                Assert.Fail("Expected RunException.");
             }
-            catch (BraidRunException exception)
+            catch (RunException exception)
             {
                 var report = exception.ToString();
                 Assert.Contains("braid run timed out.", report, StringComparison.Ordinal);
@@ -160,14 +160,14 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var workerExited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var runTask = BraidRunner.RunAsync(
+        var runTask = Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
                     try
                     {
-                        await BraidProbe.HitAsync("block", DefaultCancellationToken);
+                        await Probe.HitAsync("block", DefaultCancellationToken);
                         await gate.Task.WaitAsync(DefaultCancellationToken);
                         throw new InvalidOperationException("too late after timeout");
                     }
@@ -179,7 +179,7 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
+            new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
             DefaultCancellationToken);
 
         var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
@@ -189,9 +189,9 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
         try
         {
             await runTask;
-            Assert.Fail("Expected BraidRunException.");
+            Assert.Fail("Expected RunException.");
         }
-        catch (BraidRunException exception)
+        catch (RunException exception)
         {
             _ = gate.TrySetResult();
             await workerExited.Task.WaitAsync(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
@@ -205,19 +205,19 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
     [Fact]
     public async Task WorkerFailureWinsOverTimeout()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
+                        await Probe.HitAsync("before-failure", DefaultCancellationToken);
                         throw new InvalidOperationException("worker failed before timeout");
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(5) },
+                new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(5) },
                 DefaultCancellationToken));
 
         var report = exception.ToString();

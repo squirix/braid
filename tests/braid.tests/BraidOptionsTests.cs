@@ -12,7 +12,7 @@ public sealed class BraidOptionsTests : TestBase
     {
         var executed = 0;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 context.Fork(() =>
@@ -23,7 +23,7 @@ public sealed class BraidOptionsTests : TestBase
 
                 return context.JoinAsync(DefaultCancellationToken);
             },
-            BraidOptions.Default,
+            RunOptions.Default,
             DefaultCancellationToken);
 
         Assert.True(executed > 0);
@@ -36,7 +36,7 @@ public sealed class BraidOptionsTests : TestBase
     {
         var executed = 0;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 context.Fork(() =>
@@ -60,18 +60,18 @@ public sealed class BraidOptionsTests : TestBase
 
         var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     _ = Interlocked.Increment(ref executed);
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = -1 },
+                new RunOptions { Iterations = -1 },
                 DefaultCancellationToken);
         });
 
-        Assert.Equal(nameof(BraidOptions.Iterations), exception.ParamName);
+        Assert.Equal(nameof(RunOptions.Iterations), exception.ParamName);
         Assert.Equal(0, executed);
     }
 
@@ -83,18 +83,18 @@ public sealed class BraidOptionsTests : TestBase
 
         var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     _ = Interlocked.Increment(ref executed);
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Timeout = TimeSpan.FromMilliseconds(-1) },
+                new RunOptions { Timeout = TimeSpan.FromMilliseconds(-1) },
                 DefaultCancellationToken);
         });
 
-        Assert.Equal(nameof(BraidOptions.Timeout), exception.ParamName);
+        Assert.Equal(nameof(RunOptions.Timeout), exception.ParamName);
         Assert.Equal(0, executed);
     }
 
@@ -106,18 +106,18 @@ public sealed class BraidOptionsTests : TestBase
 
         var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     _ = Interlocked.Increment(ref executed);
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = 0 },
+                new RunOptions { Iterations = 0 },
                 DefaultCancellationToken);
         });
 
-        Assert.Equal(nameof(BraidOptions.Iterations), exception.ParamName);
+        Assert.Equal(nameof(RunOptions.Iterations), exception.ParamName);
         Assert.Equal(0, executed);
     }
 
@@ -129,18 +129,18 @@ public sealed class BraidOptionsTests : TestBase
 
         var exception = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     _ = Interlocked.Increment(ref executed);
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Timeout = TimeSpan.Zero },
+                new RunOptions { Timeout = TimeSpan.Zero },
                 DefaultCancellationToken);
         });
 
-        Assert.Equal(nameof(BraidOptions.Timeout), exception.ParamName);
+        Assert.Equal(nameof(RunOptions.Timeout), exception.ParamName);
         Assert.Equal(0, executed);
     }
 }

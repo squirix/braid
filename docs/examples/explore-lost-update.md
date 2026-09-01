@@ -8,10 +8,10 @@ Two workers (`reader` and `writer`) perform the same read-modify-write on a shar
 
 ## Exploration
 
-`BraidRunner.ExploreAsync` runs one discovery pass to learn each worker's probe sequence, then tries bounded hit-schedule permutations until the assertion fails:
+`Runner.ExploreAsync` runs one discovery pass to learn each worker's probe sequence, then tries bounded hit-schedule permutations until the assertion fails:
 
 ```csharp
-await BraidRunner.ExploreAsync(
+await Runner.ExploreAsync(
     options => options
         .WithSeed(12_345)
         .WithMaxSchedules(100)
@@ -30,13 +30,13 @@ await BraidRunner.ExploreAsync(
 
 ## Replay token
 
-On failure, call `BraidRunException.TryGetReplayText` and parse the token:
+On failure, call `RunException.TryGetReplayText` and parse the token:
 
 ```csharp
-var schedule = BraidSchedule.Parse(replayText);
+var schedule = ReplaySchedule.Parse(replayText);
 ```
 
-The example replays that schedule with `BraidRunner.RunAsync` and `BraidContext.Fork("reader", ...)` / `Fork("writer", ...)` to prove the token reproduces the same failure.
+The example replays that schedule with `Runner.RunAsync` and `RunContext.Fork("reader", ...)` / `Fork("writer", ...)` to prove the token reproduces the same failure.
 
 ## Run it
 
