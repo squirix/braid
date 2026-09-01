@@ -245,16 +245,23 @@ internal static class Explorer
         private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int NextWorkerIndex);
     }
 
-    private sealed class ExploreCallback(Func<ExploreContext, Task> test)
+    private sealed class ExploreCallback
     {
-        public RunContext? DiscoveryContext { get; private set; }
+        private readonly Func<ExploreContext, Task> _callback;
 
-        public Task RunDiscoveryAsync(RunContext context)
+        internal ExploreCallback(Func<ExploreContext, Task> callback)
         {
-            DiscoveryContext = context;
-            return test(new ExploreContext(context));
+            _callback = callback;
         }
 
-        public Task RunReplayAsync(RunContext context) => test(new ExploreContext(context));
+        internal RunContext? DiscoveryContext { get; private set; }
+
+        internal Task RunDiscoveryAsync(RunContext context)
+        {
+            DiscoveryContext = context;
+            return _callback(new ExploreContext(context));
+        }
+
+        internal Task RunReplayAsync(RunContext context) => _callback(new ExploreContext(context));
     }
 }

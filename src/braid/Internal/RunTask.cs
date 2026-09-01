@@ -4,29 +4,29 @@ internal sealed class RunTask : IDisposable
 {
     private readonly SemaphoreSlim _permit = new(0, 1);
 
-    public RunTask(int id, string? workerId = null)
+    internal RunTask(int id, string? workerId = null)
     {
         Id = id;
         WorkerId = workerId ?? $"worker-{id}";
     }
 
-    public Exception? Exception { get; set; }
+    internal Exception? Exception { get; set; }
 
-    public int Id { get; }
+    internal int Id { get; }
 
-    public string? LastProbeName { get; set; }
-
-    public bool ProbeWaitInFlight { get; set; }
-
-    public RunTaskState State { get; set; } = RunTaskState.Waiting;
-
-    public string WorkerId { get; }
+    internal string? LastProbeName { get; set; }
 
     internal List<string> ProbeNames { get; } = [];
 
-    public void Release() => _permit.Release();
+    internal bool ProbeWaitInFlight { get; set; }
 
-    public Task WaitForReleaseAsync(CancellationToken cancellationToken) => _permit.WaitAsync(cancellationToken);
+    internal RunTaskState State { get; set; } = RunTaskState.Waiting;
+
+    internal string WorkerId { get; }
 
     public void Dispose() => _permit.Dispose();
+
+    internal void Release() => _permit.Release();
+
+    internal Task WaitForReleaseAsync(CancellationToken cancellationToken) => _permit.WaitAsync(cancellationToken);
 }

@@ -19,7 +19,7 @@ internal sealed class Scheduler : IDisposable
     private int _nextScheduleStep;
     private int _nextTaskId;
 
-    public Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? schedule)
+    internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? schedule)
     {
         _seed = seed;
         _iteration = iteration;
@@ -28,7 +28,26 @@ internal sealed class Scheduler : IDisposable
         _random = new DeterministicRandom(seed);
     }
 
-    public RunException CreateException(string message, Exception? innerException, RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
+    public void Dispose()
+    {
+        RunTask[] tasks;
+        lock (_gate)
+            tasks = [.. _tasks];
+
+        if (!_shutdownCts.IsCancellationRequested)
+            _shutdownCts.Cancel();
+
+        // All disposed resources tolerate repeated Dispose calls, so multiple
+        // calls to Dispose are safe (the scheduler is not reused after dispose).
+        _shutdownCts.Dispose();
+        _stateChanged.Dispose();
+        _joinMutex.Dispose();
+
+        for (var index = 0; index < tasks.Length; index++)
+            tasks[index].Dispose();
+    }
+
+    internal RunException CreateException(string message, Exception? innerException, RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
     {
         IReadOnlyList<string> traceSnapshot;
         IReadOnlyList<ReplayStep> scheduleSnapshot;
@@ -46,9 +65,9 @@ internal sealed class Scheduler : IDisposable
         return new RunException(resolvedMessage, new RunExceptionContext(_seed, _iteration, traceSnapshot, scheduleSnapshot, diagnostics), innerException, failureOrigin);
     }
 
-    public void Fork(Func<Task> operation) => Fork(null, operation);
+    internal void Fork(Func<Task> operation) => Fork(null, operation);
 
-    public void Fork(string? workerId, Func<Task> operation)
+    internal void Fork(string? workerId, Func<Task> operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
         RunTask braidTask;
@@ -78,7 +97,37 @@ internal sealed class Scheduler : IDisposable
         }
     }
 
-    public async ValueTask HitAsync(RunTask task, string name, CancellationToken cancellationToken)
+    internal IReadOnlyList<string> GetTraceSnapshot()
+    {
+        lock (_gate)
+            return [.. _trace];
+    }
+
+    internal Dictionary<string, List<string>> GetWorkerProbeSequences()
+    {
+        lock (_gate)
+        {
+            var sequences = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            for (var index = 0; index < _tasks.Count; index++)
+            {
+                var task = _tasks[index];
+                if (task.ProbeNames.Count == 0)
+                    continue;
+
+                if (!sequences.TryGetValue(task.WorkerId, out var probes))
+                {
+                    probes = [];
+                    sequences[task.WorkerId] = probes;
+                }
+
+                probes.AddRange(task.ProbeNames);
+            }
+
+            return sequences;
+        }
+    }
+
+    internal async ValueTask HitAsync(RunTask task, string name, CancellationToken cancellationToken)
     {
         lock (_gate)
         {
@@ -108,7 +157,7 @@ internal sealed class Scheduler : IDisposable
         }
     }
 
-    public async Task JoinAsync(CancellationToken cancellationToken)
+    internal async Task JoinAsync(CancellationToken cancellationToken)
     {
         await _joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
 
@@ -145,59 +194,10 @@ internal sealed class Scheduler : IDisposable
         }
     }
 
-    public async Task StopAsync()
+    internal async Task StopAsync()
     {
         await CancelBlockedTasksAsync().ConfigureAwait(false);
         await WaitForRunningTasksAsync().ConfigureAwait(false);
-    }
-
-    public void Dispose()
-    {
-        RunTask[] tasks;
-        lock (_gate)
-            tasks = [.. _tasks];
-
-        if (!_shutdownCts.IsCancellationRequested)
-            _shutdownCts.Cancel();
-
-        // All disposed resources tolerate repeated Dispose calls, so multiple
-        // calls to Dispose are safe (the scheduler is not reused after dispose).
-        _shutdownCts.Dispose();
-        _stateChanged.Dispose();
-        _joinMutex.Dispose();
-
-        for (var index = 0; index < tasks.Length; index++)
-            tasks[index].Dispose();
-    }
-
-    internal IReadOnlyList<string> GetTraceSnapshot()
-    {
-        lock (_gate)
-            return [.. _trace];
-    }
-
-    internal Dictionary<string, List<string>> GetWorkerProbeSequences()
-    {
-        lock (_gate)
-        {
-            var sequences = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-            for (var index = 0; index < _tasks.Count; index++)
-            {
-                var task = _tasks[index];
-                if (task.ProbeNames.Count == 0)
-                    continue;
-
-                if (!sequences.TryGetValue(task.WorkerId, out var probes))
-                {
-                    probes = [];
-                    sequences[task.WorkerId] = probes;
-                }
-
-                probes.AddRange(task.ProbeNames);
-            }
-
-            return sequences;
-        }
     }
 
     private static string FormatStep(ReplayStep step) =>
@@ -411,7 +411,7 @@ internal sealed class Scheduler : IDisposable
     {
         private readonly Scheduler _scheduler;
 
-        public BraidSchedulerMatching(Scheduler scheduler)
+        internal BraidSchedulerMatching(Scheduler scheduler)
         {
             _scheduler = scheduler;
         }
@@ -527,6 +527,6 @@ internal sealed class Scheduler : IDisposable
 
     private sealed class ForkOperationRegistration
     {
-        public Task ForkTask { get; set; } = Task.CompletedTask;
+        internal Task ForkTask { get; set; } = Task.CompletedTask;
     }
 }

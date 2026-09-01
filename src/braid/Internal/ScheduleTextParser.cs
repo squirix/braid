@@ -4,7 +4,7 @@ namespace Braid.Internal;
 
 internal static class ScheduleTextParser
 {
-    public static bool TryParse(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
+    internal static bool TryParse(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
     {
         schedule = null;
         error = null;
