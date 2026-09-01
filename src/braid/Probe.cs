@@ -12,7 +12,7 @@ public static class Probe
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         var scheduler = RunScope.CurrentScheduler;
-        var task = RunScope.CurrentTask;
+        var task = RunTaskSlot.Current;
 
         return scheduler == null || task == null ? ValueTask.CompletedTask : scheduler.HitAsync(task, name, cancellationToken);
     }

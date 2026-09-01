@@ -279,7 +279,7 @@ internal sealed class Scheduler : IDisposable
 
     private void CompleteForkedOperation(RunTask braidTask)
     {
-        RunScope.CurrentTask = null;
+        RunTaskSlot.Current = null;
 
         lock (_gate)
         {
@@ -295,7 +295,7 @@ internal sealed class Scheduler : IDisposable
         if (state is not (RunTask braidTask, Func<Task> operation, ForkOperationRegistration registration))
             throw new InvalidOperationException("Invalid fork state.");
 
-        RunScope.CurrentTask = braidTask;
+        RunTaskSlot.Current = braidTask;
         try
         {
             await braidTask.WaitForReleaseAsync(_shutdownCts.Token).ConfigureAwait(false);

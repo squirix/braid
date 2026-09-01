@@ -6,7 +6,6 @@ namespace Braid;
 internal sealed class RunScope : IDisposable
 {
     private static readonly AsyncLocal<Scheduler?> SchedulerSlot = new();
-    private static readonly AsyncLocal<RunTask?> TaskSlot = new();
 
     private readonly Scheduler? _previousScheduler;
 
@@ -18,16 +17,10 @@ internal sealed class RunScope : IDisposable
 
     internal static Scheduler? CurrentScheduler => SchedulerSlot.Value;
 
-    internal static RunTask? CurrentTask
-    {
-        get => TaskSlot.Value;
-        set => TaskSlot.Value = value;
-    }
-
     public void Dispose()
     {
         SchedulerSlot.Value = _previousScheduler;
-        TaskSlot.Value = null;
+        RunTaskSlot.Clear();
     }
 
     internal static RunScope Enter(Scheduler scheduler) => new(scheduler);
