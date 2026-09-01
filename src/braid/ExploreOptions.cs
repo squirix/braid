@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Braid.Attributes;
 
 namespace Braid;
 
@@ -8,6 +9,7 @@ namespace Braid;
 /// <param name="MaxStepsPerSchedule">The maximum number of hit steps per generated replay schedule.</param>
 /// <param name="Timeout">The per-run timeout.</param>
 [StructLayout(LayoutKind.Auto)]
+[Immutable]
 public readonly record struct ExploreOptions(int Seed, int MaxSchedules, int MaxStepsPerSchedule, TimeSpan Timeout)
 {
     internal readonly void Validate()

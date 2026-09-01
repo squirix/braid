@@ -1,10 +1,12 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using Braid.Attributes;
 using Braid.Internal;
 
 namespace Braid;
 
 /// <summary>Represents a typed replay schedule for a braid run.</summary>
+[Immutable]
 public sealed class ReplaySchedule
 {
     private ReplaySchedule(IReadOnlyList<ReplayStep> steps)

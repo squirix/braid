@@ -1,6 +1,9 @@
+using Braid.Attributes;
+
 namespace Braid;
 
 /// <summary>Worker-oriented facade for bounded exploration.</summary>
+[Immutable]
 public sealed class ExploreContext
 {
     private readonly RunContext _context;

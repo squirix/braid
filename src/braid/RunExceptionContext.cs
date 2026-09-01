@@ -1,3 +1,4 @@
+using Braid.Attributes;
 using JetBrains.Annotations;
 
 namespace Braid;
@@ -6,6 +7,7 @@ namespace Braid;
 /// Captures reproducibility state for a <see cref="RunException"/>.
 /// </summary>
 [PublicAPI]
+[Immutable]
 public sealed record RunExceptionContext
 {
     /// <summary>Initializes a new instance of the <see cref="RunExceptionContext"/> class.</summary>

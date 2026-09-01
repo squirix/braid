@@ -1,5 +1,8 @@
+using Braid.Attributes;
+
 namespace Braid.Internal;
 
+[Immutable]
 internal sealed class RunScope : IDisposable
 {
     private static readonly AsyncLocal<Scheduler?> SchedulerSlot = new();

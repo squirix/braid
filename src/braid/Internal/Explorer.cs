@@ -1,3 +1,5 @@
+using Braid.Attributes;
+
 namespace Braid.Internal;
 
 internal static class Explorer
@@ -242,6 +244,7 @@ internal static class Explorer
             return true;
         }
 
+        [Immutable]
         private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int NextWorkerIndex);
     }
 

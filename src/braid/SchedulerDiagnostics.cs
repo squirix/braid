@@ -1,6 +1,9 @@
+using Braid.Attributes;
+
 namespace Braid;
 
 /// <summary>Describes scheduler state captured when a braid run fails.</summary>
+[Immutable]
 public sealed class SchedulerDiagnostics
 {
     /// <summary>

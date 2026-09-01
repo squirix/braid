@@ -1,9 +1,12 @@
+using Braid.Attributes;
+
 namespace Braid;
 
 /// <summary>Defines replay step semantics at a named probe for a logical worker.</summary>
 /// <param name="WorkerId">The stable worker id, such as worker-1.</param>
 /// <param name="ProbeName">The probe name that must be waiting before the worker is released.</param>
 /// <param name="Kind">The step kind.</param>
+[Immutable]
 public readonly record struct ReplayStep(string WorkerId, string ProbeName, ReplayStepKind Kind = ReplayStepKind.Hit)
 {
     /// <summary>Creates a step that observes worker arrival at a probe and keeps it blocked.</summary>

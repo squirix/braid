@@ -1,3 +1,5 @@
+using Braid.Attributes;
+
 namespace Braid.Internal;
 
 internal sealed class Scheduler : IDisposable
@@ -407,6 +409,7 @@ internal sealed class Scheduler : IDisposable
         await all.ConfigureAwait(false);
     }
 
+    [Immutable]
     private sealed class BraidSchedulerMatching
     {
         private readonly Scheduler _scheduler;

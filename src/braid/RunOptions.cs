@@ -1,6 +1,9 @@
+using Braid.Attributes;
+
 namespace Braid;
 
 /// <summary>Defines seed, iteration, timeout, and replay options for a braid run.</summary>
+[Immutable]
 public sealed class RunOptions
 {
     /// <summary>Gets the default options.</summary>
