@@ -1,5 +1,6 @@
 <Project>
     <PropertyGroup Label="Build">
+        <Version>0.6.0</Version>
         <TargetFramework>net10.0</TargetFramework>
         <LangVersion>latest</LangVersion>
         <Nullable>enable</Nullable>
