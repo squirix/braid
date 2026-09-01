@@ -23,7 +23,7 @@ Goal: provide a small .NET library for reproducible async interleavings through 
 
 Delivered (per [CHANGELOG.md](../CHANGELOG.md) **0.1.0**):
 
-- deterministic explicit-probe concurrency testing with `Runner.RunAsync`
+- deterministic explicit-probe concurrency testing with `Braid.RunAsync`
 - fork/join orchestration through `RunContext`
 - probe control with `Probe.HitAsync`
 - typed replay schedules through `ReplaySchedule` and `ReplayStep`
