@@ -107,37 +107,11 @@ public sealed class RunException : Exception
             $"Iteration: {Iteration}",
         };
 
-        if (Schedule.Count > 0)
-        {
-            lines.Add("Schedule:");
-            for (var index = 0; index < Schedule.Count; index++)
-            {
-                var step = Schedule[index];
-                lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
-            }
-
-            lines.Add("Replay text:");
-            if (TryGetReplayText(out var replayText, out var replayError))
-            {
-                if (replayText.Length > 0)
-                    lines.AddRange(replayText.Split(Environment.NewLine));
-            }
-            else if (replayError != null)
-            {
-                lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
-            }
-        }
-
+        AppendScheduleSection(lines);
         AppendSchedulerDiagnosticsLines(lines, SchedulerDiagnostics);
+        AppendTraceSection(lines);
+        AppendInnerExceptionSection(lines);
 
-        lines.Add("Trace:");
-        for (var index = 0; index < Trace.Count; index++)
-            lines.Add($"  {index + 1}. {Trace[index]}");
-
-        if (InnerException == null)
-            return string.Join(Environment.NewLine, lines);
-        lines.Add("Inner exception:");
-        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -173,6 +147,14 @@ public sealed class RunException : Exception
         }
     }
 
+    private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
+    {
+        if (diagnostics == null)
+            return;
+
+        AppendSchedulerDiagnosticsContent(lines, diagnostics);
+    }
+
     private static void AppendSchedulerDiagnosticsContent(List<string> lines, SchedulerDiagnostics diagnostics)
     {
         if (diagnostics.HasReplaySchedule)
@@ -183,42 +165,74 @@ public sealed class RunException : Exception
                     ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(lastStep)}" : "  none");
         }
 
-        if (diagnostics.WaitingWorkers.Count > 0)
-        {
-            lines.Add("Waiting workers:");
-            for (var index = 0; index < diagnostics.WaitingWorkers.Count; index++)
-            {
-                var worker = diagnostics.WaitingWorkers[index];
-                lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
-            }
-        }
+        AppendProbeWaitDiagnostics(lines, "Waiting workers:", diagnostics.WaitingWorkers);
+        AppendProbeWaitDiagnostics(lines, "Held workers:", diagnostics.HeldWorkers);
+        AppendUnusedReplayStepDiagnostics(lines, diagnostics.UnusedReplaySteps);
+    }
 
-        if (diagnostics.HeldWorkers.Count > 0)
-        {
-            lines.Add("Held workers:");
-            for (var index = 0; index < diagnostics.HeldWorkers.Count; index++)
-            {
-                var worker = diagnostics.HeldWorkers[index];
-                lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
-            }
-        }
+    private static void AppendProbeWaitDiagnostics(List<string> lines, string header, IReadOnlyList<ProbeWaitDiagnostic> workers)
+    {
+        if (workers.Count == 0)
+            return;
 
-        if (diagnostics.UnusedReplaySteps.Count == 0)
+        lines.Add(header);
+        for (var index = 0; index < workers.Count; index++)
+        {
+            var worker = workers[index];
+            lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
+        }
+    }
+
+    private static void AppendUnusedReplayStepDiagnostics(List<string> lines, IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> steps)
+    {
+        if (steps.Count == 0)
             return;
 
         lines.Add("Unused replay steps:");
-        for (var index = 0; index < diagnostics.UnusedReplaySteps.Count; index++)
+        for (var index = 0; index < steps.Count; index++)
         {
-            var (oneBasedIndex, step) = diagnostics.UnusedReplaySteps[index];
+            var (oneBasedIndex, step) = steps[index];
             lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(step)}");
         }
     }
 
-    private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
+    private void AppendScheduleSection(List<string> lines)
     {
-        if (diagnostics == null)
+        if (Schedule.Count == 0)
             return;
 
-        AppendSchedulerDiagnosticsContent(lines, diagnostics);
+        lines.Add("Schedule:");
+        for (var index = 0; index < Schedule.Count; index++)
+        {
+            var step = Schedule[index];
+            lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
+        }
+
+        lines.Add("Replay text:");
+        if (TryGetReplayText(out var replayText, out var replayError))
+        {
+            if (replayText.Length > 0)
+                lines.AddRange(replayText.Split(Environment.NewLine));
+        }
+        else if (replayError != null)
+        {
+            lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
+        }
+    }
+
+    private void AppendTraceSection(List<string> lines)
+    {
+        lines.Add("Trace:");
+        for (var index = 0; index < Trace.Count; index++)
+            lines.Add($"  {index + 1}. {Trace[index]}");
+    }
+
+    private void AppendInnerExceptionSection(List<string> lines)
+    {
+        if (InnerException == null)
+            return;
+
+        lines.Add("Inner exception:");
+        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
     }
 }

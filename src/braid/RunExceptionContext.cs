@@ -14,12 +14,7 @@ public sealed record RunExceptionContext
     /// <param name="trace">The recorded scheduling trace.</param>
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
-    public RunExceptionContext(
-        int seed,
-        int iteration,
-        IReadOnlyList<string> trace,
-        IReadOnlyList<ReplayStep> schedule,
-        SchedulerDiagnostics? schedulerDiagnostics = null)
+    public RunExceptionContext(int seed, int iteration, IReadOnlyList<string> trace, IReadOnlyList<ReplayStep> schedule, SchedulerDiagnostics? schedulerDiagnostics = null)
     {
         ArgumentNullException.ThrowIfNull(trace);
         ArgumentNullException.ThrowIfNull(schedule);
@@ -40,7 +35,7 @@ public sealed record RunExceptionContext
     /// <summary>Gets the recorded scheduling trace for the failing iteration.</summary>
     public IReadOnlyList<string> Trace { get; }
 
-    /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
+    /// <summary>Gets the configured replay schedule or an empty list when random scheduling was used.</summary>
     public IReadOnlyList<ReplayStep> Schedule { get; }
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
