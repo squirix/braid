@@ -1,3 +1,5 @@
+using Braid.Attributes;
+
 namespace Braid;
 
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
@@ -359,6 +361,7 @@ public static class Runner
             return true;
         }
 
+        [Mutable]
         private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int NextWorkerIndex);
     }
 
