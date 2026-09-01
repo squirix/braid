@@ -4,7 +4,6 @@ internal static class Explorer
 {
     internal static async Task ExploreAsync(ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(test);
         options.Validate();
 
