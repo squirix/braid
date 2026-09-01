@@ -1,5 +1,3 @@
-using Braid.Internal;
-
 namespace Braid;
 
 /// <summary>Provides explicit scheduling points for braid-controlled tests; braid only controls code that reaches these probes.</summary>

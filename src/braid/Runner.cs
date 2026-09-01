@@ -1,5 +1,3 @@
-using Braid.Internal;
-
 namespace Braid;
 
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>

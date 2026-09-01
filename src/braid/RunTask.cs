@@ -1,4 +1,4 @@
-namespace Braid.Internal;
+namespace Braid;
 
 internal sealed class RunTask : IDisposable
 {

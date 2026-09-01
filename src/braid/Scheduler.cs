@@ -1,6 +1,6 @@
 using Braid.Attributes;
 
-namespace Braid.Internal;
+namespace Braid;
 
 internal sealed class Scheduler : IDisposable
 {
@@ -338,7 +338,7 @@ internal sealed class Scheduler : IDisposable
 
     private async Task RunJoinSchedulerLoopAsync(CancellationToken cancellationToken, CancellationToken linkedToken)
     {
-        var matching = new BraidSchedulerMatching(this);
+        var matching = new SchedulerMatching(this);
         while (true)
         {
             linkedToken.ThrowIfCancellationRequested();
@@ -410,11 +410,11 @@ internal sealed class Scheduler : IDisposable
     }
 
     [Immutable]
-    private sealed class BraidSchedulerMatching
+    private sealed class SchedulerMatching
     {
         private readonly Scheduler _scheduler;
 
-        internal BraidSchedulerMatching(Scheduler scheduler)
+        internal SchedulerMatching(Scheduler scheduler)
         {
             _scheduler = scheduler;
         }

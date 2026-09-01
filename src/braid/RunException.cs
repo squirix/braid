@@ -1,4 +1,3 @@
-using Braid.Internal;
 using JetBrains.Annotations;
 
 namespace Braid;

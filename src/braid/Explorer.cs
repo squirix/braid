@@ -1,6 +1,6 @@
 using Braid.Attributes;
 
-namespace Braid.Internal;
+namespace Braid;
 
 internal static class Explorer
 {

@@ -1,7 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Braid.Attributes;
-using Braid.Internal;
 
 namespace Braid;
 

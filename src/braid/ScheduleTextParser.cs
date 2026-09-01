@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Braid.Internal;
+namespace Braid;
 
 internal static class ScheduleTextParser
 {

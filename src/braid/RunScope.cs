@@ -1,6 +1,6 @@
 using Braid.Attributes;
 
-namespace Braid.Internal;
+namespace Braid;
 
 [Immutable]
 internal sealed class RunScope : IDisposable
