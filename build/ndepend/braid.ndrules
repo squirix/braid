@@ -109,7 +109,7 @@ select new { m, mutableFieldsUsed, Debt = 10.ToMinutes().ToDebt(), Severity = Se
 warnif count > 0
 from t in JustMyCode.Types
 where t.IsImmutable &&
-      !t.HasAttribute("NDepend.Attributes.ImmutableAttribute".AllowNoMatch()) &&
+      !t.HasAttribute("Braid.Attributes.ImmutableAttribute".AllowNoMatch()) &&
       !t.IsGeneratedByCompiler &&
       !t.HasAttribute("System.CodeDom.Compiler.GeneratedCodeAttribute".AllowNoMatch())
 select new { t, t.NbLinesOfCode, Debt = 10.ToMinutes().ToDebt(), Severity = Severity.Medium }]]></Query>
