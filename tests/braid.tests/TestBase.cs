@@ -20,7 +20,7 @@ public abstract class TestBase
     {
         ArgumentNullException.ThrowIfNull(startTask);
         var effectiveTimeout = watchdogTimeout == TimeSpan.Zero ? TimeSpan.FromSeconds(2) : watchdogTimeout;
-        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, prefixWatchdogMessage);
+        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, DefaultCancellationToken, prefixWatchdogMessage);
     }
 
     /// <summary>Waits for an already-started task to complete before a watchdog timeout without blocking a thread.</summary>
@@ -388,11 +388,11 @@ public abstract class TestBase
                 throw new TaskCanceledException(task);
         }
 
-        public static async Task RunWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+        public static async Task RunWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, CancellationToken cancellationToken, bool prefixWatchdogMessage = true)
         {
             ArgumentNullException.ThrowIfNull(startTask);
             var task = startTask();
-            var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, DefaultCancellationToken);
+            var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, cancellationToken);
             if (await Task.WhenAny(task, watchdog).ConfigureAwait(false) != task)
                 Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
 

@@ -62,7 +62,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
                 new RunOptions { Iterations = 1, Seed = seed },
                 DefaultCancellationToken));
 
-        return exception.Trace;
+        return exception.Traces;
     }
 
     private static async Task<(IReadOnlyList<string> Trace, IReadOnlyList<string> ReleaseOrder)> CaptureScriptedRunAsync(int seed, ReplaySchedule schedule)
@@ -81,6 +81,6 @@ public sealed class BraidDeterministicSeedTests : TestBase
                 new RunOptions { Iterations = 1, Seed = seed, Schedule = schedule },
                 DefaultCancellationToken));
 
-        return (exception.Trace, releases);
+        return (exception.Traces, releases);
     }
 }

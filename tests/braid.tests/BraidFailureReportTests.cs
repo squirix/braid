@@ -369,7 +369,7 @@ public sealed class BraidFailureReportTests : TestBase
         var exception = await Assertions.ExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
-        Assert.Equal(options.Schedule.Steps, exception.Schedule);
+        Assert.Equal(options.Schedule.Steps, exception.Steps);
         Assert.Contains("Schedule:", report, StringComparison.Ordinal);
         Assert.Contains("worker-1 @ after-read", report, StringComparison.Ordinal);
         Assert.Contains("worker-2 @ after-read", report, StringComparison.Ordinal);
@@ -397,7 +397,7 @@ public sealed class BraidFailureReportTests : TestBase
 
         Assert.Equal(12345, exception.Seed);
         var sawBeforeFailure = false;
-        foreach (var line in exception.Trace)
+        foreach (var line in exception.Traces)
         {
             if (!line.Contains("before-failure", StringComparison.Ordinal))
                 continue;

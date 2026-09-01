@@ -153,7 +153,7 @@ public sealed class BraidApiContractTests : TestBase
     {
         var exception = new RunException("failed", 12345, 0, ["trace"], null, null);
 
-        Assert.Empty(exception.Schedule);
+        Assert.Empty(exception.Steps);
     }
 
     /// <summary>Verifies braid run exceptions snapshot trace and schedule values.</summary>
@@ -167,8 +167,8 @@ public sealed class BraidApiContractTests : TestBase
         trace[0] = "changed";
         schedule[0] = new ReplayStep("worker-2", "changed");
 
-        Assert.Equal(["worker-1 forked"], exception.Trace);
-        Assert.Equal([new ReplayStep("worker-1", "ready")], exception.Schedule);
+        Assert.Equal(["worker-1 forked"], exception.Traces);
+        Assert.Equal([new ReplayStep("worker-1", "ready")], exception.Steps);
         Assert.Null(exception.SchedulerDiagnostics);
     }
 

@@ -26,7 +26,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
                 },
                 DefaultCancellationToken));
 
-        var list = Assert.IsType<IList<ReplayStep>>(exception.Schedule, false);
+        var list = Assert.IsType<IList<ReplayStep>>(exception.Steps, false);
         _ = Assertions.ExpectsAny<Exception, IList<ReplayStep>>(list, static state => state[0] = new ReplayStep("worker-9", "changed"));
 
         Assert.Contains("worker-1 @ expected", exception.ToString(), StringComparison.Ordinal);
@@ -52,7 +52,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
                 },
                 DefaultCancellationToken));
 
-        var traceList = Assert.IsType<IList<string>>(exception.Trace, false);
+        var traceList = Assert.IsType<IList<string>>(exception.Traces, false);
         _ = Assertions.ExpectsAny<Exception, IList<string>>(traceList, static state => state[0] = "mutated");
 
         Assert.Contains("worker-1 hit actual", exception.ToString(), StringComparison.Ordinal);
@@ -138,15 +138,15 @@ public sealed class BraidRunExceptionReportTests : TestBase
         var report = exception.ToString();
         Assert.Contains(exception.Seed.ToString(CultureInfo.InvariantCulture), report, StringComparison.Ordinal);
         Assert.Contains(exception.Iteration.ToString(CultureInfo.InvariantCulture), report, StringComparison.Ordinal);
-        for (var index = 0; index < exception.Schedule.Count; index++)
+        for (var index = 0; index < exception.Steps.Count; index++)
         {
-            var step = exception.Schedule[index];
+            var step = exception.Steps[index];
             Assert.Contains($"{step.WorkerId} @ {step.ProbeName}", report, StringComparison.Ordinal);
         }
 
-        for (var index = 0; index < exception.Trace.Count; index++)
+        for (var index = 0; index < exception.Traces.Count; index++)
         {
-            var traceEntry = exception.Trace[index];
+            var traceEntry = exception.Traces[index];
             Assert.Contains(traceEntry, report, StringComparison.Ordinal);
         }
     }

@@ -148,7 +148,7 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         var report = exception.ToString();
         Assert.Contains("worker-1 @ ready", report, StringComparison.Ordinal);
         Assert.DoesNotContain("worker-9", report, StringComparison.Ordinal);
-        Assert.Equal(new ReplayStep("worker-1", "ready"), exception.Schedule[0]);
+        Assert.Equal(new ReplayStep("worker-1", "ready"), exception.Steps[0]);
     }
 
     /// <summary>

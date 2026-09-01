@@ -1,5 +1,3 @@
-using Braid.Internal;
-
 namespace Braid;
 
 /// <summary>Provides explicit scheduling points for braid-controlled tests; braid only controls code that reaches these probes.</summary>
@@ -14,7 +12,7 @@ public static class Probe
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
 
         var scheduler = RunScope.CurrentScheduler;
-        var task = RunScope.CurrentTask;
+        var task = RunTaskSlot.Current;
 
         return scheduler == null || task == null ? ValueTask.CompletedTask : scheduler.HitAsync(task, name, cancellationToken);
     }

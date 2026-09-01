@@ -1,6 +1,9 @@
+using Braid.Attributes;
+
 namespace Braid;
 
 /// <summary>Describes scheduler state captured when a braid run fails.</summary>
+[Immutable]
 public sealed class SchedulerDiagnostics
 {
     /// <summary>
@@ -23,9 +26,9 @@ public sealed class SchedulerDiagnostics
         HasReplaySchedule = hasReplaySchedule;
         LastMatchedReplayStep = lastMatchedReplayStep;
         LastMatchedReplayStepOneBased = lastMatchedReplayStepOneBased;
-        WaitingWorkers = waitingWorkers;
-        HeldWorkers = heldWorkers;
-        UnusedReplaySteps = unusedReplaySteps;
+        WaitingWorkers = [.. waitingWorkers];
+        HeldWorkers = [.. heldWorkers];
+        UnusedReplaySteps = [.. unusedReplaySteps];
     }
 
     /// <summary>Gets a value indicating whether a non-empty typed replay schedule was configured.</summary>

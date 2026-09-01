@@ -331,8 +331,8 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                 new RunOptions { Iterations = 1, Seed = 4004 },
                 DefaultCancellationToken));
 
-        AssertAppearsBefore(exception.Trace, "worker-1 forked", "worker-1 released");
-        AssertAppearsBefore(exception.Trace, "worker-1 released", "worker-1 hit ready");
+        AssertAppearsBefore(exception.Traces, "worker-1 forked", "worker-1 released");
+        AssertAppearsBefore(exception.Traces, "worker-1 released", "worker-1 hit ready");
     }
 
     private static void AssertAppearsBefore(IReadOnlyList<string> trace, string first, string second)

@@ -1,5 +1,3 @@
-using Braid.Internal;
-
 namespace Braid;
 
 /// <summary>

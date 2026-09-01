@@ -1,4 +1,3 @@
-using Braid.Internal;
 using JetBrains.Annotations;
 
 namespace Braid;
@@ -14,7 +13,7 @@ public sealed class RunException : Exception
     /// Initializes a new instance of the <see cref="RunException" /> class.
     /// </summary>
     public RunException()
-        : this("A braid run failed.", 0, 0, [], null, null)
+        : this("A braid run failed.", new RunExceptionContext(0, 0, [], []))
     {
     }
 
@@ -23,7 +22,7 @@ public sealed class RunException : Exception
     /// </summary>
     /// <param name="message">The exception message.</param>
     public RunException(string message)
-        : this(message, 0, 0, [], null, null)
+        : this(message, new RunExceptionContext(0, 0, [], []))
     {
     }
 
@@ -33,7 +32,7 @@ public sealed class RunException : Exception
     /// <param name="message">The exception message.</param>
     /// <param name="innerException">The underlying exception.</param>
     public RunException(string message, Exception innerException)
-        : this(message, 0, 0, [], null, innerException)
+        : this(message, new RunExceptionContext(0, 0, [], []), innerException)
     {
     }
 
@@ -46,46 +45,56 @@ public sealed class RunException : Exception
     /// <param name="trace">The recorded scheduling trace.</param>
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
-    /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
-    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
     public RunException(
         string message,
         int seed,
         int iteration,
         IReadOnlyList<string> trace,
         IReadOnlyList<ReplayStep>? schedule,
-        Exception? innerException,
-        SchedulerDiagnostics? schedulerDiagnostics = null,
+        Exception? innerException)
+        : this(message, new RunExceptionContext(seed, iteration, trace, schedule ?? []), innerException)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RunException" /> class.
+    /// </summary>
+    /// <param name="message">The exception message.</param>
+    /// <param name="context">Reproducibility context for the failure.</param>
+    /// <param name="innerException">The underlying exception.</param>
+    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
+    public RunException(
+        string message,
+        RunExceptionContext context,
+        Exception? innerException = null,
         RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
         : base(message, innerException)
     {
-        ArgumentNullException.ThrowIfNull(trace);
-
-        Seed = seed;
-        Iteration = iteration;
-        Trace = Array.AsReadOnly([.. trace]);
-        Schedule = schedule is null ? Array.Empty<ReplayStep>() : Array.AsReadOnly([.. schedule]);
-        SchedulerDiagnostics = schedulerDiagnostics;
+        ArgumentNullException.ThrowIfNull(context);
+        Context = context;
         FailureOrigin = failureOrigin;
     }
 
     /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
     public RunFailureOrigin FailureOrigin { get; }
 
+    /// <summary>Gets the reproducibility context for the failure.</summary>
+    public RunExceptionContext Context { get; }
+
     /// <summary>Gets the zero-based failing iteration index.</summary>
-    public int Iteration { get; }
+    public int Iteration => Context.Iteration;
 
     /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
-    public IReadOnlyList<ReplayStep> Schedule { get; }
+    public IReadOnlyList<ReplayStep> Steps => Context.Steps;
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
-    public SchedulerDiagnostics? SchedulerDiagnostics { get; }
+    public SchedulerDiagnostics? SchedulerDiagnostics => Context.SchedulerDiagnostics;
 
     /// <summary>Gets the seed used for the failing iteration.</summary>
-    public int Seed { get; }
+    public int Seed => Context.Seed;
 
     /// <summary>Gets the recorded scheduling trace for the failing iteration.</summary>
-    public IReadOnlyList<string> Trace { get; }
+    public IReadOnlyList<string> Traces => Context.Traces;
 
     /// <inheritdoc />
     public override string ToString()
@@ -97,37 +106,11 @@ public sealed class RunException : Exception
             $"Iteration: {Iteration}",
         };
 
-        if (Schedule.Count > 0)
-        {
-            lines.Add("Schedule:");
-            for (var index = 0; index < Schedule.Count; index++)
-            {
-                var step = Schedule[index];
-                lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
-            }
-
-            lines.Add("Replay text:");
-            if (TryGetReplayText(out var replayText, out var replayError))
-            {
-                if (replayText.Length > 0)
-                    lines.AddRange(replayText.Split(Environment.NewLine));
-            }
-            else if (replayError != null)
-            {
-                lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
-            }
-        }
-
+        AppendScheduleSection(lines);
         AppendSchedulerDiagnosticsLines(lines, SchedulerDiagnostics);
+        AppendTraceSection(lines);
+        AppendInnerExceptionSection(lines);
 
-        lines.Add("Trace:");
-        for (var index = 0; index < Trace.Count; index++)
-            lines.Add($"  {index + 1}. {Trace[index]}");
-
-        if (InnerException == null)
-            return string.Join(Environment.NewLine, lines);
-        lines.Add("Inner exception:");
-        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
         return string.Join(Environment.NewLine, lines);
     }
 
@@ -140,19 +123,19 @@ public sealed class RunException : Exception
     /// a diagnostic message; otherwise <see langword="null" /> (including when no typed schedule was configured).
     /// </param>
     /// <returns>
-    /// <see langword="true" /> if <see cref="Schedule" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
+    /// <see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
     /// </returns>
     public bool TryGetReplayText(out string text, out string? error)
     {
         text = string.Empty;
         error = null;
 
-        if (Schedule.Count == 0)
+        if (Steps.Count == 0)
             return false;
 
         try
         {
-            var replaySchedule = ReplaySchedule.Replay(Schedule);
+            var replaySchedule = ReplaySchedule.Replay(Steps);
             text = replaySchedule.ToReplayText();
             return true;
         }
@@ -161,6 +144,14 @@ public sealed class RunException : Exception
             error = ex.Message;
             return false;
         }
+    }
+
+    private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
+    {
+        if (diagnostics == null)
+            return;
+
+        AppendSchedulerDiagnosticsContent(lines, diagnostics);
     }
 
     private static void AppendSchedulerDiagnosticsContent(List<string> lines, SchedulerDiagnostics diagnostics)
@@ -173,42 +164,85 @@ public sealed class RunException : Exception
                     ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(lastStep)}" : "  none");
         }
 
-        if (diagnostics.WaitingWorkers.Count > 0)
-        {
-            lines.Add("Waiting workers:");
-            for (var index = 0; index < diagnostics.WaitingWorkers.Count; index++)
-            {
-                var worker = diagnostics.WaitingWorkers[index];
-                lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
-            }
-        }
+        AppendProbeWaitDiagnostics(lines, "Waiting workers:", diagnostics.WaitingWorkers);
+        AppendProbeWaitDiagnostics(lines, "Held workers:", diagnostics.HeldWorkers);
+        AppendUnusedReplayStepDiagnostics(lines, diagnostics.UnusedReplaySteps);
+    }
 
-        if (diagnostics.HeldWorkers.Count > 0)
-        {
-            lines.Add("Held workers:");
-            for (var index = 0; index < diagnostics.HeldWorkers.Count; index++)
-            {
-                var worker = diagnostics.HeldWorkers[index];
-                lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
-            }
-        }
+    private static void AppendProbeWaitDiagnostics(List<string> lines, string header, IReadOnlyList<ProbeWaitDiagnostic> workers)
+    {
+        if (workers.Count == 0)
+            return;
 
-        if (diagnostics.UnusedReplaySteps.Count == 0)
+        lines.Add(header);
+        for (var index = 0; index < workers.Count; index++)
+        {
+            var worker = workers[index];
+            lines.Add($"  {worker.WorkerId} @ {worker.ProbeName}");
+        }
+    }
+
+    private static void AppendUnusedReplayStepDiagnostics(List<string> lines, IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> steps)
+    {
+        if (steps.Count == 0)
             return;
 
         lines.Add("Unused replay steps:");
-        for (var index = 0; index < diagnostics.UnusedReplaySteps.Count; index++)
+        for (var index = 0; index < steps.Count; index++)
         {
-            var (oneBasedIndex, step) = diagnostics.UnusedReplaySteps[index];
+            var (oneBasedIndex, step) = steps[index];
             lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(step)}");
         }
     }
 
-    private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
+    private void AppendScheduleSection(List<string> lines)
     {
-        if (diagnostics == null)
+        if (Steps.Count == 0)
             return;
 
-        AppendSchedulerDiagnosticsContent(lines, diagnostics);
+        lines.Add("Schedule:");
+        for (var index = 0; index < Steps.Count; index++)
+        {
+            var step = Steps[index];
+            lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
+        }
+
+        lines.Add("Replay text:");
+        if (TryGetReplayText(out var replayText, out var replayError))
+        {
+            if (replayText.Length > 0)
+                lines.AddRange(replayText.Split(Environment.NewLine));
+        }
+        else if (replayError != null)
+        {
+            lines.Add("Replay text unavailable: schedule contains values that cannot be represented in replay text.");
+        }
+    }
+
+    private void AppendTraceSection(List<string> lines)
+    {
+        lines.Add("Trace:");
+        for (var index = 0; index < Traces.Count; index++)
+            lines.Add($"  {index + 1}. {Traces[index]}");
+    }
+
+    private void AppendInnerExceptionSection(List<string> lines)
+    {
+        if (InnerException == null)
+            return;
+
+        lines.Add("Inner exception:");
+        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
+    }
+
+    private static class ReplayFormat
+    {
+        internal static string CanonicalStepLine(ReplayStep step) => step.Kind switch
+        {
+            ReplayStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
+            ReplayStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",
+            ReplayStepKind.Release => $"release {step.WorkerId} {step.ProbeName}",
+            _ => $"{step.Kind} {step.WorkerId} {step.ProbeName}",
+        };
     }
 }
