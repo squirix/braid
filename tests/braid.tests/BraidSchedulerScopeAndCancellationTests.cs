@@ -283,7 +283,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
                 new BraidOptions { Iterations = 1, Seed = 4012 },
                 DefaultCancellationToken));
 
-        _ = Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
+        _ = Assert.IsType<OperationCanceledException>(exception.InnerException, false);
         Assert.Contains("ready", exception.ToString(), StringComparison.Ordinal);
     }
 
@@ -310,7 +310,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
 
         var report = exception.ToString();
         Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
-        _ = Assert.IsAssignableFrom<OperationCanceledException>(exception.InnerException);
+        _ = Assert.IsType<OperationCanceledException>(exception.InnerException, false);
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 
@@ -346,8 +346,10 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     private static int IndexOfContains(IReadOnlyList<string> trace, string contains)
     {
         for (var i = 0; i < trace.Count; i++)
+        {
             if (trace[i].Contains(contains, StringComparison.Ordinal))
                 return i;
+        }
 
         return -1;
     }

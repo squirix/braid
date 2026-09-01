@@ -208,14 +208,11 @@ internal sealed class Scheduler : IDisposable
         if (!_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
             return false;
 
-        if (_schedule is not null && _nextScheduleStep < _schedule.Count)
-            throw CreateException(
-                _tasks.Count == 0
-                    ? "Scripted schedule contained unused steps, but no workers were forked."
-                    : "Scripted schedule contained unused steps after all workers completed.",
-                null);
-
-        return true;
+        if (_schedule is null || _nextScheduleStep >= _schedule.Count)
+            return true;
+        var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
+            : "Scripted schedule contained unused steps after all workers completed.";
+        throw CreateException(message, null);
     }
 
     private string AppendReplayState(string message)
@@ -315,8 +312,7 @@ internal sealed class Scheduler : IDisposable
                 }
                 catch (OperationCanceledException operationCanceled)
                 {
-                    braidTask.Exception = operationCanceled is TaskCanceledException
-                        ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
+                    braidTask.Exception = operationCanceled is TaskCanceledException ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
                         : operationCanceled;
                 }
             }
@@ -458,9 +454,10 @@ internal sealed class Scheduler : IDisposable
         private RunTask? SelectArriveStep(BraidStep step, RunTask? waitingTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
             if (waitingTask == null)
-                return hasRunningTasks ? null : throw _scheduler.CreateException(
-                    BuildStepMismatchMessage(_scheduler._nextScheduleStep, "arrive", step, sameWorkerBlockedTask),
-                    null);
+            {
+                var message = BuildStepMismatchMessage(_scheduler._nextScheduleStep, "arrive", step, sameWorkerBlockedTask);
+                return hasRunningTasks ? null : throw _scheduler.CreateException(message, null);
+            }
 
             waitingTask.State = RunTaskState.Held;
             _scheduler._nextScheduleStep++;
@@ -473,9 +470,7 @@ internal sealed class Scheduler : IDisposable
         {
             var releasableTask = heldTask ?? waitingTask;
             if (releasableTask == null)
-                return hasRunningTasks ? null : throw _scheduler.CreateException(
-                    BuildStepMismatchMessage(_scheduler._nextScheduleStep, "hit", step, sameWorkerBlockedTask),
-                    null);
+                return hasRunningTasks ? null : throw _scheduler.CreateException(BuildStepMismatchMessage(_scheduler._nextScheduleStep, "hit", step, sameWorkerBlockedTask), null);
 
             _scheduler._nextScheduleStep++;
             return releasableTask;
@@ -499,9 +494,10 @@ internal sealed class Scheduler : IDisposable
         private RunTask? SelectReleaseStep(BraidStep step, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
         {
             if (heldTask == null)
-                return hasRunningTasks ? null : throw _scheduler.CreateException(
-                    BuildStepMismatchMessage(_scheduler._nextScheduleStep, "release held", step, sameWorkerBlockedTask),
-                    null);
+            {
+                var message = BuildStepMismatchMessage(_scheduler._nextScheduleStep, "release held", step, sameWorkerBlockedTask);
+                return hasRunningTasks ? null : throw _scheduler.CreateException(message, null);
+            }
 
             _scheduler._nextScheduleStep++;
             return heldTask;

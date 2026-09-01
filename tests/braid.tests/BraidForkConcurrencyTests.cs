@@ -32,8 +32,10 @@ public sealed class BraidForkConcurrencyTests : TestBase
 
         var distinctWorkerIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entry in exception.Trace)
+        {
             if (entry.EndsWith(" forked", StringComparison.Ordinal))
                 _ = distinctWorkerIds.Add(entry);
+        }
 
         Assert.Equal(20, distinctWorkerIds.Count);
     }
@@ -169,8 +171,10 @@ public sealed class BraidForkConcurrencyTests : TestBase
         Assert.Contains("sync-fail-", report, StringComparison.Ordinal);
         var forkedTraceCount = 0;
         for (var traceIndex = 0; traceIndex < exception.Trace.Count; traceIndex++)
+        {
             if (exception.Trace[traceIndex].Contains("forked", StringComparison.Ordinal))
                 forkedTraceCount++;
+        }
 
         Assert.True(forkedTraceCount >= 20);
     }
