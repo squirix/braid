@@ -234,4 +234,15 @@ public sealed class RunException : Exception
         lines.Add("Inner exception:");
         lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
     }
+
+    private static class ReplayFormat
+    {
+        internal static string CanonicalStepLine(ReplayStep step) => step.Kind switch
+        {
+            ReplayStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
+            ReplayStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",
+            ReplayStepKind.Release => $"release {step.WorkerId} {step.ProbeName}",
+            _ => $"{step.Kind} {step.WorkerId} {step.ProbeName}",
+        };
+    }
 }
