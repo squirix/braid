@@ -86,7 +86,7 @@ public sealed class RunException : Exception
     public int Iteration => Context.Iteration;
 
     /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
-    public IReadOnlyList<ReplayStep> Schedule => Context.Schedule;
+    public IReadOnlyList<ReplayStep> Steps => Context.Steps;
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
     public SchedulerDiagnostics? SchedulerDiagnostics => Context.SchedulerDiagnostics;
@@ -95,7 +95,7 @@ public sealed class RunException : Exception
     public int Seed => Context.Seed;
 
     /// <summary>Gets the recorded scheduling trace for the failing iteration.</summary>
-    public IReadOnlyList<string> Trace => Context.Trace;
+    public IReadOnlyList<string> Traces => Context.Traces;
 
     /// <inheritdoc />
     public override string ToString()
@@ -124,19 +124,19 @@ public sealed class RunException : Exception
     /// a diagnostic message; otherwise <see langword="null" /> (including when no typed schedule was configured).
     /// </param>
     /// <returns>
-    /// <see langword="true" /> if <see cref="Schedule" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
+    /// <see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
     /// </returns>
     public bool TryGetReplayText(out string text, out string? error)
     {
         text = string.Empty;
         error = null;
 
-        if (Schedule.Count == 0)
+        if (Steps.Count == 0)
             return false;
 
         try
         {
-            var replaySchedule = ReplaySchedule.Replay(Schedule);
+            var replaySchedule = ReplaySchedule.Replay(Steps);
             text = replaySchedule.ToReplayText();
             return true;
         }
@@ -198,13 +198,13 @@ public sealed class RunException : Exception
 
     private void AppendScheduleSection(List<string> lines)
     {
-        if (Schedule.Count == 0)
+        if (Steps.Count == 0)
             return;
 
         lines.Add("Schedule:");
-        for (var index = 0; index < Schedule.Count; index++)
+        for (var index = 0; index < Steps.Count; index++)
         {
-            var step = Schedule[index];
+            var step = Steps[index];
             lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
         }
 
@@ -223,8 +223,8 @@ public sealed class RunException : Exception
     private void AppendTraceSection(List<string> lines)
     {
         lines.Add("Trace:");
-        for (var index = 0; index < Trace.Count; index++)
-            lines.Add($"  {index + 1}. {Trace[index]}");
+        for (var index = 0; index < Traces.Count; index++)
+            lines.Add($"  {index + 1}. {Traces[index]}");
     }
 
     private void AppendInnerExceptionSection(List<string> lines)

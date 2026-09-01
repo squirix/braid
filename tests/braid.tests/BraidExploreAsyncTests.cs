@@ -171,12 +171,12 @@ public sealed class BraidExploreAsyncTests : TestBase
 
     private static void AssertStableReaderWriterIds(RunException exception)
     {
-        Assert.Contains("reader forked", exception.Trace, StringComparer.Ordinal);
-        Assert.Contains("writer forked", exception.Trace, StringComparer.Ordinal);
-        Assert.Contains("reader hit ready", exception.Trace, StringComparer.Ordinal);
-        Assert.Contains("writer hit ready", exception.Trace, StringComparer.Ordinal);
+        Assert.Contains("reader forked", exception.Traces, StringComparer.Ordinal);
+        Assert.Contains("writer forked", exception.Traces, StringComparer.Ordinal);
+        Assert.Contains("reader hit ready", exception.Traces, StringComparer.Ordinal);
+        Assert.Contains("writer hit ready", exception.Traces, StringComparer.Ordinal);
         var hasWorkerPrefix = false;
-        foreach (var line in exception.Trace)
+        foreach (var line in exception.Traces)
         {
             if (!line.StartsWith("worker-", StringComparison.Ordinal))
                 continue;
@@ -192,10 +192,10 @@ public sealed class BraidExploreAsyncTests : TestBase
         Assert.DoesNotContain("worker-", replayText, StringComparison.Ordinal);
 
         Assert.Contains(
-            exception.Schedule,
+            exception.Steps,
             static step => string.Equals(step.WorkerId, "reader", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
         Assert.Contains(
-            exception.Schedule,
+            exception.Steps,
             static step => string.Equals(step.WorkerId, "writer", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
     }
 

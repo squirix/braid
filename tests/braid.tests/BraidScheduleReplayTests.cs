@@ -90,7 +90,7 @@ public sealed class BraidScheduleReplayTests : TestBase
         foreach (var marker in new[] { "worker-1", "worker-2", "after-read", "before-write" })
         {
             var found = false;
-            foreach (var line in exception.Trace)
+            foreach (var line in exception.Traces)
             {
                 if (!line.Contains(marker, StringComparison.Ordinal))
                     continue;

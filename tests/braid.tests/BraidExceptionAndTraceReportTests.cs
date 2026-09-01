@@ -142,8 +142,8 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                 },
                 DefaultCancellationToken));
 
-        Assert.Equal(3, CountContains(exception.Trace, "worker-1 hit loop"));
-        Assert.Equal(3, CountContains(exception.Trace, "worker-1 released at loop"));
+        Assert.Equal(3, CountContains(exception.Traces, "worker-1 hit loop"));
+        Assert.Equal(3, CountContains(exception.Traces, "worker-1 released at loop"));
     }
 
     /// <summary>Verifies exception formatting succeeds for empty trace and empty schedule.</summary>
@@ -217,8 +217,8 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                 },
                 DefaultCancellationToken));
 
-        Assert.Equal(1, CountContains(exception.Trace, "worker-1 completed"));
-        Assert.Equal(1, CountContains(exception.Trace, "worker-2 completed"));
+        Assert.Equal(1, CountContains(exception.Traces, "worker-1 completed"));
+        Assert.Equal(1, CountContains(exception.Traces, "worker-2 completed"));
     }
 
     /// <summary>Verifies probe release entries appear only after matching probe hits.</summary>
@@ -242,7 +242,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                 },
                 DefaultCancellationToken));
 
-        AssertAppearsBefore(exception.Trace, "worker-1 hit ready", "worker-1 released at ready");
+        AssertAppearsBefore(exception.Traces, "worker-1 hit ready", "worker-1 released at ready");
     }
 
     /// <summary>Verifies trace entries preserve expected fork/release/hit/complete relative order.</summary>
@@ -267,7 +267,7 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                 },
                 DefaultCancellationToken));
 
-        var trace = exception.Trace;
+        var trace = exception.Traces;
         AssertAppearsBefore(trace, "worker-1 forked", "worker-1 hit ready");
         AssertAppearsBefore(trace, "worker-2 forked", "worker-2 hit ready");
         AssertAppearsBefore(trace, "worker-2 released at ready", "worker-1 released at ready");

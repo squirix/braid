@@ -8,7 +8,7 @@ internal sealed class Scheduler : IDisposable
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
     private readonly DeterministicRandom _random;
     private readonly List<Task> _runningForkTasks = [];
-    private readonly IReadOnlyList<ReplayStep>? _schedule;
+    private readonly IReadOnlyList<ReplayStep>? _steps;
     private readonly int _seed;
     private readonly CancellationTokenSource _shutdownCts = new();
     private readonly SemaphoreSlim _stateChanged = new(0);
@@ -19,12 +19,12 @@ internal sealed class Scheduler : IDisposable
     private int _nextScheduleStep;
     private int _nextTaskId;
 
-    internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? schedule)
+    internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? steps)
     {
         _seed = seed;
         _iteration = iteration;
         _timeout = timeout;
-        _schedule = schedule;
+        _steps = steps;
         _random = new DeterministicRandom(seed);
     }
 
@@ -57,7 +57,7 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             traceSnapshot = [.. _trace];
-            scheduleSnapshot = _schedule is null ? [] : [.. _schedule];
+            scheduleSnapshot = _steps is null ? [] : [.. _steps];
             resolvedMessage = AppendReplayState(message);
             diagnostics = BuildDiagnosticSnapshot();
         }
@@ -208,7 +208,7 @@ internal sealed class Scheduler : IDisposable
         if (!_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
             return false;
 
-        if (_schedule is null || _nextScheduleStep >= _schedule.Count)
+        if (_steps is null || _nextScheduleStep >= _steps.Count)
             return true;
         var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
@@ -217,30 +217,30 @@ internal sealed class Scheduler : IDisposable
 
     private string AppendReplayState(string message)
     {
-        if (_schedule is null)
+        if (_steps is null)
             return message;
 
         var details = new List<string>
         {
             message,
-            $"Next replay step: {_nextScheduleStep + 1} of {_schedule.Count}",
+            $"Next replay step: {_nextScheduleStep + 1} of {_steps.Count}",
         };
 
-        if (_nextScheduleStep < _schedule.Count)
-            details.Add($"Next replay operation: {FormatStep(_schedule[_nextScheduleStep])}");
+        if (_nextScheduleStep < _steps.Count)
+            details.Add($"Next replay operation: {FormatStep(_steps[_nextScheduleStep])}");
 
         return string.Join(Environment.NewLine, details);
     }
 
     private SchedulerDiagnostics BuildDiagnosticSnapshot()
     {
-        var hasReplay = _schedule?.Count > 0;
+        var hasReplay = _steps?.Count > 0;
 
         ReplayStep? lastMatched = null;
         int? lastMatchedOneBased = null;
         if (hasReplay && _nextScheduleStep > 0)
         {
-            lastMatched = _schedule![_nextScheduleStep - 1];
+            lastMatched = _steps![_nextScheduleStep - 1];
             lastMatchedOneBased = _nextScheduleStep;
         }
 
@@ -248,14 +248,14 @@ internal sealed class Scheduler : IDisposable
         var held = SchedulerSearch.CollectProbeWaitDiagnostics(_tasks, RunTaskState.Held);
 
         (int OneBasedIndex, ReplayStep Step)[] unused;
-        if (hasReplay && _nextScheduleStep < _schedule!.Count)
+        if (hasReplay && _nextScheduleStep < _steps!.Count)
         {
-            var remaining = _schedule.Count - _nextScheduleStep;
+            var remaining = _steps.Count - _nextScheduleStep;
             unused = new (int, ReplayStep)[remaining];
             for (var index = 0; index < remaining; index++)
             {
                 var scheduleIndex = _nextScheduleStep + index;
-                unused[index] = (scheduleIndex + 1, _schedule[scheduleIndex]);
+                unused[index] = (scheduleIndex + 1, _steps[scheduleIndex]);
             }
         }
         else
@@ -484,10 +484,10 @@ internal sealed class Scheduler : IDisposable
             if (startupTask != null)
                 return startupTask;
 
-            if (_scheduler._schedule is null)
+            if (_scheduler._steps is null)
                 return waitingTasks.Length == 0 ? null : waitingTasks[_scheduler._random.NextInt32(waitingTasks.Length)];
 
-            if (_scheduler._nextScheduleStep >= _scheduler._schedule.Count)
+            if (_scheduler._nextScheduleStep >= _scheduler._steps.Count)
                 throw _scheduler.CreateException("Scripted schedule was exhausted before all workers completed.", null);
 
             return SelectScheduledTask(waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
@@ -507,7 +507,7 @@ internal sealed class Scheduler : IDisposable
 
         private RunTask? SelectScheduledTask(RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
-            var step = _scheduler._schedule![_scheduler._nextScheduleStep];
+            var step = _scheduler._steps![_scheduler._nextScheduleStep];
             var waitingTask = SchedulerSearch.FindWaitingTask(waitingTasks, step.WorkerId, step.ProbeName);
             var heldTask = SchedulerSearch.FindHeldTask(_scheduler._tasks, step.WorkerId, step.ProbeName);
             var sameWorkerBlockedTask = SchedulerSearch.FindSameWorkerBlockedTask(_scheduler._tasks, step.WorkerId);
