@@ -3,7 +3,7 @@ namespace Braid;
 /// <summary>Configures bounded exploration options.</summary>
 public sealed class ExploreOptionsBuilder
 {
-    private readonly TimeSpan _timeout = TimeSpan.FromSeconds(10);
+    private TimeSpan _timeout = TimeSpan.FromSeconds(10);
     private int _seed = Environment.TickCount;
     private int _maxSchedules = 1_000;
     private int _maxStepsPerSchedule = 100;
@@ -36,6 +36,15 @@ public sealed class ExploreOptionsBuilder
     public ExploreOptionsBuilder WithMaxStepsPerSchedule(int maxStepsPerSchedule)
     {
         _maxStepsPerSchedule = maxStepsPerSchedule;
+        return this;
+    }
+
+    /// <summary>Sets the exploration timeout.</summary>
+    /// <param name="timeout">The timeout value.</param>
+    /// <returns>The current builder.</returns>
+    public ExploreOptionsBuilder WithTimeout(TimeSpan timeout)
+    {
+        _timeout = timeout;
         return this;
     }
 }
