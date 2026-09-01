@@ -17,8 +17,10 @@ internal static class ScheduleEnumerator
     private static bool AllWorkersCompleted(string[] workerIds, IReadOnlyList<string>[] sequences, int[] progress)
     {
         for (var index = 0; index < workerIds.Length; index++)
+        {
             if (progress[index] < sequences[index].Count)
                 return false;
+        }
 
         return true;
     }

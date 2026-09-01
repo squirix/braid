@@ -25,8 +25,10 @@ internal static class ScheduleTextParser
         var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
 
         for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
+        {
             if (!TryParseLine(lines[lineIndex], lineIndex + 1, steps, out error))
                 return false;
+        }
 
         if (steps.Count != 0)
             return TryCreateSchedule(steps, out schedule, out error);

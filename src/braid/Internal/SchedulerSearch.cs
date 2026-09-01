@@ -44,8 +44,10 @@ internal static class SchedulerSearch
     {
         var waitingCount = 0;
         for (var index = 0; index < tasks.Count; index++)
+        {
             if (tasks[index].State is RunTaskState.Waiting)
                 waitingCount++;
+        }
 
         if (waitingCount == 0)
             return [];

@@ -22,7 +22,7 @@ internal sealed class RunTask : IDisposable
 
     public string WorkerId { get; }
 
-    internal List<string> ProbeNames { get; } = new();
+    internal List<string> ProbeNames { get; } = [];
 
     public void Release() => _permit.Release();
 

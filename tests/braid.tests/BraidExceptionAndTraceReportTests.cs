@@ -341,8 +341,10 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     {
         var count = 0;
         for (var index = 0; index < trace.Count; index++)
+        {
             if (trace[index].Contains(contains, StringComparison.Ordinal))
                 count++;
+        }
 
         return count;
     }
@@ -350,8 +352,10 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
     private static int IndexOfContains(IReadOnlyList<string> trace, string contains)
     {
         for (var i = 0; i < trace.Count; i++)
+        {
             if (trace[i].Contains(contains, StringComparison.Ordinal))
                 return i;
+        }
 
         return -1;
     }
