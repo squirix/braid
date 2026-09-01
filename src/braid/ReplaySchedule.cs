@@ -25,7 +25,7 @@ public sealed class ReplaySchedule
     {
         ArgumentNullException.ThrowIfNull(text);
 
-        return ScheduleTextParser.TryParseScheduleText(text, out var schedule, out var error) ? schedule : throw new FormatException(error);
+        return TryParseScheduleText(text, out var schedule, out var error) ? schedule : throw new FormatException(error);
     }
 
     /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
@@ -52,7 +52,7 @@ public sealed class ReplaySchedule
     /// <param name="error">A diagnostic message when this method returns <see langword="false" />.</param>
     /// <returns><see langword="true" /> if parsing succeeded; otherwise <see langword="false" />.</returns>
     public static bool TryParse(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error) =>
-        ScheduleTextParser.TryParseScheduleText(text, out schedule, out error);
+        TryParseScheduleText(text, out schedule, out error);
 
     /// <summary>
     /// Returns a canonical line-based replay schedule using lower-case operation names and <see cref="Environment.NewLine" /> between steps.
@@ -119,155 +119,152 @@ public sealed class ReplaySchedule
         }
     }
 
-    private static class ScheduleTextParser
+    private static bool TryParseScheduleText(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
     {
-        internal static bool TryParseScheduleText(string? text, [NotNullWhen(true)] out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
+        schedule = null;
+        error = null;
+
+        if (text == null)
         {
-            schedule = null;
-            error = null;
-
-            if (text == null)
-            {
-                error = "Text must not be null.";
-                return false;
-            }
-
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                error = "Text is empty or contains only whitespace.";
-                return false;
-            }
-
-            var steps = new List<ReplayStep>();
-            var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
-
-            for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
-            {
-                if (!TryParseLine(lines[lineIndex], lineIndex + 1, steps, out error))
-                    return false;
-            }
-
-            if (steps.Count != 0)
-                return TryCreateSchedule(steps, out schedule, out error);
-
-            error = "Text contains no replay steps (only comments or empty lines).";
+            error = "Text must not be null.";
             return false;
         }
 
-        private static bool TryCreateSchedule(List<ReplayStep> steps, out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
+        if (string.IsNullOrWhiteSpace(text))
         {
-            schedule = null;
-            error = null;
-
-            try
-            {
-                schedule = Replay(steps);
-                return true;
-            }
-            catch (ArgumentException ex)
-            {
-                error = ex.Message;
-                return false;
-            }
-        }
-
-        private static bool TryCreateStep(ReplayStepKind kind, string workerId, string probeName, int lineNumber, out ReplayStep step, [NotNullWhen(false)] out string? error)
-        {
-            error = null;
-            switch (kind)
-            {
-                case ReplayStepKind.Hit:
-                    step = ReplayStep.Hit(workerId, probeName);
-                    return true;
-                case ReplayStepKind.Arrive:
-                    step = ReplayStep.Arrive(workerId, probeName);
-                    return true;
-                case ReplayStepKind.Release:
-                    step = ReplayStep.Release(workerId, probeName);
-                    return true;
-                default:
-                    step = default;
-                    error = $"Line {lineNumber}: Unknown braid step kind '{kind}'.";
-                    return false;
-            }
-        }
-
-        private static bool TryParseLine(string rawLine, int lineNumber, List<ReplayStep> steps, [NotNullWhen(false)] out string? error)
-        {
-            error = null;
-            var line = rawLine.Trim();
-            if (line.Length == 0 || line[0] == '#')
-                return true;
-
-            char[]? separators = null;
-            var tokens = line.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length > 3)
-            {
-                error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
-                return false;
-            }
-
-            if (!TryParseOperation(tokens[0], out var kind))
-            {
-                error = $"Line {lineNumber}: Unknown operation '{tokens[0]}'. Expected 'hit', 'arrive', or 'release'.";
-                return false;
-            }
-
-            if (!TryParseWorkerAndProbe(tokens, lineNumber, out var workerId, out var probeName, out error))
-                return false;
-
-            if (!TryCreateStep(kind, workerId, probeName, lineNumber, out var step, out error))
-                return false;
-
-            steps.Add(step);
-            return true;
-        }
-
-        private static bool TryParseOperation(string token, out ReplayStepKind kind)
-        {
-            if (token.Equals("hit", StringComparison.OrdinalIgnoreCase))
-            {
-                kind = ReplayStepKind.Hit;
-                return true;
-            }
-
-            if (token.Equals("arrive", StringComparison.OrdinalIgnoreCase))
-            {
-                kind = ReplayStepKind.Arrive;
-                return true;
-            }
-
-            if (token.Equals("release", StringComparison.OrdinalIgnoreCase))
-            {
-                kind = ReplayStepKind.Release;
-                return true;
-            }
-
-            kind = default;
+            error = "Text is empty or contains only whitespace.";
             return false;
         }
 
-        private static bool TryParseWorkerAndProbe(string[] tokens, int lineNumber, out string workerId, out string probeName, [NotNullWhen(false)] out string? error)
+        var steps = new List<ReplayStep>();
+        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
+
+        for (var lineIndex = 0; lineIndex < lines.Length; lineIndex++)
         {
-            error = null;
-            workerId = string.Empty;
-            probeName = string.Empty;
+            if (!TryParseLine(lines[lineIndex], lineIndex + 1, steps, out error))
+                return false;
+        }
 
-            switch (tokens.Length)
-            {
-                case 1:
-                    error = $"Line {lineNumber}: Missing worker id and probe name.";
-                    return false;
-                case 2:
-                    error = $"Line {lineNumber}: Missing probe name.";
-                    return false;
-                case 3:
-                    workerId = tokens[1];
-                    probeName = tokens[2];
-                    break;
-            }
+        if (steps.Count != 0)
+            return TryCreateScheduleFromParsed(steps, out schedule, out error);
 
+        error = "Text contains no replay steps (only comments or empty lines).";
+        return false;
+    }
+
+    private static bool TryCreateScheduleFromParsed(List<ReplayStep> steps, out ReplaySchedule? schedule, [NotNullWhen(false)] out string? error)
+    {
+        schedule = null;
+        error = null;
+
+        try
+        {
+            schedule = Replay(steps);
             return true;
         }
+        catch (ArgumentException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryCreateStep(ReplayStepKind kind, string workerId, string probeName, int lineNumber, out ReplayStep step, [NotNullWhen(false)] out string? error)
+    {
+        error = null;
+        switch (kind)
+        {
+            case ReplayStepKind.Hit:
+                step = ReplayStep.Hit(workerId, probeName);
+                return true;
+            case ReplayStepKind.Arrive:
+                step = ReplayStep.Arrive(workerId, probeName);
+                return true;
+            case ReplayStepKind.Release:
+                step = ReplayStep.Release(workerId, probeName);
+                return true;
+            default:
+                step = default;
+                error = $"Line {lineNumber}: Unknown braid step kind '{kind}'.";
+                return false;
+        }
+    }
+
+    private static bool TryParseLine(string rawLine, int lineNumber, List<ReplayStep> steps, [NotNullWhen(false)] out string? error)
+    {
+        error = null;
+        var line = rawLine.Trim();
+        if (line.Length == 0 || line[0] == '#')
+            return true;
+
+        char[]? separators = null;
+        var tokens = line.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length > 3)
+        {
+            error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
+            return false;
+        }
+
+        if (!TryParseOperation(tokens[0], out var kind))
+        {
+            error = $"Line {lineNumber}: Unknown operation '{tokens[0]}'. Expected 'hit', 'arrive', or 'release'.";
+            return false;
+        }
+
+        if (!TryParseWorkerAndProbe(tokens, lineNumber, out var workerId, out var probeName, out error))
+            return false;
+
+        if (!TryCreateStep(kind, workerId, probeName, lineNumber, out var step, out error))
+            return false;
+
+        steps.Add(step);
+        return true;
+    }
+
+    private static bool TryParseOperation(string token, out ReplayStepKind kind)
+    {
+        if (token.Equals("hit", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = ReplayStepKind.Hit;
+            return true;
+        }
+
+        if (token.Equals("arrive", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = ReplayStepKind.Arrive;
+            return true;
+        }
+
+        if (token.Equals("release", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = ReplayStepKind.Release;
+            return true;
+        }
+
+        kind = default;
+        return false;
+    }
+
+    private static bool TryParseWorkerAndProbe(string[] tokens, int lineNumber, out string workerId, out string probeName, [NotNullWhen(false)] out string? error)
+    {
+        error = null;
+        workerId = string.Empty;
+        probeName = string.Empty;
+
+        switch (tokens.Length)
+        {
+            case 1:
+                error = $"Line {lineNumber}: Missing worker id and probe name.";
+                return false;
+            case 2:
+                error = $"Line {lineNumber}: Missing probe name.";
+                return false;
+            case 3:
+                workerId = tokens[1];
+                probeName = tokens[2];
+                break;
+        }
+
+        return true;
     }
 }

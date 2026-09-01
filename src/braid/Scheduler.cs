@@ -1,5 +1,3 @@
-using Braid.Attributes;
-
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -39,8 +37,6 @@ internal sealed class Scheduler : IDisposable
         if (!_shutdownCts.IsCancellationRequested)
             _shutdownCts.Cancel();
 
-        // All disposed resources tolerate repeated Dispose calls, so multiple
-        // calls to Dispose are safe (the scheduler is not reused after dispose).
         _shutdownCts.Dispose();
         _stateChanged.Dispose();
         _joinMutex.Dispose();
@@ -202,9 +198,6 @@ internal sealed class Scheduler : IDisposable
         await WaitForRunningTasksAsync().ConfigureAwait(false);
     }
 
-    private static string FormatStep(ReplayStep step) =>
-        step.Kind is ReplayStepKind.Hit ? $"Hit {step.WorkerId} at {step.ProbeName}" : $"{step.Kind} {step.WorkerId} at {step.ProbeName}";
-
     private bool AllJoinWorkCompleted()
     {
         if (!_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
@@ -229,9 +222,17 @@ internal sealed class Scheduler : IDisposable
         };
 
         if (_nextScheduleStep < _steps.Count)
-            details.Add($"Next replay operation: {FormatStep(_steps[_nextScheduleStep])}");
+        {
+            var step = _steps[_nextScheduleStep];
+            details.Add($"Next replay operation: {FormatStepLocal(step)}");
+        }
 
         return string.Join(Environment.NewLine, details);
+
+        static string FormatStepLocal(ReplayStep s)
+        {
+            return s.Kind is ReplayStepKind.Hit ? $"Hit {s.WorkerId} at {s.ProbeName}" : $"{s.Kind} {s.WorkerId} at {s.ProbeName}";
+        }
     }
 
     private SchedulerDiagnostics BuildDiagnosticSnapshot()
@@ -338,7 +339,6 @@ internal sealed class Scheduler : IDisposable
 
     private async Task RunJoinSchedulerLoopAsync(CancellationToken cancellationToken, CancellationToken linkedToken)
     {
-        var matching = new SchedulerMatching(this);
         while (true)
         {
             linkedToken.ThrowIfCancellationRequested();
@@ -348,7 +348,19 @@ internal sealed class Scheduler : IDisposable
 
             lock (_gate)
             {
-                nextTask = matching.TrySelectNextJoinTask(cancellationToken, ref advancedWithoutRelease);
+                var context = new SchedulerJoinContext
+                {
+                    Tasks = _tasks,
+                    NextScheduleStep = _nextScheduleStep,
+                    Steps = _steps,
+                    Random = _random,
+                    Trace = _trace,
+                    CreateException = CreateException,
+                };
+
+                nextTask = SchedulerSearch.TrySelectNextJoinTask(ref context, cancellationToken, ref advancedWithoutRelease);
+                _nextScheduleStep = context.NextScheduleStep;
+
                 switch (nextTask)
                 {
                     case null when advancedWithoutRelease:
@@ -407,125 +419,6 @@ internal sealed class Scheduler : IDisposable
         }
 
         await all.ConfigureAwait(false);
-    }
-
-    [Immutable]
-    private sealed class SchedulerMatching
-    {
-        private readonly Scheduler _scheduler;
-
-        internal SchedulerMatching(Scheduler scheduler)
-        {
-            _scheduler = scheduler;
-        }
-
-        internal RunTask? TrySelectNextJoinTask(CancellationToken cancellationToken, ref bool advancedWithoutRelease)
-        {
-            var failure = SchedulerSearch.FindFirstFailedException(_scheduler._tasks);
-            if (failure != null)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                throw _scheduler.CreateException("A forked operation failed.", failure, RunFailureOrigin.UserTest);
-            }
-
-            if (_scheduler._tasks.Count == 0 || _scheduler._tasks.TrueForAll(static task => task.State is RunTaskState.Completed))
-                return null;
-
-            var waitingTasks = SchedulerSearch.CollectWaitingTasksSortedById(_scheduler._tasks);
-            var hasRunningTasks = _scheduler._tasks.Exists(static task => task.State is RunTaskState.Running);
-            return SelectNextTask(waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
-        }
-
-        private static string BuildStepMismatchMessage(int stepIndex, string action, ReplayStep expectedStep, RunTask? sameWorkerBlockedTask)
-        {
-            var oneBasedIndex = stepIndex + 1;
-            return sameWorkerBlockedTask?.LastProbeName == null
-                ? $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}."
-                : $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
-        }
-
-        private static RunTask? TrySelectStartupTask(RunTask[] waitingTasks)
-        {
-            for (var index = 0; index < waitingTasks.Length; index++)
-            {
-                var task = waitingTasks[index];
-                if (task.LastProbeName == null)
-                    return task;
-            }
-
-            return null;
-        }
-
-        private RunTask? SelectArriveStep(ReplayStep step, RunTask? waitingTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks, ref bool advancedWithoutRelease)
-        {
-            if (waitingTask == null)
-            {
-                var message = BuildStepMismatchMessage(_scheduler._nextScheduleStep, "arrive", step, sameWorkerBlockedTask);
-                return hasRunningTasks ? null : throw _scheduler.CreateException(message, null);
-            }
-
-            waitingTask.State = RunTaskState.Held;
-            _scheduler._nextScheduleStep++;
-            advancedWithoutRelease = true;
-            _scheduler._trace.Add($"{waitingTask.WorkerId} arrival observed at {waitingTask.LastProbeName} (held)");
-            return null;
-        }
-
-        private RunTask? SelectHitStep(ReplayStep step, RunTask? waitingTask, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
-        {
-            var releasableTask = heldTask ?? waitingTask;
-            if (releasableTask == null)
-                return hasRunningTasks ? null : throw _scheduler.CreateException(BuildStepMismatchMessage(_scheduler._nextScheduleStep, "hit", step, sameWorkerBlockedTask), null);
-
-            _scheduler._nextScheduleStep++;
-            return releasableTask;
-        }
-
-        private RunTask? SelectNextTask(RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
-        {
-            var startupTask = TrySelectStartupTask(waitingTasks);
-            if (startupTask != null)
-                return startupTask;
-
-            if (_scheduler._steps is null)
-                return waitingTasks.Length == 0 ? null : waitingTasks[_scheduler._random.NextInt32(waitingTasks.Length)];
-
-            if (_scheduler._nextScheduleStep >= _scheduler._steps.Count)
-                throw _scheduler.CreateException("Scripted schedule was exhausted before all workers completed.", null);
-
-            return SelectScheduledTask(waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
-        }
-
-        private RunTask? SelectReleaseStep(ReplayStep step, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
-        {
-            if (heldTask == null)
-            {
-                var message = BuildStepMismatchMessage(_scheduler._nextScheduleStep, "release held", step, sameWorkerBlockedTask);
-                return hasRunningTasks ? null : throw _scheduler.CreateException(message, null);
-            }
-
-            _scheduler._nextScheduleStep++;
-            return heldTask;
-        }
-
-        private RunTask? SelectScheduledTask(RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
-        {
-            var step = _scheduler._steps![_scheduler._nextScheduleStep];
-            var waitingTask = SchedulerSearch.FindWaitingTask(waitingTasks, step.WorkerId, step.ProbeName);
-            var heldTask = SchedulerSearch.FindHeldTask(_scheduler._tasks, step.WorkerId, step.ProbeName);
-            var sameWorkerBlockedTask = SchedulerSearch.FindSameWorkerBlockedTask(_scheduler._tasks, step.WorkerId);
-
-            return step.Kind switch
-            {
-                ReplayStepKind.Hit => SelectHitStep(step, waitingTask, heldTask, sameWorkerBlockedTask, hasRunningTasks),
-                ReplayStepKind.Arrive when heldTask != null => throw _scheduler.CreateException(
-                    $"Scripted schedule step {_scheduler._nextScheduleStep + 1} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
-                    null),
-                ReplayStepKind.Arrive => SelectArriveStep(step, waitingTask, sameWorkerBlockedTask, hasRunningTasks, ref advancedWithoutRelease),
-                ReplayStepKind.Release => SelectReleaseStep(step, heldTask, sameWorkerBlockedTask, hasRunningTasks),
-                _ => throw _scheduler.CreateException($"Scripted schedule step {_scheduler._nextScheduleStep + 1} has unknown step kind {step.Kind}.", null),
-            };
-        }
     }
 
     private sealed class ForkOperationRegistration
