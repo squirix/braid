@@ -14,7 +14,7 @@ public sealed class RunException : Exception
     /// Initializes a new instance of the <see cref="RunException" /> class.
     /// </summary>
     public RunException()
-        : this("A braid run failed.", 0, 0, [], null, null)
+        : this("A braid run failed.", new RunExceptionContext(0, 0, [], []))
     {
     }
 
@@ -23,7 +23,7 @@ public sealed class RunException : Exception
     /// </summary>
     /// <param name="message">The exception message.</param>
     public RunException(string message)
-        : this(message, 0, 0, [], null, null)
+        : this(message, new RunExceptionContext(0, 0, [], []))
     {
     }
 
@@ -33,7 +33,7 @@ public sealed class RunException : Exception
     /// <param name="message">The exception message.</param>
     /// <param name="innerException">The underlying exception.</param>
     public RunException(string message, Exception innerException)
-        : this(message, 0, 0, [], null, innerException)
+        : this(message, new RunExceptionContext(0, 0, [], []), innerException)
     {
     }
 
@@ -46,46 +46,56 @@ public sealed class RunException : Exception
     /// <param name="trace">The recorded scheduling trace.</param>
     /// <param name="schedule">The configured replay schedule.</param>
     /// <param name="innerException">The underlying exception.</param>
-    /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
-    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
     public RunException(
         string message,
         int seed,
         int iteration,
         IReadOnlyList<string> trace,
         IReadOnlyList<ReplayStep>? schedule,
-        Exception? innerException,
-        SchedulerDiagnostics? schedulerDiagnostics = null,
+        Exception? innerException)
+        : this(message, new RunExceptionContext(seed, iteration, trace, schedule ?? []), innerException)
+    {
+    }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RunException" /> class.
+    /// </summary>
+    /// <param name="message">The exception message.</param>
+    /// <param name="context">Reproducibility context for the failure.</param>
+    /// <param name="innerException">The underlying exception.</param>
+    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
+    public RunException(
+        string message,
+        RunExceptionContext context,
+        Exception? innerException = null,
         RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
         : base(message, innerException)
     {
-        ArgumentNullException.ThrowIfNull(trace);
-
-        Seed = seed;
-        Iteration = iteration;
-        Trace = Array.AsReadOnly([.. trace]);
-        Schedule = schedule is null ? Array.Empty<ReplayStep>() : Array.AsReadOnly([.. schedule]);
-        SchedulerDiagnostics = schedulerDiagnostics;
+        ArgumentNullException.ThrowIfNull(context);
+        Context = context;
         FailureOrigin = failureOrigin;
     }
 
     /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
     public RunFailureOrigin FailureOrigin { get; }
 
+    /// <summary>Gets the reproducibility context for the failure.</summary>
+    public RunExceptionContext Context { get; }
+
     /// <summary>Gets the zero-based failing iteration index.</summary>
-    public int Iteration { get; }
+    public int Iteration => Context.Iteration;
 
     /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
-    public IReadOnlyList<ReplayStep> Schedule { get; }
+    public IReadOnlyList<ReplayStep> Schedule => Context.Schedule;
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
-    public SchedulerDiagnostics? SchedulerDiagnostics { get; }
+    public SchedulerDiagnostics? SchedulerDiagnostics => Context.SchedulerDiagnostics;
 
     /// <summary>Gets the seed used for the failing iteration.</summary>
-    public int Seed { get; }
+    public int Seed => Context.Seed;
 
     /// <summary>Gets the recorded scheduling trace for the failing iteration.</summary>
-    public IReadOnlyList<string> Trace { get; }
+    public IReadOnlyList<string> Trace => Context.Trace;
 
     /// <inheritdoc />
     public override string ToString()

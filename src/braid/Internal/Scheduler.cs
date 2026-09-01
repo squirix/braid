@@ -43,7 +43,7 @@ internal sealed class Scheduler : IDisposable
             diagnostics = BuildDiagnosticSnapshot();
         }
 
-        return new RunException(resolvedMessage, _seed, _iteration, traceSnapshot, scheduleSnapshot, innerException, diagnostics, failureOrigin);
+        return new RunException(resolvedMessage, new RunExceptionContext(_seed, _iteration, traceSnapshot, scheduleSnapshot, diagnostics), innerException, failureOrigin);
     }
 
     public void Fork(Func<Task> operation) => Fork(null, operation);
