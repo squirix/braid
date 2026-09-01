@@ -1,5 +1,3 @@
-using Braid.Attributes;
-
 namespace Braid;
 
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
@@ -101,6 +99,9 @@ public static class Runner
         }
 
         var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? new Dictionary<string, List<string>>(StringComparer.Ordinal);
+
+        // If the discovery failure targets the user test and no probe sequences were learned, there is nothing to explore — surface it immediately.
+        // When sequences were discovered, the failure is deferred: generated schedules may reproduce it under deterministic replay.
         if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count == 0)
             throw discoveryFailure;
 
@@ -177,7 +178,7 @@ public static class Runner
             }
             catch (RunException ex)
             {
-                System.Diagnostics.Trace.TraceInformation($"Braid: skipping non-target schedule ({ex.Message}).");
+                System.Diagnostics.Trace.TraceInformation($"Braid: skipping non-target schedule ({ex}).");
             }
         }
     }
@@ -358,7 +359,6 @@ public static class Runner
             return true;
         }
 
-        [Immutable]
         private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int NextWorkerIndex);
     }
 

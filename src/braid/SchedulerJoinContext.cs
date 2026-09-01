@@ -1,8 +1,5 @@
-using Braid.Attributes;
-
 namespace Braid;
 
-[Immutable]
 internal sealed class SchedulerJoinContext
 {
     internal required List<RunTask> Tasks { get; init; }

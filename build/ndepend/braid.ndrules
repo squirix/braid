@@ -106,12 +106,15 @@ select new { m, mutableFieldsUsed, Debt = 10.ToMinutes().ToDebt(), Severity = Se
 // <Id>ND1910:ImmutableTypesShouldBeTaggedWithImmutable</Id>
 // ND1910 braid override: report immutable types unless they are already tagged
 // with NDepend's [Immutable] attribute or are compiler-generated.
+// ExploreContext wraps mutable RunContext; SearchFrame holds mutable List/array — both are intentionally untagged.
 warnif count > 0
 from t in JustMyCode.Types
 where t.IsImmutable &&
       !t.HasAttribute("Braid.Attributes.ImmutableAttribute".AllowNoMatch()) &&
       !t.IsGeneratedByCompiler &&
-      !t.HasAttribute("System.CodeDom.Compiler.GeneratedCodeAttribute".AllowNoMatch())
+      !t.HasAttribute("System.CodeDom.Compiler.GeneratedCodeAttribute".AllowNoMatch()) &&
+      t.FullName != "Braid.ExploreContext" &&
+      t.SimpleName != "SearchFrame"
 select new { t, t.NbLinesOfCode, Debt = 10.ToMinutes().ToDebt(), Severity = Severity.Medium }]]></Query>
       <Query Active="True" DisplayList="True" DisplayStat="False" DisplaySelectionView="False" IsCriticalRule="False" RuleToken="ND1108" Group="Code Smells Regression"><![CDATA[// <Name>Avoid transforming an immutable type into a mutable one</Name>
 // <Id>ND1108:AvoidTransformingAnImmutableTypeIntoAMutableOne</Id>
