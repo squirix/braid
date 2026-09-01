@@ -347,11 +347,13 @@ internal sealed class Scheduler : IDisposable
             lock (_gate)
             {
                 nextTask = matching.TrySelectNextJoinTask(cancellationToken, ref advancedWithoutRelease);
-                if (nextTask == null && advancedWithoutRelease)
-                    continue;
-
-                if (nextTask == null && AllJoinWorkCompleted())
-                    return;
+                switch (nextTask)
+                {
+                    case null when advancedWithoutRelease:
+                        continue;
+                    case null when AllJoinWorkCompleted():
+                        return;
+                }
 
                 if (nextTask != null)
                 {

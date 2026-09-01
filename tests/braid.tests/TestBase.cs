@@ -19,7 +19,7 @@ public abstract class TestBase
     protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout = default, bool prefixWatchdogMessage = true)
     {
         ArgumentNullException.ThrowIfNull(startTask);
-        var effectiveTimeout = watchdogTimeout == default ? TimeSpan.FromSeconds(2) : watchdogTimeout;
+        var effectiveTimeout = watchdogTimeout == TimeSpan.Zero ? TimeSpan.FromSeconds(2) : watchdogTimeout;
         return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, prefixWatchdogMessage);
     }
 

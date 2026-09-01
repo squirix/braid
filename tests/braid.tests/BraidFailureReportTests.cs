@@ -396,7 +396,16 @@ public sealed class BraidFailureReportTests : TestBase
         var exception = await Assertions.ExpectsAsync<RunException>(operation);
 
         Assert.Equal(12345, exception.Seed);
-        Assert.Contains(exception.Trace, static line => line.Contains("before-failure", StringComparison.Ordinal));
+        var sawBeforeFailure = false;
+        foreach (var line in exception.Trace)
+        {
+            if (!line.Contains("before-failure", StringComparison.Ordinal))
+                continue;
+            sawBeforeFailure = true;
+            break;
+        }
+
+        Assert.True(sawBeforeFailure, "Trace should mention the before-failure marker.");
         var report = exception.ToString();
         Assert.Contains("Seed: 12345", report, StringComparison.Ordinal);
         Assert.Contains("Iteration:", report, StringComparison.Ordinal);

@@ -12,14 +12,15 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
     {
         using var cts = new CancellationTokenSource();
 
-        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException>(
-            Runner.RunAsync(
+        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException, CancellationTokenSource>(
+            cts,
+            static state => Runner.RunAsync(
                 async _ =>
                 {
-                    await cts.CancelAsync();
-                    cts.Token.ThrowIfCancellationRequested();
+                    await state.CancelAsync();
+                    state.Token.ThrowIfCancellationRequested();
                 },
-                cts.Token));
+                state.Token));
     }
 
     /// <summary>Verifies canceling token after completion does not affect completed runs.</summary>
@@ -42,7 +43,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         await Probe.HitAsync("outside", DefaultCancellationToken);
     }
 
-    /// <summary>Verifies external cancellation surfaces as operation canceled and not braid run exception.</summary>
+    /// <summary>Verifies external cancellation surfaces as operation-canceled and not braid run exception.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task ExternalCancellationNoRunException()
@@ -50,7 +51,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         using var cts = new CancellationTokenSource();
         await cts.CancelAsync();
 
-        _ = Assertions.Expects<OperationCanceledException>(() => { _ = Runner.RunAsync(static _ => Task.CompletedTask, cts.Token); });
+        _ = await Assertions.ExpectsAsync<OperationCanceledException, CancellationTokenSource>(cts, static state => Runner.RunAsync(static _ => Task.CompletedTask, state.Token));
     }
 
     /// <summary>Verifies large replay schedules can be created and reused.</summary>
@@ -287,7 +288,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         Assert.Contains("ready", exception.ToString(), StringComparison.Ordinal);
     }
 
-    /// <summary>Verifies worker-local cancellation before first probe is reported with fork trace.</summary>
+    /// <summary>Verifies worker-local cancellation before the first probe is reported with fork trace.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task WorkerLocalCancelBeforeProbeAsFailure()
@@ -314,7 +315,7 @@ public sealed class BraidSchedulerScopeAndCancellationTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 
-    /// <summary>Verifies startup release is traced before first probe hit.</summary>
+    /// <summary>Verifies startup release is traced before the first probe hit.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task WorkerStartupReleaseReportedFirstProbe()

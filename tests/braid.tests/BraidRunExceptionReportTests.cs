@@ -27,7 +27,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
                 DefaultCancellationToken));
 
         var list = Assert.IsType<IList<ReplayStep>>(exception.Schedule, false);
-        _ = Assertions.ExpectsAny<Exception>(() => list[0] = new ReplayStep("worker-9", "changed"));
+        _ = Assertions.ExpectsAny<Exception, IList<ReplayStep>>(list, static state => state[0] = new ReplayStep("worker-9", "changed"));
 
         Assert.Contains("worker-1 @ expected", exception.ToString(), StringComparison.Ordinal);
     }
@@ -53,7 +53,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
                 DefaultCancellationToken));
 
         var traceList = Assert.IsType<IList<string>>(exception.Trace, false);
-        _ = Assertions.ExpectsAny<Exception>(() => traceList[0] = "mutated");
+        _ = Assertions.ExpectsAny<Exception, IList<string>>(traceList, static state => state[0] = "mutated");
 
         Assert.Contains("worker-1 hit actual", exception.ToString(), StringComparison.Ordinal);
     }

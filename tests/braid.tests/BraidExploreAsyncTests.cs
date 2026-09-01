@@ -171,11 +171,20 @@ public sealed class BraidExploreAsyncTests : TestBase
 
     private static void AssertStableReaderWriterIds(RunException exception)
     {
-        Assert.Contains(exception.Trace, static line => string.Equals(line, "reader forked", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => string.Equals(line, "writer forked", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => string.Equals(line, "reader hit ready", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => string.Equals(line, "writer hit ready", StringComparison.Ordinal));
-        Assert.DoesNotContain(exception.Trace, static line => line.StartsWith("worker-", StringComparison.Ordinal));
+        Assert.Contains("reader forked", exception.Trace, StringComparer.Ordinal);
+        Assert.Contains("writer forked", exception.Trace, StringComparer.Ordinal);
+        Assert.Contains("reader hit ready", exception.Trace, StringComparer.Ordinal);
+        Assert.Contains("writer hit ready", exception.Trace, StringComparer.Ordinal);
+        var hasWorkerPrefix = false;
+        foreach (var line in exception.Trace)
+        {
+            if (!line.StartsWith("worker-", StringComparison.Ordinal))
+                continue;
+            hasWorkerPrefix = true;
+            break;
+        }
+
+        Assert.False(hasWorkerPrefix, "Trace should not contain worker-prefixed entries.");
 
         Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
         Assert.Contains("reader", replayText, StringComparison.Ordinal);

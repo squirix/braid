@@ -87,9 +87,18 @@ public sealed class BraidScheduleReplayTests : TestBase
                 DefaultCancellationToken));
 
         Assert.Equal(12345, exception.Seed);
-        Assert.Contains(exception.Trace, static line => line.Contains("worker-1", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => line.Contains("worker-2", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => line.Contains("after-read", StringComparison.Ordinal));
-        Assert.Contains(exception.Trace, static line => line.Contains("before-write", StringComparison.Ordinal));
+        foreach (var marker in new[] { "worker-1", "worker-2", "after-read", "before-write" })
+        {
+            var found = false;
+            foreach (var line in exception.Trace)
+            {
+                if (!line.Contains(marker, StringComparison.Ordinal))
+                    continue;
+                found = true;
+                break;
+            }
+
+            Assert.True(found, $"Trace should mention '{marker}'.");
+        }
     }
 }

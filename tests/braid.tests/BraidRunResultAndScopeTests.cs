@@ -99,22 +99,25 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         using var canceled = new CancellationTokenSource();
         await canceled.CancelAsync();
 
-        var executed = false;
+        var executed = new[] { false };
 
-        _ = Assertions.Expects<OperationCanceledException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    executed = true;
-                    _ = context;
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Iterations = 1, Seed = 12345 },
-                canceled.Token);
-        });
+        _ = Assertions.Expects<OperationCanceledException, CancellationTokenSource, bool[]>(
+            canceled,
+            executed,
+            static (state, executed) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        executed[0] = true;
+                        _ = context;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Iterations = 1, Seed = 12345 },
+                    state.Token);
+            });
 
-        Assert.False(executed);
+        Assert.False(executed[0]);
     }
 
     /// <summary>Verifies failure reports snapshot schedule and are not affected by later caller mutations.</summary>
@@ -160,9 +163,9 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         Assert.Equal(new ReplayStep("worker-1", "ready"), steps[0]);
 
         var list = Assert.IsType<IList<ReplayStep>>(steps, false);
-        _ = Assertions.Expects<NotSupportedException>(() => list.Add(new ReplayStep("worker-2", "x")));
-        _ = Assertions.Expects<NotSupportedException>(list.Clear);
-        _ = Assertions.Expects<NotSupportedException>(() => list[0] = new ReplayStep("worker-9", "mutated"));
+        _ = Assertions.Expects<NotSupportedException, IList<ReplayStep>>(list, static state => state.Add(new ReplayStep("worker-2", "x")));
+        _ = Assertions.Expects<NotSupportedException, IList<ReplayStep>>(list, static state => state.Clear());
+        _ = Assertions.Expects<NotSupportedException, IList<ReplayStep>>(list, static state => state[0] = new ReplayStep("worker-9", "mutated"));
 
         Assert.Equal(new ReplayStep("worker-1", "ready"), schedule.Steps[0]);
     }

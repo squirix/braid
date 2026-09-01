@@ -15,7 +15,7 @@ public sealed class BraidApiContractTests : TestBase
             {
                 await context.JoinAsync(DefaultCancellationToken);
 
-                var exception = Assertions.Expects<RunException>(() => context.Fork(static () => Task.CompletedTask));
+                var exception = Assertions.Expects<RunException, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
                 Assert.Contains("Cannot fork after JoinAsync has started.", exception.Message, StringComparison.Ordinal);
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
@@ -30,7 +30,7 @@ public sealed class BraidApiContractTests : TestBase
         return Runner.RunAsync(
             static context =>
             {
-                _ = Assertions.Expects<ArgumentNullException>(() => context.Fork(NullTestValues.ForkOperation));
+                _ = Assertions.Expects<ArgumentNullException, RunContext>(context, static state => state.Fork(NullTestValues.ForkOperation));
                 return Task.CompletedTask;
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
@@ -45,7 +45,7 @@ public sealed class BraidApiContractTests : TestBase
         return Runner.RunAsync(
             static context =>
             {
-                _ = Assertions.Expects<ArgumentNullException>(() => context.Fork(NullTestValues.String, static () => Task.CompletedTask));
+                _ = Assertions.Expects<ArgumentNullException, RunContext>(context, static state => state.Fork(NullTestValues.String, static () => Task.CompletedTask));
                 return Task.CompletedTask;
             },
             new RunOptions { Iterations = 1, Seed = 12345 },

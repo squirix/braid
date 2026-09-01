@@ -55,14 +55,15 @@ public sealed class BraidCallbackFaultReportingTests : TestBase
     public async Task RunCallbackCanceledTaskSurfacesCanceled()
     {
         using var cts = new CancellationTokenSource();
-        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException>(
-            Runner.RunAsync(
+        _ = await Assertions.ExpectsAnyAsync<OperationCanceledException, CancellationTokenSource>(
+            cts,
+            static state => Runner.RunAsync(
                 async _ =>
                 {
-                    await cts.CancelAsync();
-                    await Task.FromCanceled(cts.Token);
+                    await state.CancelAsync();
+                    await Task.FromCanceled(state.Token);
                 },
-                cts.Token));
+                state.Token));
     }
 
     /// <summary>Verifies callback canceled task with unrelated token is treated as callback failure.</summary>
