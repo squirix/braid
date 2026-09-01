@@ -27,14 +27,14 @@ public sealed class UnsafeUserOperationLimiter
     public async Task<bool> TryEnterAsync(CancellationToken cancellationToken)
     {
         _ = _activeOperations.TryGetValue(_userId, out var current);
-        await BraidProbe.HitAsync("after-read", cancellationToken);
+        await Probe.HitAsync("after-read", cancellationToken);
 
         if (current >= _limit)
         {
             return false;
         }
 
-        await BraidProbe.HitAsync("before-write", cancellationToken);
+        await Probe.HitAsync("before-write", cancellationToken);
         _activeOperations[_userId] = current + 1;
         return true;
     }

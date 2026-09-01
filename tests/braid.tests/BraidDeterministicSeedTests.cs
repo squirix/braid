@@ -26,7 +26,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
     [Fact]
     public async Task RunAsyncScriptedIgnoresRandomSeed()
     {
-        var schedule = BraidSchedule.Replay(new BraidStep("worker-3", "ready"), new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready"));
+        var schedule = ReplaySchedule.Replay(new ReplayStep("worker-3", "ready"), new ReplayStep("worker-1", "ready"), new ReplayStep("worker-2", "ready"));
 
         var (trace, releaseOrder) = await CaptureScriptedRunAsync(12345, schedule);
         var (actual, order) = await CaptureScriptedRunAsync(67890, schedule);
@@ -49,27 +49,27 @@ public sealed class BraidDeterministicSeedTests : TestBase
 
     private static async Task<IReadOnlyList<string>> CaptureRandomTraceAsync(int seed)
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     for (var index = 0; index < 5; index++)
-                        context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                        context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("capture trace");
                 },
-                new BraidOptions { Iterations = 1, Seed = seed },
+                new RunOptions { Iterations = 1, Seed = seed },
                 DefaultCancellationToken));
 
         return exception.Trace;
     }
 
-    private static async Task<(IReadOnlyList<string> Trace, IReadOnlyList<string> ReleaseOrder)> CaptureScriptedRunAsync(int seed, BraidSchedule schedule)
+    private static async Task<(IReadOnlyList<string> Trace, IReadOnlyList<string> ReleaseOrder)> CaptureScriptedRunAsync(int seed, ReplaySchedule schedule)
     {
         var releases = new List<string>();
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 async context =>
                 {
                     for (var index = 0; index < 3; index++)
@@ -78,7 +78,7 @@ public sealed class BraidDeterministicSeedTests : TestBase
                     await context.JoinAsync(DefaultCancellationToken);
                     throw new InvalidOperationException("capture trace");
                 },
-                new BraidOptions { Iterations = 1, Seed = seed, Schedule = schedule },
+                new RunOptions { Iterations = 1, Seed = seed, Schedule = schedule },
                 DefaultCancellationToken));
 
         return (exception.Trace, releases);

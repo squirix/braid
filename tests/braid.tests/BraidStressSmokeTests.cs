@@ -12,7 +12,7 @@ public sealed class BraidStressSmokeTests : TestBase
     {
         var completed = new CompletionCounter();
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 for (var index = 0; index < 20; index++)
@@ -20,7 +20,7 @@ public sealed class BraidStressSmokeTests : TestBase
 
                 return context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
+            new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
             DefaultCancellationToken);
 
         Assert.Equal(20, completed.Value);
@@ -35,7 +35,7 @@ public sealed class BraidStressSmokeTests : TestBase
         const int workers = 5;
         var completed = new CompletionCounter();
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 for (var index = 0; index < workers; index++)
@@ -43,7 +43,7 @@ public sealed class BraidStressSmokeTests : TestBase
 
                 return context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = iterations, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
+            new RunOptions { Iterations = iterations, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
             DefaultCancellationToken);
 
         Assert.Equal(iterations * workers, completed.Value);
@@ -56,19 +56,19 @@ public sealed class BraidStressSmokeTests : TestBase
     {
         Lock gate = new();
         var releases = new List<string>();
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
             Timeout = TimeSpan.FromSeconds(2),
-            Schedule = BraidSchedule.Replay(
-                new BraidStep("worker-4", "ready"),
-                new BraidStep("worker-3", "ready"),
-                new BraidStep("worker-2", "ready"),
-                new BraidStep("worker-1", "ready")),
+            Schedule = ReplaySchedule.Replay(
+                new ReplayStep("worker-4", "ready"),
+                new ReplayStep("worker-3", "ready"),
+                new ReplayStep("worker-2", "ready"),
+                new ReplayStep("worker-1", "ready")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 for (var index = 0; index < 4; index++)

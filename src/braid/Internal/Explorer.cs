@@ -2,27 +2,27 @@ namespace Braid.Internal;
 
 internal static class Explorer
 {
-    internal static async Task ExploreAsync(BraidExploreOptions options, Func<BraidExploreContext, Task> test, CancellationToken cancellationToken)
+    internal static async Task ExploreAsync(ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(test);
         options.Validate();
 
         var callback = new ExploreCallback(test);
-        var discoveryOptions = new BraidOptions
+        var discoveryOptions = new RunOptions
         {
             Iterations = 1,
             Seed = options.Seed,
             Timeout = options.Timeout,
         };
 
-        BraidRunException? discoveryFailure = null;
+        RunException? discoveryFailure = null;
 
         try
         {
-            await BraidRunner.RunAsync(callback.RunDiscoveryAsync, discoveryOptions, cancellationToken).ConfigureAwait(false);
+            await Runner.RunAsync(callback.RunDiscoveryAsync, discoveryOptions, cancellationToken).ConfigureAwait(false);
         }
-        catch (BraidRunException ex)
+        catch (RunException ex)
         {
             discoveryFailure = ex;
         }
@@ -38,7 +38,7 @@ internal static class Explorer
     }
 
     private static async Task ExploreGeneratedSchedulesAsync(
-        BraidExploreOptions options,
+        ExploreOptions options,
         ExploreCallback callback,
         Dictionary<string, List<string>> workerProbeSequences,
         CancellationToken cancellationToken)
@@ -51,36 +51,36 @@ internal static class Explorer
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var schedule = BraidSchedule.Replay(steps);
+            var schedule = ReplaySchedule.Replay(steps);
             try
             {
                 await RunScheduledExploreAttemptAsync(options, callback, schedule, cancellationToken).ConfigureAwait(false);
             }
-            catch (BraidRunException ex) when (IsExplorationTargetFailure(ex))
+            catch (RunException ex) when (IsExplorationTargetFailure(ex))
             {
                 throw;
             }
-            catch (BraidRunException ex)
+            catch (RunException ex)
             {
                 System.Diagnostics.Trace.TraceInformation($"Braid: skipping non-target schedule ({ex.Message}).");
             }
         }
     }
 
-    private static bool IsExplorationTargetFailure(BraidRunException exception)
+    private static bool IsExplorationTargetFailure(RunException exception)
     {
-        if (exception.FailureOrigin != BraidRunFailureOrigin.UserTest)
+        if (exception.FailureOrigin != RunFailureOrigin.UserTest)
             return false;
 
         if (exception.InnerException == null)
             return false;
 
-        return exception.InnerException is not BraidRunException;
+        return exception.InnerException is not RunException;
     }
 
-    private static Task RunScheduledExploreAttemptAsync(BraidExploreOptions options, ExploreCallback callback, BraidSchedule schedule, CancellationToken cancellationToken)
+    private static Task RunScheduledExploreAttemptAsync(ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
     {
-        var runOptions = new BraidOptions
+        var runOptions = new RunOptions
         {
             Iterations = 1,
             Seed = options.Seed,
@@ -88,19 +88,19 @@ internal static class Explorer
             Timeout = options.Timeout,
         };
 
-        return BraidRunner.RunAsync(callback.RunReplayAsync, runOptions, cancellationToken);
+        return Runner.RunAsync(callback.RunReplayAsync, runOptions, cancellationToken);
     }
 
-    private sealed class ExploreCallback(Func<BraidExploreContext, Task> test)
+    private sealed class ExploreCallback(Func<ExploreContext, Task> test)
     {
-        public BraidContext? DiscoveryContext { get; private set; }
+        public RunContext? DiscoveryContext { get; private set; }
 
-        public Task RunDiscoveryAsync(BraidContext context)
+        public Task RunDiscoveryAsync(RunContext context)
         {
             DiscoveryContext = context;
-            return test(new BraidExploreContext(context));
+            return test(new ExploreContext(context));
         }
 
-        public Task RunReplayAsync(BraidContext context) => test(new BraidExploreContext(context));
+        public Task RunReplayAsync(RunContext context) => test(new ExploreContext(context));
     }
 }

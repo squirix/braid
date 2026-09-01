@@ -11,13 +11,13 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     public Task ConcurrentProbesSameWorkerFailSerialize()
     {
         return AssertConcurrentProbeRaceToleratesAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () => await RunTwoThreadProbeRaceAsync("a", "b"));
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             true);
     }
@@ -29,7 +29,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     {
         const int probeCount = 10;
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
                     for (var workerIndex = 0; workerIndex < 3; workerIndex++)
@@ -37,7 +37,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 4242 },
+                new RunOptions { Iterations = 1, Seed = 4242 },
                 DefaultCancellationToken),
             "Many sequential probes should complete deterministically.");
     }
@@ -52,8 +52,8 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
 
         await AssertCompletesBeforeWatchdogAsync(
             () => Task.WhenAll(
-                RunOrderedWorkerReplayAsync(orderA, 111, new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready")),
-                RunOrderedWorkerReplayAsync(orderB, 222, new BraidStep("worker-2", "ready"), new BraidStep("worker-1", "ready"))),
+                RunOrderedWorkerReplayAsync(orderA, 111, new ReplayStep("worker-1", "ready"), new ReplayStep("worker-2", "ready")),
+                RunOrderedWorkerReplayAsync(orderB, 222, new ReplayStep("worker-2", "ready"), new ReplayStep("worker-1", "ready"))),
             "Parallel independent runs should complete.");
 
         Assert.Equal(["worker-1", "worker-2"], orderA);
@@ -65,13 +65,13 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     [Fact]
     public Task ProbeFromChildTaskFailsOrSerializes()
     {
-        return AssertConcurrentProbeRaceToleratesAsync(static () => BraidRunner.RunAsync(
+        return AssertConcurrentProbeRaceToleratesAsync(static () => Runner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () => await RunTwoThreadProbeRaceAsync("parent", "child"));
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken));
     }
 
@@ -81,16 +81,16 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     public Task ProbeHitInsideRunCompletesImmediately()
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => BraidRunner.RunAsync(
+            static () => Runner.RunAsync(
                 static async context =>
                 {
-                    await BraidProbe.HitAsync("callback-probe", DefaultCancellationToken);
+                    await Probe.HitAsync("callback-probe", DefaultCancellationToken);
 
-                    context.Fork(static async () => await BraidProbe.HitAsync("worker-probe", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("worker-probe", DefaultCancellationToken));
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken),
             "Probe outside a forked worker should not deadlock.");
     }
@@ -109,11 +109,11 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     [Fact]
     public async Task ReusedScheduledOptionsSafeAcrossRuns()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 777,
-            Schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"), new BraidStep("worker-2", "ready")),
+            Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready"), new ReplayStep("worker-2", "ready")),
         };
 
         var runs = new Task[10];
@@ -123,20 +123,20 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
         await Task.WhenAll(runs);
         return;
 
-        static async Task RunReusedScheduleScenarioAsync(BraidOptions sharedOptions)
+        static async Task RunReusedScheduleScenarioAsync(RunOptions sharedOptions)
         {
             var localOrder = new List<string>();
-            await BraidRunner.RunAsync(
+            await Runner.RunAsync(
                 async context =>
                 {
                     context.Fork(async () =>
                     {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                        await Probe.HitAsync("ready", DefaultCancellationToken);
                         localOrder.Add("worker-1");
                     });
                     context.Fork(async () =>
                     {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                        await Probe.HitAsync("ready", DefaultCancellationToken);
                         localOrder.Add("worker-2");
                     });
                     await context.JoinAsync(DefaultCancellationToken);
@@ -153,15 +153,15 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
     [Fact]
     public async Task RunAsyncStopsForkedWorkersBeforeJoin()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static context =>
                 {
-                    context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                     throw new InvalidOperationException("callback failed");
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 DefaultCancellationToken));
 
         var report = exception.ToString();
@@ -170,35 +170,35 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
         Assert.Contains("Trace:", report, StringComparison.Ordinal);
     }
 
-    private static Task RunOrderedWorkerReplayAsync(List<string> order, int seed, BraidStep firstStep, BraidStep secondStep) => BraidRunner.RunAsync(
+    private static Task RunOrderedWorkerReplayAsync(List<string> order, int seed, ReplayStep firstStep, ReplayStep secondStep) => Runner.RunAsync(
         async context =>
         {
             context.Fork(async () =>
             {
-                await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                await Probe.HitAsync("ready", DefaultCancellationToken);
                 order.Add("worker-1");
             });
 
             context.Fork(async () =>
             {
-                await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                await Probe.HitAsync("ready", DefaultCancellationToken);
                 order.Add("worker-2");
             });
 
             await context.JoinAsync(DefaultCancellationToken);
         },
-        new BraidOptions
+        new RunOptions
         {
             Iterations = 1,
             Seed = seed,
-            Schedule = BraidSchedule.Replay(firstStep, secondStep),
+            Schedule = ReplaySchedule.Replay(firstStep, secondStep),
         },
         DefaultCancellationToken);
 
     private static async Task RunRandomSchedulingSeedScenarioAsync(int seed)
     {
         var completed = new CompletionCounter();
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 for (var workerIndex = 0; workerIndex < 5; workerIndex++)
@@ -206,7 +206,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(1) },
+            new RunOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(1) },
             DefaultCancellationToken);
 
         Assert.True(completed.Value == 5, $"Seed {seed} completed {completed.Value} of 5 workers.");

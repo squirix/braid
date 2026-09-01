@@ -1,6 +1,6 @@
 # Replay token workflow
 
-A **replay token** is Braid’s canonical replay text: the same format produced by `BraidSchedule.ToReplayText()` and accepted by `BraidSchedule.Parse(...)`. There is no separate syntax.
+A **replay token** is Braid’s canonical replay text: the same format produced by `ReplaySchedule.ToReplayText()` and accepted by `ReplaySchedule.Parse(...)`. There is no separate syntax.
 
 ```text
 hit <worker> <probe>
@@ -19,17 +19,17 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
 1. Paste the token into a test:
 
    ```csharp
-   var schedule = BraidSchedule.Parse("""
+   var schedule = ReplaySchedule.Parse("""
    hit worker-1 after-read
    hit worker-2 after-read
    hit worker-1 before-write
    hit worker-2 before-write
    """);
 
-   await BraidRunner.RunAsync(test, new BraidOptions { Schedule = schedule, Iterations = 1 }, cancellationToken);
+   await Runner.RunAsync(test, new RunOptions { Schedule = schedule, Iterations = 1 }, cancellationToken);
    ```
 
-2. Or build a typed schedule with `BraidSchedule.Replay(...)` and `BraidStep` values.
+2. Or build a typed schedule with `ReplaySchedule.Replay(...)` and `ReplayStep` values.
 
 3. Run until the assertion passes or the schedule is adjusted.
 
@@ -39,27 +39,27 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
 
 Random-only runs report **seed**, **iteration**, and **trace**. They do **not** synthesize a full replay token automatically.
 
-1. **Capture** seed and trace from `BraidRunException.ToString()` or exception properties.
-2. **Re-run** with the same seed to confirm the failure (`BraidOptions.Seed`).
-3. **Add probes** at async boundaries in the code under test (`BraidProbe.HitAsync`).
+1. **Capture** seed and trace from `RunException.ToString()` or exception properties.
+2. **Re-run** with the same seed to confirm the failure (`RunOptions.Seed`).
+3. **Add probes** at async boundaries in the code under test (`Probe.HitAsync`).
 4. **Build** a typed or text schedule that matches the interleaving you need (use trace lines as hints).
-5. **Export** canonical text with `BraidSchedule.ToReplayText()` once the schedule reproduces the bug.
-6. **Regression test** using `BraidSchedule.Parse(token)` or `BraidSchedule.Replay(...)`.
+5. **Export** canonical text with `ReplaySchedule.ToReplayText()` once the schedule reproduces the bug.
+6. **Regression test** using `ReplaySchedule.Parse(token)` or `ReplaySchedule.Replay(...)`.
 
 ---
 
 ## When a replay-scheduled run fails
 
-If `BraidOptions.Schedule` was configured, the failure may include exportable replay text.
+If `RunOptions.Schedule` was configured, the failure may include exportable replay text.
 
 Prefer the API over parsing `ToString()`:
 
 ```csharp
-catch (BraidRunException ex)
+catch (RunException ex)
 {
     if (ex.TryGetReplayText(out var token, out var error))
     {
-        // Paste `token` into BraidSchedule.Parse(...) for a regression test.
+        // Paste `token` into ReplaySchedule.Parse(...) for a regression test.
     }
     else
     {
@@ -74,7 +74,7 @@ In xUnit, you can also write the full report without a separate package:
 ```csharp
 ITestOutputHelper output; // inject in test
 // ...
-catch (BraidRunException ex)
+catch (RunException ex)
 {
     output.WriteLine(ex.ToString());
     throw;
@@ -95,7 +95,7 @@ When available, `ex.SchedulerDiagnostics` includes last matched replay step, wai
 |-----------|----------------|
 | Typed or text schedule configured and exportable | Yes — `TryGetReplayText` or failure report |
 | Random-only run | No automatic full token — build schedule manually |
-| Whitespace in worker id or probe name | Token export may fail; use typed `BraidStep` list |
+| Whitespace in worker id or probe name | Token export may fail; use typed `ReplayStep` list |
 | Empty schedule | No token |
 
 ---

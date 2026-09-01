@@ -18,10 +18,10 @@ public sealed class CancellationBeforeObservationTests
     [Fact]
     public async Task CancelledOperationIsNotObservedWhenCancellationWinsFirst()
     {
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
-            Schedule = BraidSchedule.Parse("hit worker-2 cancelled\nhit worker-1 before-observe\n"),
+            Schedule = ReplaySchedule.Parse("hit worker-2 cancelled\nhit worker-1 before-observe\n"),
         };
 
         var observed = await RunScenarioAsync(options);
@@ -29,17 +29,17 @@ public sealed class CancellationBeforeObservationTests
         Assert.False(observed);
     }
 
-    private static async Task<bool> RunScenarioAsync(BraidOptions options)
+    private static async Task<bool> RunScenarioAsync(RunOptions options)
     {
         var operationCancelled = false;
         var observed = false;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("before-observe", TestCancellationToken);
+                    await Probe.HitAsync("before-observe", TestCancellationToken);
 
                     if (!operationCancelled)
                     {
@@ -50,7 +50,7 @@ public sealed class CancellationBeforeObservationTests
                 context.Fork(async () =>
                 {
                     operationCancelled = true;
-                    await BraidProbe.HitAsync("cancelled", TestCancellationToken);
+                    await Probe.HitAsync("cancelled", TestCancellationToken);
                 });
 
                 await context.JoinAsync(TestCancellationToken);

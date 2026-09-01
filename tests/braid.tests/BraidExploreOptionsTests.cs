@@ -12,8 +12,8 @@ public sealed class BraidExploreOptionsTests : TestBase
     {
         var ran = false;
 
-        var operation = BraidRunner.ExploreAsync(
-            new BraidExploreOptionsBuilder().WithMaxSchedules(0).Build(),
+        var operation = Runner.ExploreAsync(
+            new ExploreOptionsBuilder().WithMaxSchedules(0).Build(),
             async braid =>
             {
                 ran = true;
@@ -33,8 +33,8 @@ public sealed class BraidExploreOptionsTests : TestBase
     {
         var ran = false;
 
-        var operation = BraidRunner.ExploreAsync(
-            new BraidExploreOptionsBuilder().WithMaxStepsPerSchedule(0).Build(),
+        var operation = Runner.ExploreAsync(
+            new ExploreOptionsBuilder().WithMaxStepsPerSchedule(0).Build(),
             async braid =>
             {
                 ran = true;

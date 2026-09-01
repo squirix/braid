@@ -12,24 +12,24 @@ public sealed class BraidRunTests : TestBase
     {
         var value = 0;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("first", DefaultCancellationToken);
+                    await Probe.HitAsync("first", DefaultCancellationToken);
                     _ = Interlocked.Increment(ref value);
                 });
 
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("second", DefaultCancellationToken);
+                    await Probe.HitAsync("second", DefaultCancellationToken);
                     _ = Interlocked.Increment(ref value);
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
 
         Assert.Equal(2, value);
@@ -42,14 +42,14 @@ public sealed class BraidRunTests : TestBase
     {
         var invocations = 0;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 _ = context;
                 _ = Interlocked.Increment(ref invocations);
                 return Task.CompletedTask;
             },
-            new BraidOptions { Iterations = 3, Seed = 12345 },
+            new RunOptions { Iterations = 3, Seed = 12345 },
             DefaultCancellationToken);
 
         Assert.Equal(3, invocations);
@@ -62,15 +62,15 @@ public sealed class BraidRunTests : TestBase
     {
         var invocations = 0;
 
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
                     return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = 3, Seed = 12345 },
+                new RunOptions { Iterations = 3, Seed = 12345 },
                 DefaultCancellationToken));
 
         Assert.Equal(1, exception.Iteration);
@@ -83,15 +83,15 @@ public sealed class BraidRunTests : TestBase
     {
         var invocations = 0;
 
-        _ = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        _ = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     var invocation = Interlocked.Increment(ref invocations);
                     return invocation == 2 ? throw new InvalidOperationException("second iteration failed") : Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = 5, Seed = 12345 },
+                new RunOptions { Iterations = 5, Seed = 12345 },
                 DefaultCancellationToken));
 
         Assert.Equal(2, invocations);

@@ -3,18 +3,18 @@ using Xunit;
 namespace Braid.Tests;
 
 /// <summary>
-/// Covers <see cref="BraidRunException.TryGetReplayText" /> behavior.
+/// Covers <see cref="RunException.TryGetReplayText" /> behavior.
 /// </summary>
 public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 {
     /// <summary>
-    /// Verifies <see cref="BraidRunException.ToString" /> still embeds replay lines when export succeeds.
+    /// Verifies <see cref="RunException.ToString" /> still embeds replay lines when export succeeds.
     /// </summary>
     [Fact]
     public void ToStringIncludesReplayTextWhenExportable()
     {
-        var steps = new[] { BraidStep.Hit("worker-1", "ready") };
-        var exception = new BraidRunException("failed", 1, 0, ["worker-1 forked"], steps, null);
+        var steps = new[] { ReplayStep.Hit("worker-1", "ready") };
+        var exception = new RunException("failed", 1, 0, ["worker-1 forked"], steps, null);
 
         Assert.True(exception.TryGetReplayText(out var expectedText, out _));
 
@@ -25,12 +25,12 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     }
 
     /// <summary>
-    /// Verifies <see cref="BraidRunException.ToString" /> keeps the generic unavailable line when export fails.
+    /// Verifies <see cref="RunException.ToString" /> keeps the generic unavailable line when export fails.
     /// </summary>
     [Fact]
     public void ToStringReportsUnavailableNotExportable()
     {
-        var exception = new BraidRunException("failed", 1, 0, [], [BraidStep.Hit("has space", "ready")], null);
+        var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("has space", "ready")], null);
 
         Assert.False(exception.TryGetReplayText(out _, out var apiError));
         Assert.NotNull(apiError);
@@ -45,7 +45,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     [Fact]
     public void TryGetReplayTextFalseOnProbeWhitespace()
     {
-        var exception = new BraidRunException("failed", 1, 0, [], [BraidStep.Hit("worker-1", "bad probe")], null);
+        var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("worker-1", "bad probe")], null);
 
         Assert.False(exception.TryGetReplayText(out var text, out var error));
         Assert.Equal(string.Empty, text);
@@ -58,7 +58,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     [Fact]
     public void TryGetReplayTextFalseOnWorkerWhitespace()
     {
-        var exception = new BraidRunException("failed", 1, 0, [], [BraidStep.Hit("worker id", "ready")], null);
+        var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("worker id", "ready")], null);
 
         Assert.False(exception.TryGetReplayText(out var text, out var error));
         Assert.Equal(string.Empty, text);
@@ -71,7 +71,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     [Fact]
     public void TryGetReplayTextFalseWhenScheduleEmpty()
     {
-        var exception = new BraidRunException("failed", 1, 0, [], [], null);
+        var exception = new RunException("failed", 1, 0, [], [], null);
 
         Assert.False(exception.TryGetReplayText(out var text, out var error));
         Assert.Equal(string.Empty, text);
@@ -84,15 +84,15 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
     {
         var steps = new[]
         {
-            BraidStep.Hit("worker-1", "after-read"),
-            BraidStep.Hit("worker-2", "after-read"),
+            ReplayStep.Hit("worker-1", "after-read"),
+            ReplayStep.Hit("worker-2", "after-read"),
         };
 
-        var exception = new BraidRunException("failed", 1, 0, [], steps, null);
+        var exception = new RunException("failed", 1, 0, [], steps, null);
 
         Assert.True(exception.TryGetReplayText(out var text, out var error));
         Assert.Null(error);
-        Assert.Equal(BraidSchedule.Replay(steps).ToReplayText(), text);
+        Assert.Equal(ReplaySchedule.Replay(steps).ToReplayText(), text);
         Assert.Contains("hit worker-1 after-read", text, StringComparison.Ordinal);
     }
 }

@@ -1,7 +1,7 @@
 namespace Braid;
 
 /// <summary>Represents scripted replay behavior for a schedule step.</summary>
-public enum BraidStepKind
+public enum ReplayStepKind
 {
     /// <summary>Wait for a worker to be blocked at the probe and then release it.</summary>
     Hit = 0,

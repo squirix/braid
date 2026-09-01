@@ -1,7 +1,7 @@
 namespace Braid;
 
-/// <summary>Identifies whether a <see cref="BraidRunException" /> came from braid infrastructure or user test code.</summary>
-public enum BraidRunFailureOrigin
+/// <summary>Identifies whether a <see cref="RunException" /> came from braid infrastructure or user test code.</summary>
+public enum RunFailureOrigin
 {
     /// <summary>Scheduler or runner infrastructure failure.</summary>
     Scheduler = 0,

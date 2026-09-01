@@ -3,7 +3,7 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
-public static class BraidRunner
+public static class Runner
 {
     /// <summary>
     /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
@@ -16,25 +16,25 @@ public static class BraidRunner
     /// <exception cref="ArgumentNullException"><paramref name="configure" /> or <paramref name="test" /> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Configured bounds are invalid.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="BraidRunException">A test failure was found under a replay schedule or during discovery.</exception>
-    public static Task ExploreAsync(Action<BraidExploreOptionsBuilder> configure, Func<BraidExploreContext, Task> test, CancellationToken cancellationToken)
+    /// <exception cref="RunException">A test failure was found under a replay schedule or during discovery.</exception>
+    public static Task ExploreAsync(Action<ExploreOptionsBuilder> configure, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(configure);
         ArgumentNullException.ThrowIfNull(test);
 
-        var builder = new BraidExploreOptionsBuilder();
+        var builder = new ExploreOptionsBuilder();
         configure(builder);
         return ExploreAsync(builder.Build(), test, cancellationToken);
     }
 
-    /// <inheritdoc cref="ExploreAsync(Action{BraidExploreOptionsBuilder}, Func{BraidExploreContext, Task}, CancellationToken)" />
-    public static Task ExploreAsync(BraidExploreOptions options, Func<BraidExploreContext, Task> test, CancellationToken cancellationToken) =>
+    /// <inheritdoc cref="ExploreAsync(Action{ExploreOptionsBuilder}, Func{ExploreContext, Task}, CancellationToken)" />
+    public static Task ExploreAsync(ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken) =>
         Explorer.ExploreAsync(options, test, cancellationToken);
 
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
     /// After the callback task completes successfully, forked workers are joined automatically; an explicit
-    /// <see cref="BraidContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
+    /// <see cref="RunContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
     /// The callback must not return null.
     /// </summary>
     /// <param name="test">The test callback to execute.</param>
@@ -43,13 +43,13 @@ public static class BraidRunner
     /// <exception cref="ArgumentNullException"><paramref name="test" /> is null.</exception>
     /// <exception cref="InvalidOperationException">A braid run is already active, or the callback returned a null task.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="BraidRunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
-    public static Task RunAsync(Func<BraidContext, Task> test, CancellationToken cancellationToken) => RunAsync(test, null, cancellationToken);
+    /// <exception cref="RunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
+    public static Task RunAsync(Func<RunContext, Task> test, CancellationToken cancellationToken) => RunAsync(test, null, cancellationToken);
 
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
     /// After the callback task completes successfully, forked workers are joined automatically; an explicit
-    /// <see cref="BraidContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
+    /// <see cref="RunContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
     /// The callback must not return null.
     /// </summary>
     /// <param name="test">The test callback to execute.</param>
@@ -60,8 +60,8 @@ public static class BraidRunner
     /// <exception cref="InvalidOperationException">A braid run is already active, or the callback returned a null task.</exception>
     /// <exception cref="ArgumentException"><paramref name="options" /> failed validation.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="BraidRunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
-    public static Task RunAsync(Func<BraidContext, Task> test, BraidOptions? options, CancellationToken cancellationToken)
+    /// <exception cref="RunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
+    public static Task RunAsync(Func<RunContext, Task> test, RunOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(test);
 
@@ -70,13 +70,13 @@ public static class BraidRunner
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        var resolvedOptions = options ?? BraidOptions.Default;
+        var resolvedOptions = options ?? RunOptions.Default;
         resolvedOptions.Validate();
 
         return RunAsyncCoreAsync(test, resolvedOptions, cancellationToken);
     }
 
-    private static async Task RunAsyncCoreAsync(Func<BraidContext, Task> test, BraidOptions resolvedOptions, CancellationToken cancellationToken)
+    private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)
     {
         var baseSeed = resolvedOptions.Seed ?? Environment.TickCount;
 
@@ -86,7 +86,7 @@ public static class BraidRunner
 
             var seed = unchecked(baseSeed + iteration);
             using var scheduler = new Scheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps);
-            var context = new BraidContext(scheduler);
+            var context = new RunContext(scheduler);
 
             using var scope = RunScope.Enter(scheduler);
 
@@ -96,7 +96,7 @@ public static class BraidRunner
                 await callbackTask.ConfigureAwait(false);
                 await context.JoinAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (BraidRunException)
+            catch (RunException)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
                 throw;
@@ -109,7 +109,7 @@ public static class BraidRunner
             catch (Exception ex)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
-                throw scheduler.CreateException("braid run failed.", ex, BraidRunFailureOrigin.UserTest);
+                throw scheduler.CreateException("braid run failed.", ex, RunFailureOrigin.UserTest);
             }
             finally
             {

@@ -3,7 +3,7 @@ using Braid.Internal;
 namespace Braid;
 
 /// <summary>Provides explicit scheduling points for braid-controlled tests; braid only controls code that reaches these probes.</summary>
-public static class BraidProbe
+public static class Probe
 {
     /// <summary>Hits a named scheduling point. Outside a braid run this method completes immediately.</summary>
     /// <param name="name">The probe name; null, empty, and whitespace-only values are rejected.</param>

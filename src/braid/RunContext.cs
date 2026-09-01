@@ -4,14 +4,14 @@ namespace Braid;
 
 /// <summary>
 /// Provides task orchestration APIs for a braid run. Only use members while the active
-/// <see cref="BraidRunner" /> run callback is executing.
+/// <see cref="Runner" /> run callback is executing.
 /// </summary>
-public sealed class BraidContext
+public sealed class RunContext
 {
     private readonly Scheduler _runScheduler;
     private int _isActive = 1;
 
-    internal BraidContext(Scheduler runScheduler)
+    internal RunContext(Scheduler runScheduler)
     {
         _runScheduler = runScheduler;
     }
@@ -60,6 +60,6 @@ public sealed class BraidContext
     private void ThrowIfInactive()
     {
         if (Volatile.Read(ref _isActive) == 0)
-            throw new InvalidOperationException("BraidContext can only be used during the BraidRunner.RunAsync callback.");
+            throw new InvalidOperationException("RunContext can only be used during the Runner.RunAsync callback.");
     }
 }

@@ -2,11 +2,11 @@ namespace Braid.Internal;
 
 internal static class ReplayFormat
 {
-    internal static string CanonicalStepLine(BraidStep step) => step.Kind switch
+    internal static string CanonicalStepLine(ReplayStep step) => step.Kind switch
     {
-        BraidStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
-        BraidStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",
-        BraidStepKind.Release => $"release {step.WorkerId} {step.ProbeName}",
+        ReplayStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
+        ReplayStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",
+        ReplayStepKind.Release => $"release {step.WorkerId} {step.ProbeName}",
         _ => $"{step.Kind} {step.WorkerId} {step.ProbeName}",
     };
 }

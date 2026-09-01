@@ -1,6 +1,6 @@
 # Runtime boundaries
 
-Braid controls scheduling only at explicit `BraidProbe.HitAsync` calls. These rules keep behavior deterministic and failures understandable.
+Braid controls scheduling only at explicit `Probe.HitAsync` calls. These rules keep behavior deterministic and failures understandable.
 
 See also: [replay-token-workflow.md](replay-token-workflow.md), [README.md](../README.md) (Run lifecycle).
 
@@ -8,7 +8,7 @@ See also: [replay-token-workflow.md](replay-token-workflow.md), [README.md](../R
 
 ## One probe wait per forked worker
 
-Each logical worker created with `BraidContext.Fork` may have **at most one** probe wait in flight at a time.
+Each logical worker created with `RunContext.Fork` may have **at most one** probe wait in flight at a time.
 
 If a worker calls `HitAsync` while already waiting at another probe, the run fails with a clear error (for example `Concurrent probe hit on the same worker is not supported.`).
 
@@ -31,14 +31,14 @@ Tests: `BraidRuntimeBoundaryTests.ProbeInsideFlowingChildTaskConcurrentWithParen
 
 ## Outside a braid run
 
-`BraidProbe.HitAsync` completes immediately when no `BraidRunner.RunAsync` is active. Probes do not schedule outside a run.
+`Probe.HitAsync` completes immediately when no `Runner.RunAsync` is active. Probes do not schedule outside a run.
 
 ---
 
 ## Other lifecycle rules
 
-- Nested `BraidRunner.RunAsync` calls are not supported.
-- `BraidContext` is valid only during the active run callback.
+- Nested `Runner.RunAsync` calls are not supported.
+- `RunContext` is valid only during the active run callback.
 - Fork delegates must return a non-null `Task`.
 - Probe names cannot be null, empty, or whitespace.
 - Non-empty replay schedules must be fully consumed.

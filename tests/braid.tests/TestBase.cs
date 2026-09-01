@@ -62,7 +62,7 @@ public abstract class TestBase
         {
             await runTask;
         }
-        catch (BraidRunException exception)
+        catch (RunException exception)
         {
             if (expectForkFailureMessage)
                 Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
@@ -80,9 +80,9 @@ public abstract class TestBase
         try
         {
             await runTask;
-            Assert.Fail("Expected BraidRunException for concurrent probe hit on the same worker.");
+            Assert.Fail("Expected RunException for concurrent probe hit on the same worker.");
         }
-        catch (BraidRunException exception)
+        catch (RunException exception)
         {
             Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
         }
@@ -92,14 +92,14 @@ public abstract class TestBase
     /// <param name="text">The schedule text to parse.</param>
     protected static void AssertTryParseDoesNotThrow(string? text)
     {
-        var ex = Record.Exception(() => BraidSchedule.TryParse(text, out _, out _));
+        var ex = Record.Exception(() => ReplaySchedule.TryParse(text, out _, out _));
         Assert.Null(ex);
     }
 
     /// <summary>Asserts a probe invoked outside an active run is a no-op that completes immediately.</summary>
     protected static async Task AssertProbeIsNoOpOutsideRunAsync()
     {
-        var probe = BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        var probe = Probe.HitAsync("outside-run", DefaultCancellationToken);
         Assert.True(probe.IsCompletedSuccessfully);
         await probe;
     }
@@ -108,13 +108,13 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="order">The list that receives the worker label.</param>
     /// <param name="workerLabel">The label to append after the ready probe.</param>
-    protected static void ForkHitReadyAddWorker(BraidContext context, IList<string> order, string workerLabel)
+    protected static void ForkHitReadyAddWorker(RunContext context, IList<string> order, string workerLabel)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(order);
         context.Fork(async () =>
         {
-            await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", DefaultCancellationToken);
             order.Add(workerLabel);
         });
     }
@@ -122,13 +122,13 @@ public abstract class TestBase
     /// <summary>Forks a worker that hits ready and increments the completion counter.</summary>
     /// <param name="context">The braid run context.</param>
     /// <param name="completed">The shared completion counter.</param>
-    protected static void ForkHitReadyAndIncrement(BraidContext context, CompletionCounter completed)
+    protected static void ForkHitReadyAndIncrement(RunContext context, CompletionCounter completed)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
         context.Fork(async () =>
         {
-            await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", DefaultCancellationToken);
             _ = completed.Increment();
         });
     }
@@ -137,13 +137,13 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index to record.</param>
     /// <param name="releaseOrder">The queue that receives release order entries.</param>
-    protected static void ForkHitReadyForWorker(BraidContext context, int workerIndex, ConcurrentQueue<string> releaseOrder)
+    protected static void ForkHitReadyForWorker(RunContext context, int workerIndex, ConcurrentQueue<string> releaseOrder)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(releaseOrder);
         context.Fork(async () =>
         {
-            await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", DefaultCancellationToken);
             releaseOrder.Enqueue($"worker-{workerIndex}");
         });
     }
@@ -153,13 +153,13 @@ public abstract class TestBase
     /// <param name="workerName">The worker name to record.</param>
     /// <param name="releases">The list that receives worker names.</param>
     /// <param name="gate">The lock protecting <paramref name="releases" />.</param>
-    protected static void ForkHitReadyRecordWorker(BraidContext context, string workerName, IList<string> releases, Lock gate)
+    protected static void ForkHitReadyRecordWorker(RunContext context, string workerName, IList<string> releases, Lock gate)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(releases);
         context.Fork(async () =>
         {
-            await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", DefaultCancellationToken);
             lock (gate)
                 releases.Add(workerName);
         });
@@ -168,7 +168,7 @@ public abstract class TestBase
     /// <summary>Forks a probe-free worker that increments the completion counter.</summary>
     /// <param name="context">The braid run context.</param>
     /// <param name="completed">The shared completion counter.</param>
-    protected static void ForkIncrementCompleted(BraidContext context, CompletionCounter completed)
+    protected static void ForkIncrementCompleted(RunContext context, CompletionCounter completed)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
@@ -182,7 +182,7 @@ public abstract class TestBase
     /// <summary>Forks a worker that fails synchronously with a worker-specific message.</summary>
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index embedded in the failure message.</param>
-    protected static void ForkSyncFailWorker(BraidContext context, int workerIndex)
+    protected static void ForkSyncFailWorker(RunContext context, int workerIndex)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.Fork(() => throw new InvalidOperationException($"sync-fail-{workerIndex}"));
@@ -192,13 +192,13 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index used in probe names.</param>
     /// <param name="probeCount">The number of probes to hit.</param>
-    protected static void ForkWorkerDeterministicProbes(BraidContext context, int workerIndex, int probeCount = 4)
+    protected static void ForkWorkerDeterministicProbes(RunContext context, int workerIndex, int probeCount = 4)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-                await BraidProbe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
+                await Probe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
         });
     }
 
@@ -207,14 +207,14 @@ public abstract class TestBase
     /// <param name="workerIndex">The worker index used in probe names.</param>
     /// <param name="completed">The shared completion counter.</param>
     /// <param name="probeCount">The number of probes to hit.</param>
-    protected static void ForkWorkerRandomProbes(BraidContext context, int workerIndex, CompletionCounter completed, int probeCount = 5)
+    protected static void ForkWorkerRandomProbes(RunContext context, int workerIndex, CompletionCounter completed, int probeCount = 5)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-                await BraidProbe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
+                await Probe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
 
             _ = completed.Increment();
         });
@@ -224,13 +224,13 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index used in probe names.</param>
     /// <param name="probeCount">The number of probes to hit.</param>
-    protected static void ForkWorkerSequentialProbes(BraidContext context, int workerIndex, int probeCount)
+    protected static void ForkWorkerSequentialProbes(RunContext context, int workerIndex, int probeCount)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-                await BraidProbe.HitAsync($"step-{workerIndex}-{probeIndex}", DefaultCancellationToken);
+                await Probe.HitAsync($"step-{workerIndex}-{probeIndex}", DefaultCancellationToken);
         });
     }
 
@@ -267,7 +267,7 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="completed">The shared completion counter.</param>
     /// <returns>A task that completes when the fork has been scheduled.</returns>
-    protected static Task ScheduleConcurrentForkAsync(BraidContext context, CompletionCounter completed)
+    protected static Task ScheduleConcurrentForkAsync(RunContext context, CompletionCounter completed)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
@@ -276,7 +276,7 @@ public abstract class TestBase
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", DefaultCancellationToken);
                     _ = completed.Increment();
                 });
             },
@@ -364,9 +364,9 @@ public abstract class TestBase
                         try
                         {
                             WaitUntilBothThreadsAreReady(readyCount, cancellationToken);
-                            await BraidProbe.HitAsync(probe, cancellationToken);
+                            await Probe.HitAsync(probe, cancellationToken);
                         }
-                        catch (Exception ex) when (ex is BraidRunException or OperationCanceledException or ArgumentException or InvalidOperationException or TimeoutException)
+                        catch (Exception ex) when (ex is RunException or OperationCanceledException or ArgumentException or InvalidOperationException or TimeoutException)
                         {
                             captured = ex;
                         }

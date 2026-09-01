@@ -26,13 +26,13 @@ public sealed class CacheCasRaceTests
         var cell = new VersionedCell<string>("initial");
         CasResult? worker1Result = null;
 
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
-            Schedule = BraidSchedule.Replay(BraidStep.Arrive("worker-1", "before-cas"), BraidStep.Hit("worker-2", "updated"), BraidStep.Release("worker-1", "before-cas")),
+            Schedule = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "before-cas"), ReplayStep.Hit("worker-2", "updated"), ReplayStep.Release("worker-1", "before-cas")),
         };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
@@ -40,14 +40,14 @@ public sealed class CacheCasRaceTests
                     var entry = await cell.GetAsync(TestCancellationToken);
                     Assert.Equal("initial", entry.Value);
                     Assert.Equal(1L, entry.Version);
-                    await BraidProbe.HitAsync("before-cas", TestCancellationToken);
+                    await Probe.HitAsync("before-cas", TestCancellationToken);
                     worker1Result = await cell.CompareAndSetAsync(entry.Version, "worker-1", TestCancellationToken);
                 });
 
                 context.Fork(async () =>
                 {
                     await cell.SetAsync("worker-2", TestCancellationToken);
-                    await BraidProbe.HitAsync("updated", TestCancellationToken);
+                    await Probe.HitAsync("updated", TestCancellationToken);
                 });
 
                 await context.JoinAsync(TestCancellationToken);
@@ -66,11 +66,11 @@ public sealed class CacheCasRaceTests
         var cell = new VersionedCell<string>("initial");
         CasResult? worker1Result = null;
 
-        var schedule = BraidSchedule.Parse("arrive worker-1 before-cas\nhit worker-2 updated\nrelease worker-1 before-cas\n");
+        var schedule = ReplaySchedule.Parse("arrive worker-1 before-cas\nhit worker-2 updated\nrelease worker-1 before-cas\n");
 
-        var options = new BraidOptions { Iterations = 1, Schedule = schedule };
+        var options = new RunOptions { Iterations = 1, Schedule = schedule };
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
@@ -78,14 +78,14 @@ public sealed class CacheCasRaceTests
                     var entry = await cell.GetAsync(TestCancellationToken);
                     Assert.Equal("initial", entry.Value);
                     Assert.Equal(1L, entry.Version);
-                    await BraidProbe.HitAsync("before-cas", TestCancellationToken);
+                    await Probe.HitAsync("before-cas", TestCancellationToken);
                     worker1Result = await cell.CompareAndSetAsync(entry.Version, "worker-1", TestCancellationToken);
                 });
 
                 context.Fork(async () =>
                 {
                     await cell.SetAsync("worker-2", TestCancellationToken);
-                    await BraidProbe.HitAsync("updated", TestCancellationToken);
+                    await Probe.HitAsync("updated", TestCancellationToken);
                 });
 
                 await context.JoinAsync(TestCancellationToken);

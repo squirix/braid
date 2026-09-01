@@ -10,8 +10,8 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreAsyncFindsLostUpdateReplayToken()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.ExploreAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.ExploreAsync(
                 static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
                 RunLostUpdateExploreAsync,
                 DefaultCancellationToken));
@@ -20,9 +20,9 @@ public sealed class BraidExploreAsyncTests : TestBase
         Assert.Contains("after-read", replayText, StringComparison.Ordinal);
         Assert.Contains("before-write", replayText, StringComparison.Ordinal);
 
-        var schedule = BraidSchedule.Parse(replayText);
-        _ = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var schedule = ReplaySchedule.Parse(replayText);
+        _ = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     var value = 0;
@@ -32,8 +32,8 @@ public sealed class BraidExploreAsyncTests : TestBase
                         async () =>
                         {
                             var current = value;
-                            await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                            await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                            await Probe.HitAsync("after-read", DefaultCancellationToken);
+                            await Probe.HitAsync("before-write", DefaultCancellationToken);
                             value = current + 1;
                         });
 
@@ -42,15 +42,15 @@ public sealed class BraidExploreAsyncTests : TestBase
                         async () =>
                         {
                             var current = value;
-                            await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                            await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                            await Probe.HitAsync("after-read", DefaultCancellationToken);
+                            await Probe.HitAsync("before-write", DefaultCancellationToken);
                             value = current + 1;
                         });
 
                     await context.JoinAsync(DefaultCancellationToken);
                     Assert.Equal(2, value);
                 },
-                new BraidOptions
+                new RunOptions
                 {
                     Iterations = 1,
                     Seed = 12_345,
@@ -93,8 +93,8 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreAsyncUsesNamedWorkerIdsReplay()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.ExploreAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.ExploreAsync(
                 static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
                 RunNamedLostUpdateExploreAsync,
                 DefaultCancellationToken));
@@ -111,11 +111,11 @@ public sealed class BraidExploreAsyncTests : TestBase
     {
         var explored = false;
 
-        await BraidRunner.ExploreAsync(
+        await Runner.ExploreAsync(
             static options => options.WithSeed(99).WithMaxSchedules(5).WithMaxStepsPerSchedule(4),
             async braid =>
             {
-                await braid.WorkerAsync("worker-1", static async () => await BraidProbe.HitAsync("only-probe", DefaultCancellationToken));
+                await braid.WorkerAsync("worker-1", static async () => await Probe.HitAsync("only-probe", DefaultCancellationToken));
                 await braid.JoinAsync(DefaultCancellationToken);
                 explored = true;
             },
@@ -129,7 +129,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreCompletesSmallStepsForLostUpdate()
     {
-        var exception = await Record.ExceptionAsync(static () => BraidRunner.ExploreAsync(
+        var exception = await Record.ExceptionAsync(static () => Runner.ExploreAsync(
             static options => options.WithSeed(77).WithMaxSchedules(100).WithMaxStepsPerSchedule(3),
             RunLostUpdateExploreAsync,
             DefaultCancellationToken));
@@ -142,11 +142,11 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreCompletesWhenOnlyPassingSchedule()
     {
-        var exception = await Record.ExceptionAsync(static () => BraidRunner.ExploreAsync(
+        var exception = await Record.ExceptionAsync(static () => Runner.ExploreAsync(
             static options => options.WithSeed(99).WithMaxSchedules(1).WithMaxStepsPerSchedule(2),
             static async braid =>
             {
-                await braid.WorkerAsync("worker-1", static async () => await BraidProbe.HitAsync("only-probe", DefaultCancellationToken));
+                await braid.WorkerAsync("worker-1", static async () => await Probe.HitAsync("only-probe", DefaultCancellationToken));
                 await braid.JoinAsync(DefaultCancellationToken);
             },
             DefaultCancellationToken));
@@ -159,17 +159,17 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Fact]
     public async Task ExploreSurfacesUserInvalidOpDiscovery()
     {
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.ExploreAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.ExploreAsync(
                 static options => options.WithSeed(7).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
                 static _ => throw new InvalidOperationException("user test failure"),
                 DefaultCancellationToken));
 
-        Assert.Equal(BraidRunFailureOrigin.UserTest, exception.FailureOrigin);
+        Assert.Equal(RunFailureOrigin.UserTest, exception.FailureOrigin);
         _ = Assert.IsType<InvalidOperationException>(exception.InnerException);
     }
 
-    private static void AssertStableReaderWriterIds(BraidRunException exception)
+    private static void AssertStableReaderWriterIds(RunException exception)
     {
         Assert.Contains(exception.Trace, static line => string.Equals(line, "reader forked", StringComparison.Ordinal));
         Assert.Contains(exception.Trace, static line => string.Equals(line, "writer forked", StringComparison.Ordinal));
@@ -190,16 +190,16 @@ public sealed class BraidExploreAsyncTests : TestBase
             static step => string.Equals(step.WorkerId, "writer", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
     }
 
-    private static Task<BraidRunException> ExploreLostUpdateAsync() => Assertions.ExpectsAsync<BraidRunException>(
-        BraidRunner.ExploreAsync(static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10), RunLostUpdateExploreAsync, DefaultCancellationToken));
+    private static Task<RunException> ExploreLostUpdateAsync() => Assertions.ExpectsAsync<RunException>(
+        Runner.ExploreAsync(static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10), RunLostUpdateExploreAsync, DefaultCancellationToken));
 
-    private static Task<BraidRunException> ExploreReaderWriterStableIdsAsync() => Assertions.ExpectsAsync<BraidRunException>(
-        BraidRunner.ExploreAsync(
+    private static Task<RunException> ExploreReaderWriterStableIdsAsync() => Assertions.ExpectsAsync<RunException>(
+        Runner.ExploreAsync(
             static options => options.WithSeed(5).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
             RegisterReaderWriterWorkersAsync,
             DefaultCancellationToken));
 
-    private static async Task RegisterReaderWriterWorkersAsync(BraidExploreContext braid)
+    private static async Task RegisterReaderWriterWorkersAsync(ExploreContext braid)
     {
         var completedWorkers = 0;
 
@@ -207,7 +207,7 @@ public sealed class BraidExploreAsyncTests : TestBase
             "reader",
             async () =>
             {
-                await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                await Probe.HitAsync("ready", DefaultCancellationToken);
                 _ = Interlocked.Increment(ref completedWorkers);
             });
 
@@ -215,7 +215,7 @@ public sealed class BraidExploreAsyncTests : TestBase
             "writer",
             async () =>
             {
-                await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                await Probe.HitAsync("ready", DefaultCancellationToken);
                 _ = Interlocked.Increment(ref completedWorkers);
             });
 
@@ -223,7 +223,7 @@ public sealed class BraidExploreAsyncTests : TestBase
         Assert.Equal(0, completedWorkers);
     }
 
-    private static async Task RunLostUpdateExploreAsync(BraidExploreContext braid)
+    private static async Task RunLostUpdateExploreAsync(ExploreContext braid)
     {
         var value = 0;
 
@@ -232,8 +232,8 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", DefaultCancellationToken);
+                await Probe.HitAsync("before-write", DefaultCancellationToken);
                 value = current + 1;
             });
 
@@ -242,8 +242,8 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", DefaultCancellationToken);
+                await Probe.HitAsync("before-write", DefaultCancellationToken);
                 value = current + 1;
             });
 
@@ -251,7 +251,7 @@ public sealed class BraidExploreAsyncTests : TestBase
         Assert.Equal(2, value);
     }
 
-    private static async Task RunNamedLostUpdateExploreAsync(BraidExploreContext braid)
+    private static async Task RunNamedLostUpdateExploreAsync(ExploreContext braid)
     {
         var value = 0;
 
@@ -260,8 +260,8 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", DefaultCancellationToken);
+                await Probe.HitAsync("before-write", DefaultCancellationToken);
                 value = current + 1;
             });
 
@@ -270,8 +270,8 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await BraidProbe.HitAsync("after-read", DefaultCancellationToken);
-                await BraidProbe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", DefaultCancellationToken);
+                await Probe.HitAsync("before-write", DefaultCancellationToken);
                 value = current + 1;
             });
 

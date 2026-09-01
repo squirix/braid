@@ -10,15 +10,15 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public Task ForkAfterJoinStartedFailsClearly()
     {
-        return BraidRunner.RunAsync(
+        return Runner.RunAsync(
             static async context =>
             {
                 await context.JoinAsync(DefaultCancellationToken);
 
-                var exception = Assertions.Expects<BraidRunException>(() => context.Fork(static () => Task.CompletedTask));
+                var exception = Assertions.Expects<RunException>(() => context.Fork(static () => Task.CompletedTask));
                 Assert.Contains("Cannot fork after JoinAsync has started.", exception.Message, StringComparison.Ordinal);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
     }
 
@@ -27,13 +27,13 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public Task ForkThrowsForNullOperation()
     {
-        return BraidRunner.RunAsync(
+        return Runner.RunAsync(
             static context =>
             {
                 _ = Assertions.Expects<ArgumentNullException>(() => context.Fork(NullTestValues.ForkOperation));
                 return Task.CompletedTask;
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
     }
 
@@ -42,13 +42,13 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public Task ForkWithWorkerIdThrowsForNullWorkerId()
     {
-        return BraidRunner.RunAsync(
+        return Runner.RunAsync(
             static context =>
             {
                 _ = Assertions.Expects<ArgumentNullException>(() => context.Fork(NullTestValues.String, static () => Task.CompletedTask));
                 return Task.CompletedTask;
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
     }
 
@@ -57,16 +57,16 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public async Task ForkWorkerIdUsesStableWorkerIdInTrace()
     {
-        BraidContext? capturedContext = null;
+        RunContext? capturedContext = null;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             async context =>
             {
                 capturedContext = context;
-                context.Fork("reader", static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork("reader", static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
 
         Assert.NotNull(capturedContext);
@@ -79,26 +79,26 @@ public sealed class BraidApiContractTests : TestBase
     [Fact]
     public async Task HitAsyncRejectsInvalidProbeNames()
     {
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(string.Empty, DefaultCancellationToken));
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => BraidProbe.HitAsync(" ", DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(NullTestValues.String, DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(string.Empty, DefaultCancellationToken));
+        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(" ", DefaultCancellationToken));
     }
 
     /// <summary>Verifies replay schedules snapshot the supplied steps.</summary>
     [Fact]
     public void ReplaySnapshotsInputArray()
     {
-        var steps = new[] { new BraidStep("worker-1", "ready") };
+        var steps = new[] { new ReplayStep("worker-1", "ready") };
 
-        var schedule = BraidSchedule.Replay(steps);
-        steps[0] = new BraidStep("worker-2", "changed");
+        var schedule = ReplaySchedule.Replay(steps);
+        steps[0] = new ReplayStep("worker-2", "changed");
 
-        Assert.Equal(new BraidStep("worker-1", "ready"), schedule.Steps[0]);
+        Assert.Equal(new ReplayStep("worker-1", "ready"), schedule.Steps[0]);
     }
 
     /// <summary>Verifies replay validation rejects a null steps array.</summary>
     [Fact]
-    public void ReplayThrowsForNullStepsArray() => _ = Assertions.Expects<ArgumentNullException>(static () => _ = BraidSchedule.Replay(NullTestValues.ReplaySteps));
+    public void ReplayThrowsForNullStepsArray() => _ = Assertions.Expects<ArgumentNullException>(static () => _ = ReplaySchedule.Replay(NullTestValues.ReplaySteps));
 
     /// <summary>Verifies null options use default options.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -107,7 +107,7 @@ public sealed class BraidApiContractTests : TestBase
     {
         var ran = false;
 
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             context =>
             {
                 _ = context;
@@ -128,14 +128,14 @@ public sealed class BraidApiContractTests : TestBase
 
         _ = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     ran = true;
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Timeout = TimeSpan.Zero },
+                new RunOptions { Timeout = TimeSpan.Zero },
                 DefaultCancellationToken);
         });
 
@@ -145,13 +145,13 @@ public sealed class BraidApiContractTests : TestBase
     /// <summary>Verifies run validation rejects a null test delegate.</summary>
     [Fact]
     public void RunAsyncThrowsForNullTestDelegate() =>
-        _ = Assertions.Expects<ArgumentNullException>(static () => _ = BraidRunner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
+        _ = Assertions.Expects<ArgumentNullException>(static () => _ = Runner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
 
     /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
     [Fact]
     public void RunExceptionExposesNullScheduleAsEmpty()
     {
-        var exception = new BraidRunException("failed", 12345, 0, ["trace"], null, null);
+        var exception = new RunException("failed", 12345, 0, ["trace"], null, null);
 
         Assert.Empty(exception.Schedule);
     }
@@ -161,14 +161,14 @@ public sealed class BraidApiContractTests : TestBase
     public void RunExceptionSnapshotsTraceAndSchedule()
     {
         var trace = new[] { "worker-1 forked" };
-        var schedule = new[] { new BraidStep("worker-1", "ready") };
+        var schedule = new[] { new ReplayStep("worker-1", "ready") };
 
-        var exception = new BraidRunException("failed", 12345, 0, trace, schedule, null);
+        var exception = new RunException("failed", 12345, 0, trace, schedule, null);
         trace[0] = "changed";
-        schedule[0] = new BraidStep("worker-2", "changed");
+        schedule[0] = new ReplayStep("worker-2", "changed");
 
         Assert.Equal(["worker-1 forked"], exception.Trace);
-        Assert.Equal([new BraidStep("worker-1", "ready")], exception.Schedule);
+        Assert.Equal([new ReplayStep("worker-1", "ready")], exception.Schedule);
         Assert.Null(exception.SchedulerDiagnostics);
     }
 
@@ -180,14 +180,14 @@ public sealed class BraidApiContractTests : TestBase
 
         _ = Assertions.Expects<ArgumentOutOfRangeException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     _ = context;
                     ran = true;
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = 0 },
+                new RunOptions { Iterations = 0 },
                 DefaultCancellationToken);
         });
 

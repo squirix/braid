@@ -6,12 +6,12 @@ namespace Braid.Tests;
 public sealed class BraidRunResultAndScopeTests : TestBase
 {
     /// <summary>
-    /// Verifies <see cref="BraidRunException.ToString" /> does not mutate between calls.
+    /// Verifies <see cref="RunException.ToString" /> does not mutate between calls.
     /// </summary>
     [Fact]
     public void BraidRunExceptionToStringIsStable()
     {
-        var exception = new BraidRunException("failed", 42, 3, ["worker-1 forked"], [new BraidStep("worker-1", "ready")], new InvalidOperationException("inner"));
+        var exception = new RunException("failed", 42, 3, ["worker-1 forked"], [new ReplayStep("worker-1", "ready")], new InvalidOperationException("inner"));
 
         var first = exception.ToString();
         var second = exception.ToString();
@@ -24,14 +24,14 @@ public sealed class BraidRunResultAndScopeTests : TestBase
     [Fact]
     public async Task RunAsyncClearsRunScopeAfterSuccessfulRun()
     {
-        await BraidRunner.RunAsync(
+        await Runner.RunAsync(
             static async context =>
             {
-                context.Fork(static async () => await BraidProbe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
 
         await AssertProbeIsNoOpOutsideRunAsync();
@@ -44,18 +44,18 @@ public sealed class BraidRunResultAndScopeTests : TestBase
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        var runTask = BraidRunner.RunAsync(
+        var runTask = Runner.RunAsync(
             async context =>
             {
                 context.Fork(async () =>
                 {
-                    await BraidProbe.HitAsync("block", DefaultCancellationToken);
+                    await Probe.HitAsync("block", DefaultCancellationToken);
                     await gate.Task.WaitAsync(DefaultCancellationToken);
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
+            new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
             DefaultCancellationToken);
 
         var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
@@ -70,9 +70,9 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         try
         {
             await runTask;
-            Assert.Fail("Expected BraidRunException.");
+            Assert.Fail("Expected RunException.");
         }
-        catch (BraidRunException exception)
+        catch (RunException exception)
         {
             Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
         }
@@ -85,8 +85,8 @@ public sealed class BraidRunResultAndScopeTests : TestBase
     [Fact]
     public async Task RunAsyncCompletesWithNoWorkersSchedule()
     {
-        var options = new BraidOptions { Iterations = 1, Seed = 12345 };
-        await BraidRunner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
+        var options = new RunOptions { Iterations = 1, Seed = 12345 };
+        await Runner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
 
         await AssertProbeIsNoOpOutsideRunAsync();
     }
@@ -103,14 +103,14 @@ public sealed class BraidRunResultAndScopeTests : TestBase
 
         _ = Assertions.Expects<OperationCanceledException>(() =>
         {
-            _ = BraidRunner.RunAsync(
+            _ = Runner.RunAsync(
                 context =>
                 {
                     executed = true;
                     _ = context;
                     return Task.CompletedTask;
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345 },
+                new RunOptions { Iterations = 1, Seed = 12345 },
                 canceled.Token);
         });
 
@@ -122,48 +122,48 @@ public sealed class BraidRunResultAndScopeTests : TestBase
     [Fact]
     public async Task RunExceptionSnapshotsTraceAndSchedule()
     {
-        var backing = new[] { new BraidStep("worker-1", "ready") };
-        var schedule = BraidSchedule.Replay(backing);
+        var backing = new[] { new ReplayStep("worker-1", "ready") };
+        var schedule = ReplaySchedule.Replay(backing);
 
-        var exception = await Assertions.ExpectsAsync<BraidRunException>(
-            BraidRunner.RunAsync(
+        var exception = await Assertions.ExpectsAsync<RunException>(
+            Runner.RunAsync(
                 static async context =>
                 {
                     context.Fork(static async () =>
                     {
-                        await BraidProbe.HitAsync("ready", DefaultCancellationToken);
+                        await Probe.HitAsync("ready", DefaultCancellationToken);
                         throw new InvalidOperationException("after-ready");
                     });
 
                     await context.JoinAsync(DefaultCancellationToken);
                 },
-                new BraidOptions { Iterations = 1, Seed = 12345, Schedule = schedule },
+                new RunOptions { Iterations = 1, Seed = 12345, Schedule = schedule },
                 DefaultCancellationToken));
 
-        backing[0] = new BraidStep("worker-9", "mutated");
+        backing[0] = new ReplayStep("worker-9", "mutated");
 
         var report = exception.ToString();
         Assert.Contains("worker-1 @ ready", report, StringComparison.Ordinal);
         Assert.DoesNotContain("worker-9", report, StringComparison.Ordinal);
-        Assert.Equal(new BraidStep("worker-1", "ready"), exception.Schedule[0]);
+        Assert.Equal(new ReplayStep("worker-1", "ready"), exception.Schedule[0]);
     }
 
     /// <summary>
-    /// Verifies schedule steps exposed from <see cref="BraidSchedule" /> cannot be mutated as a list.
+    /// Verifies schedule steps exposed from <see cref="ReplaySchedule" /> cannot be mutated as a list.
     /// </summary>
     [Fact]
     public void ScheduleStepsCannotBeMutatedPublic()
     {
-        var schedule = BraidSchedule.Replay(new BraidStep("worker-1", "ready"));
+        var schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready"));
         var steps = schedule.Steps;
 
-        Assert.Equal(new BraidStep("worker-1", "ready"), steps[0]);
+        Assert.Equal(new ReplayStep("worker-1", "ready"), steps[0]);
 
-        var list = Assert.IsType<IList<BraidStep>>(steps, false);
-        _ = Assertions.Expects<NotSupportedException>(() => list.Add(new BraidStep("worker-2", "x")));
+        var list = Assert.IsType<IList<ReplayStep>>(steps, false);
+        _ = Assertions.Expects<NotSupportedException>(() => list.Add(new ReplayStep("worker-2", "x")));
         _ = Assertions.Expects<NotSupportedException>(list.Clear);
-        _ = Assertions.Expects<NotSupportedException>(() => list[0] = new BraidStep("worker-9", "mutated"));
+        _ = Assertions.Expects<NotSupportedException>(() => list[0] = new ReplayStep("worker-9", "mutated"));
 
-        Assert.Equal(new BraidStep("worker-1", "ready"), schedule.Steps[0]);
+        Assert.Equal(new ReplayStep("worker-1", "ready"), schedule.Steps[0]);
     }
 }

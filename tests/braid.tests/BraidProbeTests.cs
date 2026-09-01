@@ -10,23 +10,23 @@ public sealed class BraidProbeTests : TestBase
     [Fact]
     public async Task HitAsyncOutsideRunCompletesFailedRun()
     {
-        var operation = BraidRunner.RunAsync(
+        var operation = Runner.RunAsync(
             static async context =>
             {
                 context.Fork(static async () =>
                 {
-                    await BraidProbe.HitAsync("before-failure", DefaultCancellationToken);
+                    await Probe.HitAsync("before-failure", DefaultCancellationToken);
                     throw new InvalidOperationException("scope-failure");
                 });
 
                 await context.JoinAsync(DefaultCancellationToken);
             },
-            new BraidOptions { Iterations = 1, Seed = 12345 },
+            new RunOptions { Iterations = 1, Seed = 12345 },
             DefaultCancellationToken);
 
-        _ = await Assertions.ExpectsAsync<BraidRunException>(operation);
+        _ = await Assertions.ExpectsAsync<RunException>(operation);
 
-        await BraidProbe.HitAsync("outside-run", DefaultCancellationToken);
+        await Probe.HitAsync("outside-run", DefaultCancellationToken);
     }
 
     /// <summary>Verifies probes are no-ops outside a braid run.</summary>

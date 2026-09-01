@@ -14,13 +14,13 @@ internal static class NullTestValues
     internal static Func<Task> NullReturningFork => static () => NullTaskHolder[0];
 
     /// <summary>Gets a run callback that returns null.</summary>
-    internal static Func<BraidContext, Task> NullReturningRunCallback => static _ => NullTaskHolder[0];
+    internal static Func<RunContext, Task> NullReturningRunCallback => static _ => NullTaskHolder[0];
 
     /// <summary>Gets a null replay steps array.</summary>
-    internal static BraidStep[] ReplaySteps => null;
+    internal static ReplayStep[] ReplaySteps => null;
 
     /// <summary>Gets a null braid run callback.</summary>
-    internal static Func<BraidContext, Task> RunCallback => null;
+    internal static Func<RunContext, Task> RunCallback => null;
 
     /// <summary>Gets a null string.</summary>
     internal static string String => null;

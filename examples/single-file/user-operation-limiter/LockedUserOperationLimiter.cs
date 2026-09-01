@@ -47,7 +47,7 @@ public sealed class LockedUserOperationLimiter
     /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
     public async Task<bool> TryEnterAsync(CancellationToken cancellationToken)
     {
-        await BraidProbe.HitAsync("before-enter", cancellationToken);
+        await Probe.HitAsync("before-enter", cancellationToken);
         bool allowed;
 
         lock (_gate)
@@ -64,7 +64,7 @@ public sealed class LockedUserOperationLimiter
             }
         }
 
-        await BraidProbe.HitAsync("after-enter", cancellationToken);
+        await Probe.HitAsync("after-enter", cancellationToken);
         return allowed;
     }
 }

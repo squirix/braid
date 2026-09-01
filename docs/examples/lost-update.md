@@ -2,7 +2,7 @@
 
 This example turns a classic read-modify-write race into a stable replay regression. To discover the failing interleaving without writing the schedule by hand, see [explore-lost-update](explore-lost-update.md).
 
-Two workers read the same integer value, both stop at `after-read`, then both stop again at `before-write`. The replay schedule releases them so each worker writes `current + 1` from the same original value. The final assertion expects `2`, so the reproduced interleaving fails with a `BraidRunException`.
+Two workers read the same integer value, both stop at `after-read`, then both stop again at `before-write`. The replay schedule releases them so each worker writes `current + 1` from the same original value. The final assertion expects `2`, so the reproduced interleaving fails with a `RunException`.
 
 ## Replay token
 

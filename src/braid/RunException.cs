@@ -8,37 +8,37 @@ namespace Braid;
 /// Inner exceptions are preserved on the base <see cref="Exception" /> and summarized in <see cref="ToString" />.
 /// </summary>
 [PublicAPI]
-public sealed class BraidRunException : Exception
+public sealed class RunException : Exception
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="BraidRunException" /> class.
+    /// Initializes a new instance of the <see cref="RunException" /> class.
     /// </summary>
-    public BraidRunException()
+    public RunException()
         : this("A braid run failed.", 0, 0, [], null, null)
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="BraidRunException" /> class with a message.
+    /// Initializes a new instance of the <see cref="RunException" /> class with a message.
     /// </summary>
     /// <param name="message">The exception message.</param>
-    public BraidRunException(string message)
+    public RunException(string message)
         : this(message, 0, 0, [], null, null)
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="BraidRunException" /> class with a message and inner exception.
+    /// Initializes a new instance of the <see cref="RunException" /> class with a message and inner exception.
     /// </summary>
     /// <param name="message">The exception message.</param>
     /// <param name="innerException">The underlying exception.</param>
-    public BraidRunException(string message, Exception innerException)
+    public RunException(string message, Exception innerException)
         : this(message, 0, 0, [], null, innerException)
     {
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="BraidRunException" /> class.
+    /// Initializes a new instance of the <see cref="RunException" /> class.
     /// </summary>
     /// <param name="message">The exception message.</param>
     /// <param name="seed">The seed used for the failing iteration.</param>
@@ -48,15 +48,15 @@ public sealed class BraidRunException : Exception
     /// <param name="innerException">The underlying exception.</param>
     /// <param name="schedulerDiagnostics">Scheduler state captured at failure time, when available.</param>
     /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
-    public BraidRunException(
+    public RunException(
         string message,
         int seed,
         int iteration,
         IReadOnlyList<string> trace,
-        IReadOnlyList<BraidStep>? schedule,
+        IReadOnlyList<ReplayStep>? schedule,
         Exception? innerException,
-        BraidSchedulerDiagnostics? schedulerDiagnostics = null,
-        BraidRunFailureOrigin failureOrigin = BraidRunFailureOrigin.Scheduler)
+        SchedulerDiagnostics? schedulerDiagnostics = null,
+        RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
         : base(message, innerException)
     {
         ArgumentNullException.ThrowIfNull(trace);
@@ -64,22 +64,22 @@ public sealed class BraidRunException : Exception
         Seed = seed;
         Iteration = iteration;
         Trace = Array.AsReadOnly([.. trace]);
-        Schedule = schedule is null ? Array.Empty<BraidStep>() : Array.AsReadOnly([.. schedule]);
+        Schedule = schedule is null ? Array.Empty<ReplayStep>() : Array.AsReadOnly([.. schedule]);
         SchedulerDiagnostics = schedulerDiagnostics;
         FailureOrigin = failureOrigin;
     }
 
     /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
-    public BraidRunFailureOrigin FailureOrigin { get; }
+    public RunFailureOrigin FailureOrigin { get; }
 
     /// <summary>Gets the zero-based failing iteration index.</summary>
     public int Iteration { get; }
 
     /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
-    public IReadOnlyList<BraidStep> Schedule { get; }
+    public IReadOnlyList<ReplayStep> Schedule { get; }
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
-    public BraidSchedulerDiagnostics? SchedulerDiagnostics { get; }
+    public SchedulerDiagnostics? SchedulerDiagnostics { get; }
 
     /// <summary>Gets the seed used for the failing iteration.</summary>
     public int Seed { get; }
@@ -103,7 +103,7 @@ public sealed class BraidRunException : Exception
             for (var index = 0; index < Schedule.Count; index++)
             {
                 var step = Schedule[index];
-                lines.Add(step.Kind is BraidStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
+                lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
             }
 
             lines.Add("Replay text:");
@@ -132,7 +132,7 @@ public sealed class BraidRunException : Exception
     }
 
     /// <summary>
-    /// Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="BraidSchedule.Parse(string)" /> accepts).
+    /// Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="ReplaySchedule.Parse(string)" /> accepts).
     /// </summary>
     /// <param name="text">When this method returns <see langword="true" />, the exportable replay text. Otherwise <see cref="string.Empty" />.</param>
     /// <param name="error">
@@ -140,7 +140,7 @@ public sealed class BraidRunException : Exception
     /// a diagnostic message; otherwise <see langword="null" /> (including when no typed schedule was configured).
     /// </param>
     /// <returns>
-    /// <see langword="true" /> if <see cref="Schedule" /> is non-empty and <see cref="BraidSchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
+    /// <see langword="true" /> if <see cref="Schedule" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
     /// </returns>
     public bool TryGetReplayText(out string text, out string? error)
     {
@@ -152,7 +152,7 @@ public sealed class BraidRunException : Exception
 
         try
         {
-            var replaySchedule = BraidSchedule.Replay(Schedule);
+            var replaySchedule = ReplaySchedule.Replay(Schedule);
             text = replaySchedule.ToReplayText();
             return true;
         }
@@ -163,7 +163,7 @@ public sealed class BraidRunException : Exception
         }
     }
 
-    private static void AppendSchedulerDiagnosticsContent(List<string> lines, BraidSchedulerDiagnostics diagnostics)
+    private static void AppendSchedulerDiagnosticsContent(List<string> lines, SchedulerDiagnostics diagnostics)
     {
         if (diagnostics.HasReplaySchedule)
         {
@@ -204,7 +204,7 @@ public sealed class BraidRunException : Exception
         }
     }
 
-    private static void AppendSchedulerDiagnosticsLines(List<string> lines, BraidSchedulerDiagnostics? diagnostics)
+    private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
     {
         if (diagnostics == null)
             return;

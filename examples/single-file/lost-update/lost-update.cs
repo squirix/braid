@@ -18,18 +18,18 @@ public sealed class LostUpdateTests
     [Fact]
     public async Task ReplayTokenCapturesLostUpdateInterleaving()
     {
-        var schedule = BraidSchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read\nhit worker-1 before-write\nhit worker-2 before-write\n");
+        var schedule = ReplaySchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read\nhit worker-1 before-write\nhit worker-2 before-write\n");
 
-        var options = new BraidOptions
+        var options = new RunOptions
         {
             Iterations = 1,
             Seed = 12345,
             Schedule = schedule,
         };
 
-        var exception = await Assert.ThrowsAsync<BraidRunException>(async () =>
+        var exception = await Assert.ThrowsAsync<RunException>(async () =>
         {
-            await BraidRunner.RunAsync(
+            await Runner.RunAsync(
                 static async context =>
                 {
                     var value = 0;
@@ -37,16 +37,16 @@ public sealed class LostUpdateTests
                     context.Fork(async () =>
                     {
                         var current = value;
-                        await BraidProbe.HitAsync("after-read", TestCancellationToken);
-                        await BraidProbe.HitAsync("before-write", TestCancellationToken);
+                        await Probe.HitAsync("after-read", TestCancellationToken);
+                        await Probe.HitAsync("before-write", TestCancellationToken);
                         value = current + 1;
                     });
 
                     context.Fork(async () =>
                     {
                         var current = value;
-                        await BraidProbe.HitAsync("after-read", TestCancellationToken);
-                        await BraidProbe.HitAsync("before-write", TestCancellationToken);
+                        await Probe.HitAsync("after-read", TestCancellationToken);
+                        await Probe.HitAsync("before-write", TestCancellationToken);
                         value = current + 1;
                     });
 
