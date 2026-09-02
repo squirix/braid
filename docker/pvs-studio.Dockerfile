@@ -21,17 +21,18 @@ RUN apt-get update \
         iproute2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install .NET SDK 10.0.400 using Microsoft's install script
-RUN DOTNET_VERSION=10.0.400 \
-    && curl -SL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh \
+# Install .NET SDK via Microsoft's install script.
+# --channel 10.0.4xx selects the latest patch in the 10.0.4xx feature band
+# (e.g. 10.0.400), matching global.json's version 10.0.400 + rollForward latestFeature.
+RUN curl -SL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh \
         --output /dotnet-install.sh \
     && chmod +x /dotnet-install.sh \
-    && /dotnet-install.sh --channel 10.0.400 --install-dir /usr/share/dotnet \
+    && /dotnet-install.sh --channel 10.0.4xx --install-dir /usr/share/dotnet \
     && ln -s /usr/share/dotnet/dotnet /usr/bin/dotnet \
     && rm /dotnet-install.sh
 
 # Verify .NET installation
-RUN dotnet --info
+RUN dotnet --list-sdks
 
 # Install the PVS-Studio apt repository and the analyzer packages.
 RUN apt-get update \
