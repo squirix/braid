@@ -4,7 +4,7 @@ Compact checklist for publishing a new `braid` preview or stable version. NuGet 
 
 ## Release variables (PowerShell)
 
-Set the version once for all commands in a session. The value must match `<Version>` in `src/braid/Braid.csproj` and the section you are publishing in `CHANGELOG.md`.
+Set the version once for all commands in a session. The value must match `<Version>` in `Directory.Build.props` and the section you are publishing in `CHANGELOG.md`.
 
 ```powershell
 $Version = "<version>"
@@ -23,7 +23,7 @@ $Repo = "C:\Source\braid"
 ## Preconditions
 
 - Working tree clean (`git status`).
-- Version in `src/braid/Braid.csproj` matches the intended NuGet version.
+- Version in `Directory.Build.props` matches the intended NuGet version.
 - No secrets committed; API keys stay in user or CI secret storage only.
 
 ## Build and pack
@@ -76,7 +76,7 @@ dotnet test --configuration Release
 
 After publishing to NuGet.org, you can repeat `dotnet add package braid --version $Version` **without** `--source` once the package is indexed, and run the same tests.
 
-Optionally smoke-test **text replay** against the live package: parse a short schedule with `ReplaySchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering. Use the same `$Version` as in `src/braid/Braid.csproj`.
+Optionally smoke-test **text replay** against the live package: parse a short schedule with `ReplaySchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering. Use the same `$Version` as in `Directory.Build.props`.
 
 ## GitHub release
 

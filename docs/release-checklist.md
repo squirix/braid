@@ -34,7 +34,7 @@ Do not commit these values into this checklist.
 
        git remote -v
 
-4. Ensure `src/braid/Braid.csproj` contains the intended package version.
+4. Ensure `Directory.Build.props` contains the intended package version.
 
 5. Ensure `CHANGELOG.md` contains release notes for the intended version.
 
