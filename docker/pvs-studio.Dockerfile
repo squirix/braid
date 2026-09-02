@@ -54,6 +54,10 @@ RUN pvs-studio-analyzer --version \
 # Microsoft's detached GPG signature and public key, the key fingerprint is
 # pinned to the known-good Microsoft signing key, and the script must verify
 # against that key or the build fails.
+#
+# Run the install and verification under Bash: the default /bin/sh (dash) on
+# Ubuntu does not implement `set -o pipefail`, which this pipeline relies on.
+SHELL ["/bin/bash", "-c"]
 RUN set -euo pipefail \
     && mkdir -p /tmp/gpghome \
     && chmod 700 /tmp/gpghome \
