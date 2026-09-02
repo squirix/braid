@@ -18,53 +18,53 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 20
         steps:
-            -   name: Set Git Options
-                run: |
-                    git config --global core.autocrlf false
-                    git config --global core.eol lf
+            - name: Set Git Options
+              run: |
+                  git config --global core.autocrlf false
+                  git config --global core.eol lf
 
-            -   name: Checkout
-                uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-                with:
-                    persist-credentials: false
+            - name: Checkout
+              uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
 
-            -   name: Setup .NET
-                uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
-                with:
-                    global-json-file: global.json
+            - name: Setup .NET
+              uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+              with:
+                  global-json-file: global.json
 
-            -   name: Restore
-                run: dotnet restore
+            - name: Restore
+              run: dotnet restore
 
-            -   name: Build
-                run: dotnet build --configuration Release --no-restore
+            - name: Build
+              run: dotnet build --configuration Release --no-restore
 
-            -   name: Test
-                run: dotnet test --configuration Release --no-build
+            - name: Test
+              run: dotnet test --configuration Release --no-build
 
-            -   name: Pack
-                run: dotnet pack --configuration Release --no-build --output out/packages
+            - name: Pack
+              run: dotnet pack --configuration Release --no-build --output out/packages
 
-            -   name: Verify tag version matches package
-                run: |
-                    set -euo pipefail
-                    version="${GITHUB_REF_NAME#v}"
-                    pkg="out/packages/braid.${version}.nupkg"
-                    if [ ! -f "${pkg}" ]; then
-                        echo "Expected package not found: ${pkg}" >&2
-                        ls -la out/packages/ >&2 || true
-                        exit 1
-                    fi
-                    echo "Tag ${GITHUB_REF_NAME} matches package ${pkg}."
+            - name: Verify tag version matches package
+              run: |
+                  set -euo pipefail
+                  version="${GITHUB_REF_NAME#v}"
+                  pkg="out/packages/braid.${version}.nupkg"
+                  if [ ! -f "${pkg}" ]; then
+                      echo "Expected package not found: ${pkg}" >&2
+                      ls -la out/packages/ >&2 || true
+                      exit 1
+                  fi
+                  echo "Tag ${GITHUB_REF_NAME} matches package ${pkg}."
 
-            -   name: Upload package artifact
-                uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-                with:
-                    name: nuget-package
-                    path: |
-                        out/packages/*.nupkg
-                        out/packages/*.snupkg
-                    if-no-files-found: error
+            - name: Upload package artifact
+              uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+              with:
+                  name: nuget-package
+                  path: |
+                      out/packages/*.nupkg
+                      out/packages/*.snupkg
+                  if-no-files-found: error
 
     publish:
         name: Publish to nuget.org and GitHub
@@ -73,43 +73,49 @@ jobs:
         timeout-minutes: 20
         environment: release
         permissions:
+            # Write access to create the GitHub Release (draft).
             contents: write
+            # OIDC token for NuGet trusted publishing (exchanged for a temporary API key).
             id-token: write
         steps:
-            -   name: Download package artifact
-                uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-                with:
-                    name: nuget-package
-                    path: out/packages
+            - name: Download package artifact
+              uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+              with:
+                  name: nuget-package
+                  path: out/packages
 
-            -   name: NuGet login (OIDC to temp API key)
-                id: login
-                uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
-                with:
-                    user: ${{ secrets.NUGET_USER }}
+            - name: NuGet login (OIDC to temp API key)
+              id: login
+              uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
+              with:
+                  user: ${{ secrets.NUGET_USER }}
 
-            -   name: Publish to nuget.org
-                run: |
-                    set -euo pipefail
-                    shopt -s nullglob
-                    packages=(out/packages/*.nupkg out/packages/*.snupkg)
-                    if [ ${#packages[@]} -eq 0 ]; then
-                        echo "No packages found under out/packages." >&2
-                        ls -la out/packages/ >&2 || true
-                        exit 1
-                    fi
-                    for package in "${packages[@]}"; do
-                        dotnet nuget push "${package}" \
-                            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
-                            --source "https://api.nuget.org/v3/index.json" \
-                            --skip-duplicate
-                    done
+            - name: Publish to nuget.org
+              run: |
+                  set -euo pipefail
+                  shopt -s nullglob
+                  packages=(out/packages/*.nupkg out/packages/*.snupkg)
+                  if [ ${#packages[@]} -eq 0 ]; then
+                      echo "No packages found under out/packages." >&2
+                      ls -la out/packages/ >&2 || true
+                      exit 1
+                  fi
+                  for package in "${packages[@]}"; do
+                      # Do not pass --skip-duplicate: a package that is already
+                      # published under the same version would otherwise be
+                      # silently ignored, masking a tag/version mismatch. The
+                      # build job already asserts the tag matches the package,
+                      # so a duplicate here should fail loudly instead.
+                      dotnet nuget push "${package}" \
+                          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+                          --source "https://api.nuget.org/v3/index.json"
+                  done
 
-            -   name: Create GitHub Release
-                uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-                with:
-                    draft: true
-                    generate_release_notes: true
-                    files: |
-                        out/packages/*.nupkg
-                        out/packages/*.snupkg
+            - name: Create GitHub Release
+              uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+              with:
+                  draft: true
+                  generate_release_notes: true
+                  files: |
+                      out/packages/*.nupkg
+                      out/packages/*.snupkg
