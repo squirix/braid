@@ -13,12 +13,10 @@ permissions:
     contents: read
 
 jobs:
-    release:
+    build:
+        name: Build, test, and validate
         runs-on: ubuntu-latest
         timeout-minutes: 20
-        permissions:
-            contents: write
-            id-token: write
         steps:
             -   name: Set Git Options
                 run: |
@@ -26,12 +24,12 @@ jobs:
                     git config --global core.eol lf
 
             -   name: Checkout
-                uses: actions/checkout@v7
+                uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
                 with:
                     persist-credentials: false
 
             -   name: Setup .NET
-                uses: actions/setup-dotnet@v6
+                uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
                 with:
                     global-json-file: global.json
 
@@ -47,17 +45,46 @@ jobs:
             -   name: Pack
                 run: dotnet pack --configuration Release --no-build --output out/packages
 
+            -   name: Verify tag version matches package
+                run: |
+                    set -euo pipefail
+                    version="${GITHUB_REF_NAME#v}"
+                    pkg="out/packages/braid.${version}.nupkg"
+                    if [ ! -f "${pkg}" ]; then
+                        echo "Expected package not found: ${pkg}" >&2
+                        ls -la out/packages/ >&2 || true
+                        exit 1
+                    fi
+                    echo "Tag ${GITHUB_REF_NAME} matches package ${pkg}."
+
             -   name: Upload package artifact
-                uses: actions/upload-artifact@v7
+                uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
                 with:
                     name: nuget-package
                     path: |
                         out/packages/*.nupkg
                         out/packages/*.snupkg
+                    if-no-files-found: error
+
+    publish:
+        name: Publish to nuget.org and GitHub
+        needs: build
+        runs-on: ubuntu-latest
+        timeout-minutes: 20
+        environment: release
+        permissions:
+            contents: write
+            id-token: write
+        steps:
+            -   name: Download package artifact
+                uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+                with:
+                    name: nuget-package
+                    path: out/packages
 
             -   name: NuGet login (OIDC to temp API key)
                 id: login
-                uses: NuGet/login@v1
+                uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1
                 with:
                     user: ${{ secrets.NUGET_USER }}
 
@@ -65,24 +92,21 @@ jobs:
                 run: |
                     set -euo pipefail
                     shopt -s nullglob
-                    packages=(out/packages/*.nupkg)
-                    if [[ ${#packages[@]} -eq 0 ]]; then
-                        echo "No .nupkg files found under out/packages." >&2
+                    packages=(out/packages/*.nupkg out/packages/*.snupkg)
+                    if [ ${#packages[@]} -eq 0 ]; then
+                        echo "No packages found under out/packages." >&2
                         ls -la out/packages/ >&2 || true
                         exit 1
                     fi
                     for package in "${packages[@]}"; do
-                        if [[ "$package" == *.snupkg ]]; then
-                            continue
-                        fi
-                        dotnet nuget push "$package" \
+                        dotnet nuget push "${package}" \
                             --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
                             --source "https://api.nuget.org/v3/index.json" \
                             --skip-duplicate
                     done
 
             -   name: Create GitHub Release
-                uses: softprops/action-gh-release@v3
+                uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
                 with:
                     draft: true
                     generate_release_notes: true
