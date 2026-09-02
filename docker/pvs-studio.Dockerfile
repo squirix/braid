@@ -42,18 +42,32 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Verify PVS-Studio installation.
-RUN pvs-studio-analyzer --version
+RUN pvs-studio-analyzer --version \
+    && pvs-studio-dotnet --version
 
 # Install .NET SDK via Microsoft's install script, AFTER the pvs-studio apt
 # packages, so this SDK (10.0.400) is the one on PATH and under DOTNET_ROOT.
 # --channel 10.0.4xx selects the latest patch in the 10.0.4xx feature band
 # (e.g. 10.0.400), matching global.json's version 10.0.400 + rollForward latestFeature.
-RUN curl -SL https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh \
-        --output /dotnet-install.sh \
-    && chmod +x /dotnet-install.sh \
-    && /dotnet-install.sh --channel 10.0.4xx --install-dir "$DOTNET_ROOT" \
+#
+# The install script is verified before running: it is downloaded alongside
+# Microsoft's detached GPG signature and public key, the key fingerprint is
+# pinned to the known-good Microsoft signing key, and the script must verify
+# against that key or the build fails.
+RUN set -euo pipefail \
+    && mkdir -p /tmp/gpghome \
+    && chmod 700 /tmp/gpghome \
+    && curl -SL https://dot.net/v1/dotnet-install.sh --output /tmp/dotnet-install.sh \
+    && curl -SL https://dot.net/v1/dotnet-install.sig --output /tmp/dotnet-install.sig \
+    && curl -SL https://dot.net/v1/dotnet-install.asc --output /tmp/dotnet-install.asc \
+    && gpg --batch --homedir /tmp/gpghome --import /tmp/dotnet-install.asc \
+    && gpg --batch --homedir /tmp/gpghome --show-keys --with-colons /tmp/dotnet-install.asc \
+        | grep -qi ":2b930ab1228d11d5d7f6b6acb9cf1a51fc7d3acf:" \
+    && gpg --batch --homedir /tmp/gpghome --verify /tmp/dotnet-install.sig /tmp/dotnet-install.sh \
+    && chmod +x /tmp/dotnet-install.sh \
+    && /tmp/dotnet-install.sh --channel 10.0.4xx --install-dir "$DOTNET_ROOT" \
     && ln -sf "$DOTNET_ROOT/dotnet" /usr/bin/dotnet \
-    && rm /dotnet-install.sh
+    && rm -rf /tmp/gpghome /tmp/dotnet-install.sh /tmp/dotnet-install.sig /tmp/dotnet-install.asc
 
 # Verify the .NET SDK that CI will actually use.
 RUN dotnet --list-sdks
