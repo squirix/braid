@@ -9,7 +9,7 @@
 # from the PVS_STUDIO_CREDENTIALS secret.
 
 # Use Ubuntu base and install .NET SDK 10.0.400 via Microsoft's script
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 # Install dependencies for .NET SDK and PVS-Studio
 RUN apt-get update \
