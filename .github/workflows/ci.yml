@@ -401,3 +401,56 @@ jobs:
                         pvs-studio-out/pvs-studio-all.txt
                         pvs-studio-out/pvs-studio-gate-totals.txt
                         pvs-studio-out/html.fullhtml/**
+
+    # Aggregates all CI jobs and reports a single required "CI success" check.
+    # Silently tolerates skipped jobs (e.g. sonarcloud/pvs-studio on fork PRs
+    # where secrets are unavailable) but fails if any required job failed.
+    ci-success:
+        name: CI success
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
+        needs:
+            - build
+            - sonarcloud
+            - pvs-studio
+        if: always()
+        steps:
+            -   name: Verify Required Checks
+                shell: bash
+                env:
+                    RESULT_BUILD: ${{ needs.build.result }}
+                    RESULT_SONAR: ${{ needs.sonarcloud.result }}
+                    RESULT_PVS: ${{ needs.pvs-studio.result }}
+                run: |
+                    set -euo pipefail
+                    failed=0
+
+                    assert_success() {
+                      local name="$1"
+                      local result="$2"
+                      if [[ "$result" == "success" ]]; then
+                        echo "OK   $name"
+                        return 0
+                      fi
+                      echo "FAIL $name result=$result" >&2
+                      failed=1
+                    }
+
+                    assert_success_or_skipped() {
+                      local name="$1"
+                      local result="$2"
+                      if [[ "$result" == "success" || "$result" == "skipped" ]]; then
+                        echo "OK   $name result=$result"
+                        return 0
+                      fi
+                      echo "FAIL $name result=$result" >&2
+                      failed=1
+                    }
+
+                    assert_success "build" "$RESULT_BUILD"
+                    assert_success_or_skipped "sonarcloud" "$RESULT_SONAR"
+                    assert_success_or_skipped "pvs-studio" "$RESULT_PVS"
+
+                    if [[ "$failed" -ne 0 ]]; then
+                      exit 1
+                    fi

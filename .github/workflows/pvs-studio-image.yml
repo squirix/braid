@@ -53,7 +53,7 @@ jobs:
                     file: docker/pvs-studio.Dockerfile
                     push: true
                     tags: |
-                        ghcr.io/squirix/braid-pvs-studio:latest
-                        ghcr.io/squirix/braid-pvs-studio:${{ steps.meta.outputs.sha }}
+                        ghcr.io/squirix/pvs-studio:latest
+                        ghcr.io/squirix/pvs-studio:${{ steps.meta.outputs.sha }}
                     cache-from: type=gha
                     cache-to: type=gha,mode=max
