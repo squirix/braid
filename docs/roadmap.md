@@ -4,7 +4,7 @@ braid is deterministic concurrency testing for .NET libraries (currently **.NET 
 
 The current stable product intentionally focuses on small, reproducible async interleavings. Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control, binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
-**Recommended next release:** **v0.7.0** — follow-on exploration and API hardening (v0.6.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
+**Recommended next release:** **v0.8.0** — fairness-aware search and richer failure collection (v0.7.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
 This roadmap matches [CHANGELOG.md](../CHANGELOG.md) for completed work and keeps future direction intentionally high level.
 
@@ -109,13 +109,25 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.6.0** and [design/explore-asy
 - README exploration section and RFC
 - `examples/single-file/explore-lost-update` with walkthrough for discovery → replay token → `RunAsync` regression
 
+### v0.7.0 — Public API rename and exploration hardening
+
+Goal: clean up the public API surface and harden the scheduler and explorer.
+
+Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.7.0**):
+
+- breaking rename of all public `Braid`-prefixed types to match the `Braid` namespace (`Runner`, `RunContext`, `ReplaySchedule`, `Probe`, ...)
+- `ExploreOptionsBuilder.WithTimeout`
+- scheduler and explorer review fixes for bounded enumeration, disposal, and unused-step diagnostics
+- `ExploreOptions` as a readonly record struct; assembly version centralized in `Directory.Build.props`
+- SonarCloud, PVS-Studio, and NDepend analysis in CI; Apache-2.0 license
+
 ## Planned releases
 
 This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
 
-### v0.7.0 — Exploration follow-on
+### v0.8.0 — Exploration follow-on
 
-Goal: fairness-aware search, richer failure collection, and API hardening.
+Goal: fairness-aware search and richer failure collection.
 
 ## Future preview
 

@@ -34,7 +34,7 @@ Do not commit these values into this checklist.
 
        git remote -v
 
-4. Ensure `src/braid/Braid.csproj` contains the intended package version.
+4. Ensure `Directory.Build.props` contains the intended package version.
 
 5. Ensure `CHANGELOG.md` contains release notes for the intended version.
 
@@ -106,9 +106,9 @@ If the tag already exists locally or remotely, stop and inspect. Do not force-up
 
 ## Publish
 
-Publish manually only after final review.
+Tag pushes are published automatically by the `Release` workflow (`.github/workflows/release.yml`): it builds, tests, packs, pushes the `braid` `.nupkg`/`.snupkg` to NuGet.org via trusted publishing (OIDC), and creates a draft GitHub Release with both assets. The `publish` job is gated by the `release` GitHub Environment; ensure `NUGET_USER` is configured and the environment's protection rules allow the tag to publish.
 
-Do not publish packages from CI until the release workflow and secrets policy are intentionally designed.
+Manual fallback (automation unavailable): publish manually only after final review.
 
 See [release-process.md](release-process.md) for:
 

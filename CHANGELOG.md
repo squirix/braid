@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## 0.7.0
+
+### Added
+
+- Added `ExploreOptionsBuilder.WithTimeout(TimeSpan)` for a configurable exploration timeout (previously fixed at 10 seconds).
+
+### Changed
+
+- Breaking: renamed all public `Braid`-prefixed types to drop the redundant prefix, matching the `Braid` namespace (SQR0007): `BraidRunner` → `Runner`, `BraidContext` → `RunContext`, `BraidOptions` → `RunOptions`, `BraidRunException` → `RunException`, `BraidRunFailureOrigin` → `RunFailureOrigin`, `BraidSchedule` → `ReplaySchedule`, `BraidStep` → `ReplayStep`, `BraidStepKind` → `ReplayStepKind`, `BraidProbe` → `Probe`, `BraidProbeWaitDiagnostic` → `ProbeWaitDiagnostic`, `BraidSchedulerDiagnostics` → `SchedulerDiagnostics`, `BraidExploreOptions` → `ExploreOptions`, `BraidExploreOptionsBuilder` → `ExploreOptionsBuilder`, `BraidExploreContext` → `ExploreContext`.
+- Converted `ExploreOptions` to a readonly record struct and extracted `RunExceptionContext` to simplify failure-report construction.
+- Centralized the assembly version in `Directory.Build.props`.
+
+### Fixed
+
+- Applied review findings to the scheduler and explorer internals.
+- Bounded schedule enumeration now also yields schedules truncated at `MaxSteps` when not all workers complete within the bound.
+- `Scheduler.Dispose` now snapshots the task list under the scheduler gate and tolerates repeated disposal.
+- Scripted-schedule unused-step diagnostics now distinguish the case where no workers were forked.
+
+### CI
+
+- Added SonarCloud and PVS-Studio analysis jobs and NDepend analysis to the pipeline.
+
+### Packaging
+
+- Switched the repository license to Apache 2.0.
+
+### Documentation
+
+- Simplified the README to essentials and updated the public roadmap for the v0.7.0 API rename.
+
 ## 0.6.0
 
 ### Added
