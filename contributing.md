@@ -48,13 +48,30 @@ dotnet run examples/single-file/lost-update/lost-update.cs
 
 Expected: 1 passing test (`ReplayTokenCapturesLostUpdateInterleaving`).
 
+## Branching model
+
+This repository follows the same `main` / `develop` branching model as squirix.
+
+- **`develop`** - default integration branch for day-to-day work. Branch feature work from `develop` and open pull
+  requests against `develop`.
+- **`main`** - stable release branch. Changes land here only via a release pull request (`develop` -> `main`).
+- **Releases** - tag a commit on `main` with `v*` (for example `v0.7.0`) to trigger the release workflow (NuGet push and
+  GitHub Release). Do not tag or publish from `develop`.
+
+```text
+feature/my-fix -> develop -> main -> tag vX.Y.Z
+```
+
 ## Submit changes
 
-1. Fork the repository, branch from `main`, and make your change.
-2. Run `dotnet build --configuration Release` and `dotnet test --configuration Release` (or a narrower test command when
-   appropriate).
-3. Open a pull request targeting `main` with a short description. Link related issues with `Fixes #123` in the PR body when
-   applicable.
+1. Fork the repository, branch from `develop`, and create a feature branch.
+2. Make your change and run `dotnet build --configuration Release` and `dotnet test --configuration Release` (or a
+   narrower test command when appropriate).
+3. Open a pull request targeting `develop` with a short description. Link related issues with `Fixes #123` in the PR
+   body when applicable.
+
+Release work (bumping `<Version>` in `Directory.Build.props`, release notes in `CHANGELOG.md`, and the GitHub Release)
+goes through a dedicated `develop` -> `main` pull request; see [docs/release-process.md](docs/release-process.md).
 
 ## License
 
