@@ -55,7 +55,7 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             traceSnapshot = [.. _trace];
-            scheduleSnapshot = _steps is null ? [] : [.. _steps];
+            scheduleSnapshot = _steps == null ? [] : [.. _steps];
             resolvedMessage = AppendReplayState(message);
             diagnostics = BuildDiagnosticSnapshot();
         }
@@ -203,7 +203,7 @@ internal sealed class Scheduler : IDisposable
         if (!_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
             return false;
 
-        if (_steps is null || _nextScheduleStep >= _steps.Count)
+        if (_steps == null || _nextScheduleStep >= _steps.Count)
             return true;
         var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
@@ -212,7 +212,7 @@ internal sealed class Scheduler : IDisposable
 
     private string AppendReplayState(string message)
     {
-        if (_steps is null)
+        if (_steps == null)
             return message;
 
         var details = new List<string>
@@ -221,11 +221,10 @@ internal sealed class Scheduler : IDisposable
             $"Next replay step: {_nextScheduleStep + 1} of {_steps.Count}",
         };
 
-        if (_nextScheduleStep < _steps.Count)
-        {
-            var step = _steps[_nextScheduleStep];
-            details.Add($"Next replay operation: {FormatStepLocal(step)}");
-        }
+        if (_nextScheduleStep >= _steps.Count)
+            return string.Join(Environment.NewLine, details);
+        var step = _steps[_nextScheduleStep];
+        details.Add($"Next replay operation: {FormatStepLocal(step)}");
 
         return string.Join(Environment.NewLine, details);
 
@@ -530,7 +529,8 @@ internal sealed class Scheduler : IDisposable
             for (var index = 0; index < tasks.Count; index++)
             {
                 var task = tasks[index];
-                if (string.Equals(task.WorkerId, workerId, StringComparison.Ordinal) && task.State is RunTaskState.Waiting or RunTaskState.Held && task.LastProbeName != null)
+                var equals = string.Equals(task.WorkerId, workerId, StringComparison.Ordinal);
+                if (equals && (task.State == RunTaskState.Waiting || task.State == RunTaskState.Held) && task.LastProbeName != null)
                     return task;
             }
 
@@ -569,7 +569,13 @@ internal sealed class Scheduler : IDisposable
             return null;
         }
 
-        private static RunTask? SelectArriveStep(SchedulerJoinContext context, ReplayStep step, RunTask? waitingTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks, ref bool advancedWithoutRelease)
+        private static RunTask? SelectArriveStep(
+            SchedulerJoinContext context,
+            ReplayStep step,
+            RunTask? waitingTask,
+            RunTask? sameWorkerBlockedTask,
+            bool hasRunningTasks,
+            ref bool advancedWithoutRelease)
         {
             if (waitingTask == null)
             {
@@ -584,11 +590,22 @@ internal sealed class Scheduler : IDisposable
             return null;
         }
 
-        private static RunTask? SelectHitStep(SchedulerJoinContext context, ReplayStep step, RunTask? waitingTask, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
+        private static RunTask? SelectHitStep(
+            SchedulerJoinContext context,
+            ReplayStep step,
+            RunTask? waitingTask,
+            RunTask? heldTask,
+            RunTask? sameWorkerBlockedTask,
+            bool hasRunningTasks)
         {
             var releasableTask = heldTask ?? waitingTask;
             if (releasableTask == null)
-                return hasRunningTasks ? null : throw context.CreateException(BuildStepMismatchMessage(context.NextScheduleStep, "hit", step, sameWorkerBlockedTask), null, RunFailureOrigin.Scheduler);
+            {
+                return hasRunningTasks ? null : throw context.CreateException(
+                    BuildStepMismatchMessage(context.NextScheduleStep, "hit", step, sameWorkerBlockedTask),
+                    null,
+                    RunFailureOrigin.Scheduler);
+            }
 
             context.NextScheduleStep++;
             return releasableTask;
@@ -600,7 +617,7 @@ internal sealed class Scheduler : IDisposable
             if (startupTask != null)
                 return startupTask;
 
-            if (context.Steps is null)
+            if (context.Steps == null)
                 return waitingTasks.Length == 0 ? null : waitingTasks[context.Random.NextInt32(waitingTasks.Length)];
 
             if (context.NextScheduleStep >= context.Steps.Count)
