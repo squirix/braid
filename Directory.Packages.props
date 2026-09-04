@@ -17,7 +17,7 @@
         <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.33.0.1635"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
         <PackageVersion Include="ZeroAlloc.Analyzers" Version="1.5.0"/>
-        <PackageVersion Include="squirix.analyzers" Version="0.1.5"/>
+        <PackageVersion Include="squirix.analyzers" Version="0.1.6"/>
         <PackageVersion Include="JetBrains.Annotations" Version="2026.2.0"/>
     </ItemGroup>
 
