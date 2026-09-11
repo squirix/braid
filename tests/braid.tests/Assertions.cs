@@ -34,10 +34,9 @@ public static class Assertions
         }
         catch (Exception thrown)
         {
-            if (thrown is TException expected && expected.GetType() == typeof(TException))
-                return expected;
-
-            throw Unexpected<TException>(thrown);
+            return thrown is TException expected && expected.GetType() == typeof(TException)
+                ? expected
+                : throw Unexpected<TException>(thrown);
         }
 
         throw Missing<TException>();
@@ -61,10 +60,9 @@ public static class Assertions
         }
         catch (Exception thrown)
         {
-            if (thrown is TException expected && expected.GetType() == typeof(TException))
-                return expected;
-
-            throw Unexpected<TException>(thrown);
+            return thrown is TException expected && expected.GetType() == typeof(TException)
+                ? expected
+                : throw Unexpected<TException>(thrown);
         }
 
         throw Missing<TException>();
@@ -90,10 +88,9 @@ public static class Assertions
         }
         catch (Exception thrown)
         {
-            if (thrown is TException expected && expected.GetType() == typeof(TException))
-                return expected;
-
-            throw Unexpected<TException>(thrown);
+            return thrown is TException expected && expected.GetType() == typeof(TException)
+                ? expected
+                : throw Unexpected<TException>(thrown);
         }
 
         throw Missing<TException>();
@@ -188,10 +185,9 @@ public static class Assertions
         }
         catch (Exception thrown)
         {
-            if (thrown is TException expected && expected.GetType() == typeof(TException))
-                return expected;
-
-            throw Unexpected<TException>(thrown);
+            return thrown is TException expected && expected.GetType() == typeof(TException)
+                ? expected
+                : throw Unexpected<TException>(thrown);
         }
 
         throw Missing<TException>();
@@ -206,10 +202,9 @@ public static class Assertions
         }
         catch (Exception thrown)
         {
-            if (thrown is TException expected && (!exactType || expected.GetType() == typeof(TException)))
-                return expected;
-
-            throw Unexpected<TException>(thrown);
+            return thrown is TException expected && (!exactType || expected.GetType() == typeof(TException))
+                ? expected
+                : throw Unexpected<TException>(thrown);
         }
 
         throw Missing<TException>();

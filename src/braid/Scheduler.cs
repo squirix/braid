@@ -359,7 +359,7 @@ internal sealed class Scheduler : IDisposable
             {
                 context.NextScheduleStep = _nextScheduleStep;
 
-                nextTask = SchedulerSearch.TrySelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);
+                nextTask = SchedulerSearch.SelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);
                 _nextScheduleStep = context.NextScheduleStep;
 
                 switch (nextTask)
@@ -469,7 +469,7 @@ internal sealed class Scheduler : IDisposable
             return task ?? Task.FromException(new InvalidOperationException("Fork operation returned a null task."));
         }
 
-        internal static RunTask? TrySelectNextJoinTask(SchedulerJoinContext context, CancellationToken cancellationToken, ref bool advancedWithoutRelease)
+        internal static RunTask? SelectNextJoinTask(SchedulerJoinContext context, CancellationToken cancellationToken, ref bool advancedWithoutRelease)
         {
             var failure = FindFirstFailedException(context.Tasks);
             if (failure != null)
@@ -557,7 +557,7 @@ internal sealed class Scheduler : IDisposable
                 : $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
         }
 
-        private static RunTask? TrySelectStartupTask(RunTask[] waitingTasks)
+        private static RunTask? SelectStartupTask(RunTask[] waitingTasks)
         {
             for (var index = 0; index < waitingTasks.Length; index++)
             {
@@ -613,17 +613,25 @@ internal sealed class Scheduler : IDisposable
 
         private static RunTask? SelectNextTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
-            var startupTask = TrySelectStartupTask(waitingTasks);
-            if (startupTask != null)
-                return startupTask;
+            var startupTask = SelectStartupTask(waitingTasks);
+            return startupTask ?? SelectNonStartupTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
+        }
 
-            if (context.Steps == null)
-                return waitingTasks.Length == 0 ? null : waitingTasks[context.Random.NextInt32(waitingTasks.Length)];
+        private static RunTask? SelectNonStartupTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
+        {
+            return context.Steps == null
+                ? SelectRandomWaitingTask(waitingTasks, context)
+                : SelectScriptedTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
+        }
 
-            if (context.NextScheduleStep >= context.Steps.Count)
-                throw context.CreateException("Scripted schedule was exhausted before all workers completed.", null, RunFailureOrigin.Scheduler);
+        private static RunTask? SelectRandomWaitingTask(RunTask[] waitingTasks, SchedulerJoinContext context)
+            => waitingTasks.Length == 0 ? null : waitingTasks[context.Random.NextInt32(waitingTasks.Length)];
 
-            return SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
+        private static RunTask? SelectScriptedTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
+        {
+            return context.NextScheduleStep >= context.Steps!.Count
+                ? throw context.CreateException("Scripted schedule was exhausted before all workers completed.", null, RunFailureOrigin.Scheduler)
+                : SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
         }
 
         private static RunTask? SelectReleaseStep(SchedulerJoinContext context, ReplayStep step, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
