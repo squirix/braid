@@ -3,9 +3,7 @@ using JetBrains.Annotations;
 
 namespace Braid;
 
-/// <summary>
-/// Captures reproducibility state for a <see cref="RunException"/>.
-/// </summary>
+/// <summary>Captures reproducibility state for a <see cref="RunException"/>.</summary>
 [PublicAPI]
 [Immutable]
 public sealed record RunExceptionContext

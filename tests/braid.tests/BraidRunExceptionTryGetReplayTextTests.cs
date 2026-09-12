@@ -2,14 +2,10 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers <see cref="RunException.TryGetReplayText" /> behavior.
-/// </summary>
+/// <summary>Covers <see cref="RunException.TryGetReplayText" /> behavior.</summary>
 public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 {
-    /// <summary>
-    /// Verifies <see cref="RunException.ToString" /> still embeds replay lines when export succeeds.
-    /// </summary>
+    /// <summary>Verifies <see cref="RunException.ToString" /> still embeds replay lines when export succeeds.</summary>
     [Fact]
     public void ToStringIncludesReplayTextWhenExportable()
     {
@@ -24,9 +20,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
             Assert.Contains(segment, report, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Verifies <see cref="RunException.ToString" /> keeps the generic unavailable line when export fails.
-    /// </summary>
+    /// <summary>Verifies <see cref="RunException.ToString" /> keeps the generic unavailable line when export fails.</summary>
     [Fact]
     public void ToStringReportsUnavailableNotExportable()
     {

@@ -9,26 +9,20 @@ namespace Braid;
 [PublicAPI]
 public sealed class RunException : Exception
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     public RunException()
         : this("A braid run failed.", new RunExceptionContext(0, 0, [], []))
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class with a message.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class with a message.</summary>
     /// <param name="message">The exception message.</param>
     public RunException(string message)
         : this(message, new RunExceptionContext(0, 0, [], []))
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class with a message and inner exception.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class with a message and inner exception.</summary>
     /// <param name="message">The exception message.</param>
     /// <param name="innerException">The underlying exception.</param>
     public RunException(string message, Exception innerException)
@@ -36,9 +30,7 @@ public sealed class RunException : Exception
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     /// <param name="message">The exception message.</param>
     /// <param name="seed">The seed used for the failing iteration.</param>
     /// <param name="iteration">The failing iteration index.</param>
@@ -56,9 +48,7 @@ public sealed class RunException : Exception
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     /// <param name="message">The exception message.</param>
     /// <param name="context">Reproducibility context for the failure.</param>
     /// <param name="innerException">The underlying exception.</param>
@@ -114,17 +104,13 @@ public sealed class RunException : Exception
         return string.Join(Environment.NewLine, lines);
     }
 
-    /// <summary>
-    /// Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="ReplaySchedule.Parse(string)" /> accepts).
-    /// </summary>
+    /// <summary>Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="ReplaySchedule.Parse(string)" /> accepts).</summary>
     /// <param name="text">When this method returns <see langword="true" />, the exportable replay text. Otherwise <see cref="string.Empty" />.</param>
     /// <param name="error">
     /// When this method returns <see langword="false" /> because the schedule cannot be exported (for example whitespace in worker id or probe name),
     /// a diagnostic message; otherwise <see langword="null" /> (including when no typed schedule was configured).
     /// </param>
-    /// <returns>
-    /// <see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
-    /// </returns>
+    /// <returns><see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.</returns>
     public bool TryGetReplayText(out string text, out string? error)
     {
         text = string.Empty;
