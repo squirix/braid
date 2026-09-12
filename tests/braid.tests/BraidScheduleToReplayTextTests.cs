@@ -2,9 +2,7 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers canonical replay text export from <see cref="ReplaySchedule" />.
-/// </summary>
+/// <summary>Covers canonical replay text export from <see cref="ReplaySchedule" />.</summary>
 public sealed class BraidScheduleToReplayTextTests : TestBase
 {
     /// <summary>Verifies exported text has no trailing whitespace.</summary>
