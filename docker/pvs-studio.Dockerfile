@@ -52,6 +52,11 @@ RUN pvs-studio-analyzer --version \
 # Pinned with --version so the image matches global.json's version
 # 11.0.100-rc.1.26425.128 exactly; bump together with global.json on SDK updates.
 #
+# The .NET 10 runtime is installed alongside: pvs-studio-dotnet itself targets
+# Microsoft.NETCore.App 10.0.0 and fails to launch (dotnet exit 150) when only
+# the SDK 11 runtime is present. The runtime floats on channel 10.0 (latest
+# patch) since it only hosts the analyzer tool, not the analyzed code.
+#
 # The install script is verified before running: it is downloaded alongside
 # Microsoft's detached GPG signature and public key, the key fingerprint is
 # pinned to the known-good Microsoft signing key, and the script must verify
@@ -72,8 +77,10 @@ RUN set -euo pipefail \
     && gpg --batch --homedir /tmp/gpghome --verify /tmp/dotnet-install.sig /tmp/dotnet-install.sh \
     && chmod +x /tmp/dotnet-install.sh \
     && /tmp/dotnet-install.sh --version 11.0.100-rc.1.26425.128 --install-dir "$DOTNET_ROOT" \
+    && /tmp/dotnet-install.sh --channel 10.0 --runtime dotnet --install-dir "$DOTNET_ROOT" \
     && ln -sf "$DOTNET_ROOT/dotnet" /usr/bin/dotnet \
     && rm -rf /tmp/gpghome /tmp/dotnet-install.sh /tmp/dotnet-install.sig /tmp/dotnet-install.asc
 
-# Verify the .NET SDK that CI will actually use.
-RUN dotnet --list-sdks
+# Verify the .NET SDK and runtimes that CI will actually use.
+RUN dotnet --list-sdks \
+    && dotnet --list-runtimes
