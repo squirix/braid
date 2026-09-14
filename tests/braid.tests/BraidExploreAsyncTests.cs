@@ -1,29 +1,28 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers bounded schedule exploration.</summary>
 public sealed class BraidExploreAsyncTests : TestBase
 {
     /// <summary>Verifies exploration finds a lost update and exports a replay token.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreAsyncFindsLostUpdateReplayToken()
+    [Test]
+    public async Task ExploreAsyncFindsLostUpdateReplayToken(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
-                RunLostUpdateExploreAsync,
-                DefaultCancellationToken));
+                braid => RunLostUpdateExploreAsync(braid, cancellationToken),
+                cancellationToken));
 
-        Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
-        Assert.Contains("after-read", replayText, StringComparison.Ordinal);
-        Assert.Contains("before-write", replayText, StringComparison.Ordinal);
+        _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
+        _ = await Assert.That(replayText).Contains("after-read");
+        _ = await Assert.That(replayText).Contains("before-write");
 
         var schedule = ReplaySchedule.Parse(replayText);
-        _ = await Assertions.ExpectsAsync<RunException>(
+        _ = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
                     var value = 0;
 
@@ -32,8 +31,8 @@ public sealed class BraidExploreAsyncTests : TestBase
                         async () =>
                         {
                             var current = value;
-                            await Probe.HitAsync("after-read", DefaultCancellationToken);
-                            await Probe.HitAsync("before-write", DefaultCancellationToken);
+                            await Probe.HitAsync("after-read", cancellationToken);
+                            await Probe.HitAsync("before-write", cancellationToken);
                             value = current + 1;
                         });
 
@@ -42,13 +41,13 @@ public sealed class BraidExploreAsyncTests : TestBase
                         async () =>
                         {
                             var current = value;
-                            await Probe.HitAsync("after-read", DefaultCancellationToken);
-                            await Probe.HitAsync("before-write", DefaultCancellationToken);
+                            await Probe.HitAsync("after-read", cancellationToken);
+                            await Probe.HitAsync("before-write", cancellationToken);
                             value = current + 1;
                         });
 
-                    await context.JoinAsync(DefaultCancellationToken);
-                    Assert.Equal(2, value);
+                    await context.JoinAsync(cancellationToken);
+                    _ = await Assert.That(value).IsEqualTo(2);
                 },
                 new RunOptions
                 {
@@ -56,58 +55,62 @@ public sealed class BraidExploreAsyncTests : TestBase
                     Seed = 12_345,
                     Schedule = schedule,
                 },
-                DefaultCancellationToken));
+                cancellationToken));
     }
 
     /// <summary>Verifies the same seed and bounds report the same first failure.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreAsyncIsDeterministicForSeedBounds()
+    [Test]
+    public async Task ExploreAsyncIsDeterministicForSeedBounds(CancellationToken cancellationToken)
     {
-        var first = await ExploreLostUpdateAsync();
-        var second = await ExploreLostUpdateAsync();
+        var first = await ExploreLostUpdateAsync(cancellationToken);
+        var second = await ExploreLostUpdateAsync(cancellationToken);
 
-        Assert.True(first.TryGetReplayText(out var firstToken, out var firstError), firstError);
-        Assert.True(second.TryGetReplayText(out var secondToken, out var secondError), secondError);
-        Assert.Equal(firstToken, secondToken);
+        _ = await Assert.That(first.TryGetReplayText(out var firstToken, out var firstError)).IsTrue().Because(firstError!);
+        _ = await Assert.That(second.TryGetReplayText(out var secondToken, out var secondError)).IsTrue().Because(secondError!);
+        _ = await Assert.That(secondToken).IsEqualTo(firstToken);
     }
 
     /// <summary>Verifies exploration registers workers with stable ids.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreAsyncRegistersStableWorkerIds()
+    [Test]
+    public async Task ExploreAsyncRegistersStableWorkerIds(CancellationToken cancellationToken)
     {
-        var first = await ExploreReaderWriterStableIdsAsync();
-        var second = await ExploreReaderWriterStableIdsAsync();
+        var first = await ExploreReaderWriterStableIdsAsync(cancellationToken);
+        var second = await ExploreReaderWriterStableIdsAsync(cancellationToken);
 
-        AssertStableReaderWriterIds(first);
-        AssertStableReaderWriterIds(second);
+        await AssertStableReaderWriterIdsAsync(first);
+        await AssertStableReaderWriterIdsAsync(second);
 
-        Assert.True(first.TryGetReplayText(out var firstReplay, out var firstError), firstError);
-        Assert.True(second.TryGetReplayText(out var secondReplay, out var secondError), secondError);
-        Assert.Equal(firstReplay, secondReplay);
+        _ = await Assert.That(first.TryGetReplayText(out var firstReplay, out var firstError)).IsTrue().Because(firstError!);
+        _ = await Assert.That(second.TryGetReplayText(out var secondReplay, out var secondError)).IsTrue().Because(secondError!);
+        _ = await Assert.That(secondReplay).IsEqualTo(firstReplay);
     }
 
     /// <summary>Verifies named worker ids are used in generated replay schedules.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreAsyncUsesNamedWorkerIdsReplay()
+    [Test]
+    public async Task ExploreAsyncUsesNamedWorkerIdsReplay(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
-                RunNamedLostUpdateExploreAsync,
-                DefaultCancellationToken));
+                braid => RunNamedLostUpdateExploreAsync(braid, cancellationToken),
+                cancellationToken));
 
-        Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
-        Assert.Contains("reader", replayText, StringComparison.Ordinal);
-        Assert.Contains("writer", replayText, StringComparison.Ordinal);
+        _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
+        _ = await Assert.That(replayText).Contains("reader");
+        _ = await Assert.That(replayText).Contains("writer");
     }
 
     /// <summary>Verifies exploration completes when no assertion failure exists within bounds.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreCompletesNoFailureWithinBounds()
+    [Test]
+    public async Task ExploreCompletesNoFailureWithinBounds(CancellationToken cancellationToken)
     {
         var explored = false;
 
@@ -115,66 +118,65 @@ public sealed class BraidExploreAsyncTests : TestBase
             static options => options.WithSeed(99).WithMaxSchedules(5).WithMaxStepsPerSchedule(4),
             async braid =>
             {
-                await braid.WorkerAsync("worker-1", static async () => await Probe.HitAsync("only-probe", DefaultCancellationToken));
-                await braid.JoinAsync(DefaultCancellationToken);
+                await braid.WorkerAsync("worker-1", async () => await Probe.HitAsync("only-probe", cancellationToken));
+                await braid.JoinAsync(cancellationToken);
                 explored = true;
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.True(explored);
+        _ = await Assert.That(explored).IsTrue();
     }
 
     /// <summary>Verifies a step cap below the required schedule length prevents finding a failure.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreCompletesSmallStepsForLostUpdate()
+    [Test]
+    public async Task ExploreCompletesSmallStepsForLostUpdate(CancellationToken cancellationToken)
     {
-        var exception = await Record.ExceptionAsync(static () => Runner.ExploreAsync(
+        _ = await Assert.That(() => Runner.ExploreAsync(
             static options => options.WithSeed(77).WithMaxSchedules(100).WithMaxStepsPerSchedule(3),
-            RunLostUpdateExploreAsync,
-            DefaultCancellationToken));
-
-        Assert.Null(exception);
+            braid => RunLostUpdateExploreAsync(braid, cancellationToken),
+            cancellationToken)).ThrowsNothing();
     }
 
     /// <summary>Verifies exhausting MaxSchedules returns without failure when only a passing schedule is evaluated.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreCompletesWhenOnlyPassingSchedule()
+    [Test]
+    public async Task ExploreCompletesWhenOnlyPassingSchedule(CancellationToken cancellationToken)
     {
-        var exception = await Record.ExceptionAsync(static () => Runner.ExploreAsync(
+        _ = await Assert.That(() => Runner.ExploreAsync(
             static options => options.WithSeed(99).WithMaxSchedules(1).WithMaxStepsPerSchedule(2),
-            static async braid =>
+            async braid =>
             {
-                await braid.WorkerAsync("worker-1", static async () => await Probe.HitAsync("only-probe", DefaultCancellationToken));
-                await braid.JoinAsync(DefaultCancellationToken);
+                await braid.WorkerAsync("worker-1", async () => await Probe.HitAsync("only-probe", cancellationToken));
+                await braid.JoinAsync(cancellationToken);
             },
-            DefaultCancellationToken));
-
-        Assert.Null(exception);
+            cancellationToken)).ThrowsNothing();
     }
 
     /// <summary>Verifies user InvalidOperationException failures are not suppressed during discovery.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreSurfacesUserInvalidOpDiscovery()
+    [Test]
+    public async Task ExploreSurfacesUserInvalidOpDiscovery(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(7).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
                 static _ => throw new InvalidOperationException("user test failure"),
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Equal(RunFailureOrigin.UserTest, exception.FailureOrigin);
-        _ = Assert.IsType<InvalidOperationException>(exception.InnerException);
+        _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
+        _ = await Assert.That(exception.InnerException).IsTypeOf<InvalidOperationException>();
     }
 
-    private static void AssertStableReaderWriterIds(RunException exception)
+    private static async Task AssertStableReaderWriterIdsAsync(RunException exception)
     {
-        Assert.Contains("reader forked", exception.Traces, StringComparer.Ordinal);
-        Assert.Contains("writer forked", exception.Traces, StringComparer.Ordinal);
-        Assert.Contains("reader hit ready", exception.Traces, StringComparer.Ordinal);
-        Assert.Contains("writer hit ready", exception.Traces, StringComparer.Ordinal);
+        _ = await Assert.That(exception.Traces).Contains("reader forked");
+        _ = await Assert.That(exception.Traces).Contains("writer forked");
+        _ = await Assert.That(exception.Traces).Contains("reader hit ready");
+        _ = await Assert.That(exception.Traces).Contains("writer hit ready");
         var hasWorkerPrefix = false;
         foreach (var line in exception.Traces)
         {
@@ -184,31 +186,26 @@ public sealed class BraidExploreAsyncTests : TestBase
             break;
         }
 
-        Assert.False(hasWorkerPrefix, "Trace should not contain worker-prefixed entries.");
+        _ = await Assert.That(hasWorkerPrefix).IsFalse().Because("Trace should not contain worker-prefixed entries.");
 
-        Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
-        Assert.Contains("reader", replayText, StringComparison.Ordinal);
-        Assert.Contains("writer", replayText, StringComparison.Ordinal);
-        Assert.DoesNotContain("worker-", replayText, StringComparison.Ordinal);
+        _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
+        _ = await Assert.That(replayText).Contains("reader");
+        _ = await Assert.That(replayText).Contains("writer");
 
-        Assert.Contains(
-            exception.Steps,
-            static step => string.Equals(step.WorkerId, "reader", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
-        Assert.Contains(
-            exception.Steps,
-            static step => string.Equals(step.WorkerId, "writer", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
+        _ = await Assert.That(exception.Steps).Contains(static step => string.Equals(step.WorkerId, "reader", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
+        _ = await Assert.That(exception.Steps).Contains(static step => string.Equals(step.WorkerId, "writer", StringComparison.Ordinal) && string.Equals(step.ProbeName, "ready", StringComparison.Ordinal));
     }
 
-    private static Task<RunException> ExploreLostUpdateAsync() => Assertions.ExpectsAsync<RunException>(
-        Runner.ExploreAsync(static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10), RunLostUpdateExploreAsync, DefaultCancellationToken));
+    private static Task<RunException> ExploreLostUpdateAsync(CancellationToken cancellationToken = default) => BraidAssertions.AssertExpectsAsync<RunException>(
+        Runner.ExploreAsync(static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10), braid => RunLostUpdateExploreAsync(braid, cancellationToken), cancellationToken));
 
-    private static Task<RunException> ExploreReaderWriterStableIdsAsync() => Assertions.ExpectsAsync<RunException>(
+    private static Task<RunException> ExploreReaderWriterStableIdsAsync(CancellationToken cancellationToken = default) => BraidAssertions.AssertExpectsAsync<RunException>(
         Runner.ExploreAsync(
             static options => options.WithSeed(5).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
-            RegisterReaderWriterWorkersAsync,
-            DefaultCancellationToken));
+            braid => RegisterReaderWriterWorkersAsync(braid, cancellationToken),
+            cancellationToken));
 
-    private static async Task RegisterReaderWriterWorkersAsync(ExploreContext braid)
+    private static async Task RegisterReaderWriterWorkersAsync(ExploreContext braid, CancellationToken cancellationToken = default)
     {
         var completedWorkers = 0;
 
@@ -216,7 +213,7 @@ public sealed class BraidExploreAsyncTests : TestBase
             "reader",
             async () =>
             {
-                await Probe.HitAsync("ready", DefaultCancellationToken);
+                await Probe.HitAsync("ready", cancellationToken);
                 _ = Interlocked.Increment(ref completedWorkers);
             });
 
@@ -224,15 +221,15 @@ public sealed class BraidExploreAsyncTests : TestBase
             "writer",
             async () =>
             {
-                await Probe.HitAsync("ready", DefaultCancellationToken);
+                await Probe.HitAsync("ready", cancellationToken);
                 _ = Interlocked.Increment(ref completedWorkers);
             });
 
-        await braid.JoinAsync(DefaultCancellationToken);
-        Assert.Equal(0, completedWorkers);
+        await braid.JoinAsync(cancellationToken);
+        _ = await Assert.That(completedWorkers).IsEqualTo(0);
     }
 
-    private static async Task RunLostUpdateExploreAsync(ExploreContext braid)
+    private static async Task RunLostUpdateExploreAsync(ExploreContext braid, CancellationToken cancellationToken = default)
     {
         var value = 0;
 
@@ -241,8 +238,8 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await Probe.HitAsync("after-read", DefaultCancellationToken);
-                await Probe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", cancellationToken);
+                await Probe.HitAsync("before-write", cancellationToken);
                 value = current + 1;
             });
 
@@ -251,16 +248,16 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await Probe.HitAsync("after-read", DefaultCancellationToken);
-                await Probe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", cancellationToken);
+                await Probe.HitAsync("before-write", cancellationToken);
                 value = current + 1;
             });
 
-        await braid.JoinAsync(DefaultCancellationToken);
-        Assert.Equal(2, value);
+        await braid.JoinAsync(cancellationToken);
+        _ = await Assert.That(value).IsEqualTo(2);
     }
 
-    private static async Task RunNamedLostUpdateExploreAsync(ExploreContext braid)
+    private static async Task RunNamedLostUpdateExploreAsync(ExploreContext braid, CancellationToken cancellationToken = default)
     {
         var value = 0;
 
@@ -269,8 +266,8 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await Probe.HitAsync("after-read", DefaultCancellationToken);
-                await Probe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", cancellationToken);
+                await Probe.HitAsync("before-write", cancellationToken);
                 value = current + 1;
             });
 
@@ -279,12 +276,12 @@ public sealed class BraidExploreAsyncTests : TestBase
             async () =>
             {
                 var current = value;
-                await Probe.HitAsync("after-read", DefaultCancellationToken);
-                await Probe.HitAsync("before-write", DefaultCancellationToken);
+                await Probe.HitAsync("after-read", cancellationToken);
+                await Probe.HitAsync("before-write", cancellationToken);
                 value = current + 1;
             });
 
-        await braid.JoinAsync(DefaultCancellationToken);
-        Assert.Equal(2, value);
+        await braid.JoinAsync(cancellationToken);
+        _ = await Assert.That(value).IsEqualTo(2);
     }
 }

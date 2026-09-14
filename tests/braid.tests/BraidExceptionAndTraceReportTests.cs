@@ -1,16 +1,15 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers exception and trace report behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidExceptionAndTraceReportTests : TestBase
 {
     /// <summary>Verifies callback failure with schedule prints schedule section.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CallbackFailureWithSchedulePrintsSection()
+    [Test]
+    public async Task CallbackFailureWithSchedulePrintsSection(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
                 static _ => throw new InvalidOperationException("callback-failed"),
                 new RunOptions
@@ -19,38 +18,40 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4009,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("Schedule:", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 @ ready", report, StringComparison.Ordinal);
-        Assert.Contains("callback-failed", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Schedule:");
+        _ = await Assert.That(report).Contains("worker-1 @ ready");
+        _ = await Assert.That(report).Contains("callback-failed");
     }
 
     /// <summary>Verifies callback failure without schedule does not print schedule section.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CallbackFailureWithoutScheduleNoSection()
+    [Test]
+    public async Task CallbackFailureWithoutScheduleNoSection(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
-            Runner.RunAsync(static _ => throw new InvalidOperationException("callback-failed"), DefaultCancellationToken));
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(static _ => throw new InvalidOperationException("callback-failed"), cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("Schedule:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Trace:");
+        _ = await Assert.That(report).DoesNotContain("Schedule:");
     }
 
     /// <summary>Verifies empty replay schedule failure does not print schedule entries.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task EmptyReplayScheduleDoesNotPrintEntries()
+    [Test]
+    public async Task EmptyReplayScheduleDoesNotPrintEntries(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
                     context.Fork(static () => Task.FromException(new InvalidOperationException("worker-failed")));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions
                 {
@@ -58,25 +59,26 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 9015,
                     Schedule = ReplaySchedule.Replay(),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.DoesNotContain("Schedule:", report, StringComparison.Ordinal);
-        Assert.Contains("worker-failed", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).DoesNotContain("Schedule:");
+        _ = await Assert.That(report).Contains("worker-failed");
     }
 
     /// <summary>Verifies long probe names can be reported without crashes.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task LongProbeNameIsReportedWithoutCrashing()
+    [Test]
+    public async Task LongProbeNameIsReportedWithoutCrashing(CancellationToken cancellationToken)
     {
         var probeName = new string('x', 512);
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
                 async context =>
                 {
-                    context.Fork(async () => await Probe.HitAsync(probeName, DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync(probeName, cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions
@@ -85,23 +87,24 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 9013,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", probeName)),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Contains(probeName, exception.ToString(), StringComparison.Ordinal);
+        _ = await Assert.That(exception.ToString()).Contains(probeName);
     }
 
     /// <summary>Verifies valid punctuation probe names are accepted and reported.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ProbeNameAllowsNonWhitespaceNames()
+    [Test]
+    public async Task ProbeNameAllowsNonWhitespaceNames(CancellationToken cancellationToken)
     {
         const string probeName = "phase:read/write#1";
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync(probeName, DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync(probeName, cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions
@@ -110,28 +113,29 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 9010,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", probeName)),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Contains(probeName, exception.ToString(), StringComparison.Ordinal);
+        _ = await Assert.That(exception.ToString()).Contains(probeName);
     }
 
     /// <summary>Verifies repeated probe hits generate repeated hit/release entries.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RepeatedProbeHitsRepeatedTraceEntries()
+    [Test]
+    public async Task RepeatedProbeHitsRepeatedTraceEntries(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("loop", DefaultCancellationToken);
-                        await Probe.HitAsync("loop", DefaultCancellationToken);
-                        await Probe.HitAsync("loop", DefaultCancellationToken);
+                        await Probe.HitAsync("loop", cancellationToken);
+                        await Probe.HitAsync("loop", cancellationToken);
+                        await Probe.HitAsync("loop", cancellationToken);
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions
@@ -140,46 +144,47 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4005,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "loop"), new ReplayStep("worker-1", "loop"), new ReplayStep("worker-1", "loop")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Equal(3, CountContains(exception.Traces, "worker-1 hit loop"));
-        Assert.Equal(3, CountContains(exception.Traces, "worker-1 released at loop"));
+        _ = await Assert.That(CountContains(exception.Traces, "worker-1 hit loop")).IsEqualTo(3);
+        _ = await Assert.That(CountContains(exception.Traces, "worker-1 released at loop")).IsEqualTo(3);
     }
 
     /// <summary>Verifies exception formatting succeeds for empty trace and empty schedule.</summary>
-    [Fact]
-    public void RunExceptionToStringEmptyTraceSchedule()
+    [Test]
+    public async Task RunExceptionToStringEmptyTraceSchedule()
     {
         var ex = new RunException("message", 7, 3, [], [], null);
         var report = ex.ToString();
-        Assert.Contains("message", report, StringComparison.Ordinal);
-        Assert.Contains("Seed: 7", report, StringComparison.Ordinal);
-        Assert.Contains("Iteration: 3", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("message");
+        _ = await Assert.That(report).Contains("Seed: 7");
+        _ = await Assert.That(report).Contains("Iteration: 3");
+        _ = await Assert.That(report).Contains("Trace:");
     }
 
     /// <summary>Verifies exception formatting handles null inner exception deterministically.</summary>
-    [Fact]
-    public void RunExceptionToStringNullInnerException()
+    [Test]
+    public async Task RunExceptionToStringNullInnerException()
     {
         var ex = new RunException("message", 17, 1, ["worker-1 forked"], [new ReplayStep("worker-1", "ready")], null);
         var first = ex.ToString();
         var second = ex.ToString();
-        Assert.DoesNotContain("Inner exception:", first, StringComparison.Ordinal);
-        Assert.Equal(first, second);
+        _ = await Assert.That(first).DoesNotContain("Inner exception:");
+        _ = await Assert.That(second).IsEqualTo(first);
     }
 
     /// <summary>Verifies mismatch reports keep the failing schedule step and trace details.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ScheduleMismatchNoAdvanceBeforeFailure()
+    [Test]
+    public async Task ScheduleMismatchNoAdvanceBeforeFailure(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("actual", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync("actual", cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions
                 {
@@ -187,26 +192,27 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4006,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "expected")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 @ expected", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 hit actual", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Scripted schedule step 1");
+        _ = await Assert.That(report).Contains("worker-1 @ expected");
+        _ = await Assert.That(report).Contains("worker-1 hit actual");
     }
 
     /// <summary>Verifies each worker completion appears exactly once in trace.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task TraceContainsSingleCompletionPerWorker()
+    [Test]
+    public async Task TraceContainsSingleCompletionPerWorker(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions
@@ -215,23 +221,24 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4002,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready"), new ReplayStep("worker-2", "ready")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Equal(1, CountContains(exception.Traces, "worker-1 completed"));
-        Assert.Equal(1, CountContains(exception.Traces, "worker-2 completed"));
+        _ = await Assert.That(CountContains(exception.Traces, "worker-1 completed")).IsEqualTo(1);
+        _ = await Assert.That(CountContains(exception.Traces, "worker-2 completed")).IsEqualTo(1);
     }
 
     /// <summary>Verifies probe release entries appear only after matching probe hits.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task TraceDoesNotReleaseProbeBeforeHit()
+    [Test]
+    public async Task TraceDoesNotReleaseProbeBeforeHit(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions
@@ -240,23 +247,24 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4003,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        AssertAppearsBefore(exception.Traces, "worker-1 hit ready", "worker-1 released at ready");
+        await AssertAppearsBeforeAsync(exception.Traces, "worker-1 hit ready", "worker-1 released at ready");
     }
 
     /// <summary>Verifies trace entries preserve expected fork/release/hit/complete relative order.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task TraceOrdersForkReleaseHitCompleteEvents()
+    [Test]
+    public async Task TraceOrdersForkReleaseHitCompleteEvents(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions
@@ -265,27 +273,28 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4001,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready"), new ReplayStep("worker-1", "ready")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var trace = exception.Traces;
-        AssertAppearsBefore(trace, "worker-1 forked", "worker-1 hit ready");
-        AssertAppearsBefore(trace, "worker-2 forked", "worker-2 hit ready");
-        AssertAppearsBefore(trace, "worker-2 released at ready", "worker-1 released at ready");
-        AssertAppearsBefore(trace, "worker-1 released at ready", "worker-1 completed");
-        AssertAppearsBefore(trace, "worker-2 released at ready", "worker-2 completed");
+        await AssertAppearsBeforeAsync(trace, "worker-1 forked", "worker-1 hit ready");
+        await AssertAppearsBeforeAsync(trace, "worker-2 forked", "worker-2 hit ready");
+        await AssertAppearsBeforeAsync(trace, "worker-2 released at ready", "worker-1 released at ready");
+        await AssertAppearsBeforeAsync(trace, "worker-1 released at ready", "worker-1 completed");
+        await AssertAppearsBeforeAsync(trace, "worker-2 released at ready", "worker-2 completed");
     }
 
     /// <summary>Verifies wrong probe diagnostics mention expected and actual probe.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WrongProbeNameCorrectWorkerReportsProbe()
+    [Test]
+    public async Task WrongProbeNameCorrectWorkerReportsProbe(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("probe-b", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync("probe-b", cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions
                 {
@@ -293,26 +302,27 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4007,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "probe-a")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("probe-a", report, StringComparison.Ordinal);
-        Assert.Contains("actual probe is probe-b", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Scripted schedule step 1");
+        _ = await Assert.That(report).Contains("worker-1");
+        _ = await Assert.That(report).Contains("probe-a");
+        _ = await Assert.That(report).Contains("actual probe is probe-b");
     }
 
     /// <summary>Verifies wrong worker diagnostics mention expected worker and blocked actual worker.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WrongWorkerCorrectProbeReportsBlocked()
+    [Test]
+    public async Task WrongWorkerCorrectProbeReportsBlocked(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions
                 {
@@ -320,21 +330,21 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
                     Seed = 4008,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("worker-2 @ ready", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 hit ready", report, StringComparison.Ordinal);
-        Assert.Contains("Scripted schedule step 1", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("worker-2 @ ready");
+        _ = await Assert.That(report).Contains("worker-1 hit ready");
+        _ = await Assert.That(report).Contains("Scripted schedule step 1");
     }
 
-    private static void AssertAppearsBefore(IReadOnlyList<string> trace, string first, string second)
+    private static async Task AssertAppearsBeforeAsync(IReadOnlyList<string> trace, string first, string second)
     {
         var firstIndex = IndexOfContains(trace, first);
         var secondIndex = IndexOfContains(trace, second);
-        Assert.True(firstIndex >= 0, $"Could not find trace entry containing '{first}'.");
-        Assert.True(secondIndex >= 0, $"Could not find trace entry containing '{second}'.");
-        Assert.True(firstIndex < secondIndex, $"Expected '{first}' before '{second}', but got indexes {firstIndex} and {secondIndex}.");
+        _ = await Assert.That(firstIndex >= 0).IsTrue().Because($"Could not find trace entry containing '{first}'.");
+        _ = await Assert.That(secondIndex >= 0).IsTrue().Because($"Could not find trace entry containing '{second}'.");
+        _ = await Assert.That(firstIndex < secondIndex).IsTrue().Because($"Expected '{first}' before '{second}', but got indexes {firstIndex} and {secondIndex}.");
     }
 
     private static int CountContains(IReadOnlyList<string> trace, string contains)

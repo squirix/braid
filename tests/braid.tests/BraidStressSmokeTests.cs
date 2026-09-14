@@ -1,4 +1,4 @@
-using Xunit;
+using TUnit.Assertions.Enums;
 
 namespace Braid.Tests;
 
@@ -6,9 +6,10 @@ namespace Braid.Tests;
 public sealed class BraidStressSmokeTests : TestBase
 {
     /// <summary>Verifies many workers waiting at the same probe are all released.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncCompletesManyWorkersAtSameProbe()
+    [Test]
+    public async Task RunAsyncCompletesManyWorkersAtSameProbe(CancellationToken cancellationToken)
     {
         var completed = new CompletionCounter();
 
@@ -16,20 +17,21 @@ public sealed class BraidStressSmokeTests : TestBase
             context =>
             {
                 for (var index = 0; index < 20; index++)
-                    ForkHitReadyAndIncrement(context, completed);
+                    ForkHitReadyAndIncrement(context, completed, cancellationToken);
 
-                return context.JoinAsync(DefaultCancellationToken);
+                return context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Equal(20, completed.Value);
+        _ = await Assert.That(completed.Value).IsEqualTo(20);
     }
 
     /// <summary>Verifies multiple short iterations complete without leaking scheduler state.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncCompletesMultipleSmallWorkers()
+    [Test]
+    public async Task RunAsyncCompletesMultipleSmallWorkers(CancellationToken cancellationToken)
     {
         const int iterations = 10;
         const int workers = 5;
@@ -39,20 +41,21 @@ public sealed class BraidStressSmokeTests : TestBase
             context =>
             {
                 for (var index = 0; index < workers; index++)
-                    ForkHitReadyAndIncrement(context, completed);
+                    ForkHitReadyAndIncrement(context, completed, cancellationToken);
 
-                return context.JoinAsync(DefaultCancellationToken);
+                return context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = iterations, Seed = 12345, Timeout = TimeSpan.FromSeconds(2) },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Equal(iterations * workers, completed.Value);
+        _ = await Assert.That(completed.Value).IsEqualTo(iterations * workers);
     }
 
     /// <summary>Verifies a scripted schedule can release several workers in reverse order.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncReplaysWorkersScriptedOrder()
+    [Test]
+    public async Task RunAsyncReplaysWorkersScriptedOrder(CancellationToken cancellationToken)
     {
         Lock gate = new();
         var releases = new List<string>();
@@ -72,13 +75,13 @@ public sealed class BraidStressSmokeTests : TestBase
             context =>
             {
                 for (var index = 0; index < 4; index++)
-                    ForkHitReadyRecordWorker(context, $"worker-{index + 1}", releases, gate);
+                    ForkHitReadyRecordWorker(context, $"worker-{index + 1}", releases, gate, cancellationToken);
 
-                return context.JoinAsync(DefaultCancellationToken);
+                return context.JoinAsync(cancellationToken);
             },
             options,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Equal(["worker-4", "worker-3", "worker-2", "worker-1"], releases);
+        _ = await Assert.That(releases).IsEquivalentTo(["worker-4", "worker-3", "worker-2", "worker-1"], CollectionOrdering.Matching);
     }
 }
