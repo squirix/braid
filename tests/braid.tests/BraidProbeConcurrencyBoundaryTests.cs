@@ -1,47 +1,46 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers probe concurrency boundaries: overlapping, flowing, and suppressed execution contexts.</summary>
 public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
 {
     /// <summary>Verifies concurrent probe waits on the same logical worker are rejected instead of being serialized.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task ConcurrentProbeHitsSameWorkerFailClearly()
+    [Test]
+    public Task ConcurrentProbeHitsSameWorkerFailClearly(CancellationToken cancellationToken)
     {
-        return AssertConcurrentProbeRaceMustFailAsync(static () => Runner.RunAsync(
-            static async context =>
+        return AssertConcurrentProbeRaceMustFailAsync(() => Runner.RunAsync(
+            async context =>
             {
                 context.Fork(
                     "worker-1",
-                    static async () =>
+                    async () =>
                     {
                         var firstProbeInFlight = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
                         var firstProbeTask = StartNewOnThreadPoolAsync(
                             async () =>
                             {
-                                var hitTask = Probe.HitAsync("first", DefaultCancellationToken).AsTask();
+                                var hitTask = Probe.HitAsync("first", cancellationToken).AsTask();
                                 firstProbeInFlight.SetResult();
                                 await hitTask;
                             },
-                            DefaultCancellationToken);
+                            cancellationToken);
 
-                        await firstProbeInFlight.Task.WaitAsync(DefaultCancellationToken);
-                        await Probe.HitAsync("second", DefaultCancellationToken);
+                        await firstProbeInFlight.Task.WaitAsync(cancellationToken);
+                        await Probe.HitAsync("second", cancellationToken);
                         await firstProbeTask;
                     });
 
                 context.Fork(
                     "worker-2",
-                    static async () =>
+                    async () =>
                     {
-                        await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
-                        await Probe.HitAsync("other", DefaultCancellationToken);
+                        await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, cancellationToken);
+                        await Probe.HitAsync("other", cancellationToken);
                     });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions
             {
@@ -50,49 +49,50 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                 Timeout = TimeSpan.FromSeconds(2),
                 Schedule = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "first"), ReplayStep.Hit("worker-2", "other")),
             },
-            DefaultCancellationToken));
+            cancellationToken));
     }
 
     /// <summary>
     /// Verifies a worker cannot re-enter probe waiting through a flowing child task
     /// before the previous logical probe completes.
     /// </summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task FlowingChildProbeOverlapsParentFails()
+    [Test]
+    public async Task FlowingChildProbeOverlapsParentFails(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static async () =>
+                context.Fork(async () =>
                 {
                     var childProbeEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
                     var childTask = StartNewOnThreadPoolAsync(
                         async () =>
                         {
-                            var childProbeTask = Probe.HitAsync("child", DefaultCancellationToken).AsTask();
+                            var childProbeTask = Probe.HitAsync("child", cancellationToken).AsTask();
 
                             childProbeEntered.SetResult();
 
                             await childProbeTask;
                         },
-                        DefaultCancellationToken);
+                        cancellationToken);
 
-                    await childProbeEntered.Task.WaitAsync(DefaultCancellationToken);
+                    await childProbeEntered.Task.WaitAsync(cancellationToken);
 
-                    await Probe.HitAsync("parent", DefaultCancellationToken);
+                    await Probe.HitAsync("parent", cancellationToken);
 
                     await childTask;
                 });
 
-                context.Fork(static async () =>
+                context.Fork(async () =>
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, DefaultCancellationToken);
-                    await Probe.HitAsync("other", DefaultCancellationToken);
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), TimeProvider.System, cancellationToken);
+                    await Probe.HitAsync("other", cancellationToken);
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions
             {
@@ -101,56 +101,60 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
                 Schedule = ReplaySchedule.Replay(ReplayStep.Arrive("worker-1", "child"), ReplayStep.Hit("worker-2", "other")),
                 Timeout = TimeSpan.FromSeconds(2),
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
 
-        Assert.Contains("Concurrent probe hit on the same worker is not supported.", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Concurrent probe hit on the same worker is not supported.");
     }
 
     /// <summary>Verifies a serialized child task probe after the parent probe completes is allowed.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task ProbeInsideFlowingAfterParentSucceeds()
+    [Test]
+    public Task ProbeInsideFlowingAfterParentSucceeds(CancellationToken cancellationToken)
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => Runner.RunAsync(
-                static async context =>
+            () => Runner.RunAsync(
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("parent", DefaultCancellationToken);
-                        await StartNewOnThreadPoolAsync(static () => Probe.HitAsync("child", DefaultCancellationToken).AsTask(), DefaultCancellationToken);
+                        await Probe.HitAsync("parent", cancellationToken);
+                        await StartNewOnThreadPoolAsync(() => Probe.HitAsync("child", cancellationToken).AsTask(), cancellationToken);
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken),
-            "Serialized child probe should complete.");
+                cancellationToken),
+            "Serialized child probe should complete.",
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>Verifies a flowing child task that hits a probe while the parent waits at another probe fails clearly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task ProbeInsideFlowingFailsOrSerializes()
+    [Test]
+    public Task ProbeInsideFlowingFailsOrSerializes(CancellationToken cancellationToken)
     {
-        return AssertConcurrentProbeRaceToleratesAsync(static () => Runner.RunAsync(
-            static async context =>
+        return AssertConcurrentProbeRaceToleratesAsync(() => Runner.RunAsync(
+            async context =>
             {
-                context.Fork(static async () => await RunTwoThreadProbeRaceAsync("parent", "child"));
-                await context.JoinAsync(DefaultCancellationToken);
+                context.Fork(async () => await RunTwoThreadProbeRaceAsync("parent", "child", cancellationToken));
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken));
+            cancellationToken));
     }
 
     /// <summary>Verifies probes started under suppressed flow do not bind to the braid worker.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ProbeInsideSuppressedContextCompletes()
+    [Test]
+    public async Task ProbeInsideSuppressedContextCompletes(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -160,30 +164,30 @@ public sealed class BraidProbeConcurrencyBoundaryTests : TestBase
         };
 
         await Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static async () =>
+                context.Fork(async () =>
                 {
                     Task suppressedProbeTask;
 
                     using (ExecutionContext.SuppressFlow())
                     {
                         suppressedProbeTask = StartNewOnThreadPoolAsync(
-                            static () => Probe.HitAsync("suppressed", DefaultCancellationToken).AsTask(),
-                            DefaultCancellationToken);
+                            () => Probe.HitAsync("suppressed", cancellationToken).AsTask(),
+                            cancellationToken);
                     }
 
                     await suppressedProbeTask;
 
-                    await Probe.HitAsync("real", DefaultCancellationToken);
+                    await Probe.HitAsync("real", cancellationToken);
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        _ = Assert.Single(options.Schedule.Steps);
-        await Probe.HitAsync("outside-run", DefaultCancellationToken);
+        _ = await Assert.That(options.Schedule.Steps).HasSingleItem();
+        await Probe.HitAsync("outside-run", cancellationToken);
     }
 }

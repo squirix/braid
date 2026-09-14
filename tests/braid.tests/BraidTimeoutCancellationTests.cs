@@ -1,44 +1,45 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers timeout and cancellation behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidTimeoutCancellationTests : TestBase
 {
     /// <summary>Verifies a canceled probe token does not strand the worker in a permanent wait.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CanceledProbeDoesNotWaitPermanently()
+    [Test]
+    public async Task CanceledProbeDoesNotWaitPermanently(CancellationToken cancellationToken)
     {
-        var exception = await RunLocalTokenCanceledProbeAsync(12345);
+        var exception = await RunLocalTokenCanceledProbeAsync(12345, cancellationToken);
 
-        Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
-        Assert.NotNull(exception.InnerException);
-        Assert.True(exception.InnerException is OperationCanceledException, $"Expected cancellation-derived exception, got {exception.InnerException.GetType().FullName}.");
+        _ = await Assert.That(exception.Message).Contains("A forked operation failed.");
+        _ = await Assert.That(exception.InnerException).IsNotNull();
+        _ = await Assert.That(exception.InnerException is OperationCanceledException).IsTrue().Because($"Expected cancellation-derived exception, got {exception.InnerException.GetType().FullName}.");
     }
 
     /// <summary>Verifies cancellation at a probe preserves trace in the failure report.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CanceledWorkerProbeContainsProbeTrace()
+    [Test]
+    public async Task CanceledWorkerProbeContainsProbeTrace(CancellationToken cancellationToken)
     {
-        var exceptionTask = RunLocalTokenCanceledProbeAsync(12345);
+        var exceptionTask = RunLocalTokenCanceledProbeAsync(12345, cancellationToken);
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(5), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(5), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(exceptionTask, watchdog) != exceptionTask)
             Assert.Fail("Braid run did not complete before watchdog timeout.");
 
         var exception = await exceptionTask;
         var report = exception.ToString();
-        Assert.Contains("ready", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("ready");
+        _ = await Assert.That(report).Contains("worker-1");
+        _ = await Assert.That(report).Contains("Trace:");
     }
 
     /// <summary>Verifies external cancellation takes precedence over a worker failure observed after cancel.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExternalCancellationWinsAfterCancel()
+    [Test]
+    public async Task ExternalCancellationWinsAfterCancel(CancellationToken cancellationToken)
     {
         using var runCts = new CancellationTokenSource();
         var runToken = runCts.Token;
@@ -49,10 +50,10 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("block", DefaultCancellationToken);
+                    await Probe.HitAsync("block", cancellationToken);
                     workerBlocked.SetResult();
                     while (!runToken.IsCancellationRequested)
-                        await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, DefaultCancellationToken);
+                        await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, cancellationToken);
 
                     throw new InvalidOperationException("after-cancel worker failure");
                 });
@@ -62,13 +63,13 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             new RunOptions { Iterations = 1, Seed = 12345 },
             runToken);
 
-        var signaled = await Task.WhenAny(workerBlocked.Task, runTask).WaitAsync(DefaultCancellationToken);
+        var signaled = await Task.WhenAny(workerBlocked.Task, runTask).WaitAsync(cancellationToken);
         if (signaled == runTask)
             await runTask;
 
         await runCts.CancelAsync();
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(runTask, watchdog) != runTask)
             Assert.Fail("Braid run did not complete before watchdog timeout.");
 
@@ -84,20 +85,22 @@ public sealed class BraidTimeoutCancellationTests : TestBase
     }
 
     /// <summary>Verifies worker-local probe cancellation surfaces as worker failure.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ProbeCanceledByLocalTokenAsFailure()
+    [Test]
+    public async Task ProbeCanceledByLocalTokenAsFailure(CancellationToken cancellationToken)
     {
-        var exception = await RunLocalTokenCanceledProbeAsync(36);
+        var exception = await RunLocalTokenCanceledProbeAsync(36, cancellationToken);
 
-        Assert.True(exception.InnerException is OperationCanceledException);
-        Assert.Contains("ready", exception.ToString(), StringComparison.Ordinal);
+        _ = await Assert.That(exception.InnerException is OperationCanceledException).IsTrue();
+        _ = await Assert.That(exception.ToString()).Contains("ready");
     }
 
     /// <summary>Verifies timeout surfaces as RunException and the run does not hang when StopAsync waits on a non-cooperative worker.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncTimeoutNoHangWorkerIgnores()
+    [Test]
+    public async Task RunAsyncTimeoutNoHangWorkerIgnores(CancellationToken cancellationToken)
     {
         var unblock = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -106,16 +109,16 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("at-probe", DefaultCancellationToken);
-                    await unblock.Task.WaitAsync(DefaultCancellationToken);
+                    await Probe.HitAsync("at-probe", cancellationToken);
+                    await unblock.Task.WaitAsync(cancellationToken);
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         var winner = await Task.WhenAny(runTask, watchdog);
 
         if (winner != runTask)
@@ -133,14 +136,15 @@ public sealed class BraidTimeoutCancellationTests : TestBase
         }
         catch (RunException ex)
         {
-            Assert.Contains("braid run timed out.", ex.Message, StringComparison.Ordinal);
+            _ = await Assert.That(ex.Message).Contains("braid run timed out.");
         }
     }
 
     /// <summary>Verifies run cancellation wins over worker-local probe cancellation.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunCancellationWinsOverLocalProbeCancel()
+    [Test]
+    public async Task RunCancellationWinsOverLocalProbeCancel(CancellationToken cancellationToken)
     {
         using var runCts = new CancellationTokenSource();
 
@@ -162,10 +166,10 @@ public sealed class BraidTimeoutCancellationTests : TestBase
             },
             runToken);
 
-        await workerForked.Task.WaitAsync(DefaultCancellationToken);
+        await workerForked.Task.WaitAsync(cancellationToken);
         await runCts.CancelAsync();
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(runTask, watchdog) != runTask)
             Assert.Fail("Braid run did not complete before watchdog timeout.");
 
@@ -180,29 +184,30 @@ public sealed class BraidTimeoutCancellationTests : TestBase
         }
         catch (RunException ex)
         {
-            Assert.True(ex.InnerException is OperationCanceledException);
+            _ = await Assert.That(ex.InnerException is OperationCanceledException).IsTrue();
         }
     }
 
     /// <summary>Verifies tiny positive timeouts are valid and may deterministically time out.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task VerySmallTimeoutAllowedButMayExpire()
+    [Test]
+    public async Task VerySmallTimeoutAllowedButMayExpire(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exception = await Assertions.ExpectsAsync<RunException>(
+            var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
                 Runner.RunAsync(
                     async context =>
                     {
-                        context.Fork(async () => await gate.Task.WaitAsync(DefaultCancellationToken));
-                        await context.JoinAsync(DefaultCancellationToken);
+                        context.Fork(async () => await gate.Task.WaitAsync(cancellationToken));
+                        await context.JoinAsync(cancellationToken);
                     },
                     new RunOptions { Iterations = 1, Seed = 35, Timeout = TimeSpan.FromTicks(1) },
-                    DefaultCancellationToken));
+                    cancellationToken));
 
-            Assert.Contains("timed out", exception.Message, StringComparison.OrdinalIgnoreCase);
+            _ = await Assert.That(exception.Message).Contains("timed out", StringComparison.OrdinalIgnoreCase);
         }
         finally
         {
@@ -210,13 +215,13 @@ public sealed class BraidTimeoutCancellationTests : TestBase
         }
     }
 
-    private static Task<RunException> RunLocalTokenCanceledProbeAsync(int seed) => Assertions.ExpectsAsync<RunException>(
+    private static Task<RunException> RunLocalTokenCanceledProbeAsync(int seed, CancellationToken cancellationToken = default) => BraidAssertions.AssertExpectsAsync<RunException>(
         Runner.RunAsync(
-            static async context =>
+            async context =>
             {
                 context.Fork(static () => Probe.HitAsync("ready", new CancellationToken(true)).AsTask());
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = seed, Timeout = TimeSpan.FromSeconds(2) },
-            DefaultCancellationToken));
+            cancellationToken));
 }

@@ -21,15 +21,9 @@
         <PackageVersion Include="JetBrains.Annotations" Version="2026.2.0"/>
     </ItemGroup>
 
-    <!-- Test-project analyzers (see Directory.Build.props / TestAnalyzers). -->
-    <ItemGroup Label="TestAnalyzers">
-        <PackageVersion Include="xunit.analyzers" Version="2.1.0"/>
-    </ItemGroup>
-
+    <!-- Test-project analyzers ship inside the TUnit package (see Braid.Tests.csproj). -->
     <ItemGroup Label="Testing">
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0"/>
         <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
-        <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0"/>
-        <PackageVersion Include="xunit.v3" Version="4.0.1"/>
+        <PackageVersion Include="TUnit" Version="1.67.0"/>
     </ItemGroup>
 </Project>

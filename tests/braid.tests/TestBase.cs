@@ -1,26 +1,23 @@
 using System.Collections.Concurrent;
 using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
-using Xunit;
 
 namespace Braid.Tests;
 
 /// <summary>Provides shared test helpers.</summary>
 public abstract class TestBase
 {
-    /// <summary>Gets the xUnit cancellation token for the current test.</summary>
-    protected static CancellationToken DefaultCancellationToken => TestContext.Current.CancellationToken;
-
     /// <summary>Starts and waits for a task to complete before a watchdog timeout without blocking a thread.</summary>
     /// <param name="startTask">Starts the task to wait for.</param>
     /// <param name="failureMessage">The message used when the watchdog wins.</param>
     /// <param name="watchdogTimeout">The watchdog duration. Defaults to two seconds.</param>
     /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
-    protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout = default, bool prefixWatchdogMessage = true)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static Task AssertCompletesBeforeWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout = default, bool prefixWatchdogMessage = true, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(startTask);
         var effectiveTimeout = watchdogTimeout == TimeSpan.Zero ? TimeSpan.FromSeconds(2) : watchdogTimeout;
-        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, DefaultCancellationToken, prefixWatchdogMessage);
+        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, cancellationToken, prefixWatchdogMessage);
     }
 
     /// <summary>Waits for an already-started task to complete before a watchdog timeout without blocking a thread.</summary>
@@ -28,7 +25,8 @@ public abstract class TestBase
     /// <param name="failureMessage">The message used when the watchdog wins.</param>
     /// <param name="watchdogTimeout">The watchdog duration.</param>
     /// <param name="prefixWatchdogMessage">Whether to prefix the failure message with a standard braid watchdog sentence.</param>
-    protected static async Task AssertCompletesBeforeWatchdogAsync(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static async Task AssertCompletesBeforeWatchdogAsync(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(startedTask);
         var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -43,7 +41,7 @@ public abstract class TestBase
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
 
-        var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(completed.Task, watchdog).ConfigureAwait(false) != completed.Task)
             Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
 
@@ -65,9 +63,9 @@ public abstract class TestBase
         catch (RunException exception)
         {
             if (expectForkFailureMessage)
-                Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
+                _ = await Assert.That(exception.Message).Contains("A forked operation failed.");
 
-            Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
+            _ = await Assert.That(exception.ToString()).Contains("Concurrent probe hit on the same worker is not supported.");
         }
     }
 
@@ -84,23 +82,20 @@ public abstract class TestBase
         }
         catch (RunException exception)
         {
-            Assert.Contains("Concurrent probe hit on the same worker is not supported.", exception.ToString(), StringComparison.Ordinal);
+            _ = await Assert.That(exception.ToString()).Contains("Concurrent probe hit on the same worker is not supported.");
         }
     }
 
     /// <summary>Asserts schedule text parsing does not throw.</summary>
     /// <param name="text">The schedule text to parse.</param>
-    protected static void AssertTryParseDoesNotThrow(string? text)
-    {
-        var ex = Record.Exception(() => ReplaySchedule.TryParse(text, out _, out _));
-        Assert.Null(ex);
-    }
+    protected static void AssertTryParseDoesNotThrow(string? text) => _ = ReplaySchedule.TryParse(text, out _, out _);
 
     /// <summary>Asserts a probe invoked outside an active run is a no-op that completes immediately.</summary>
-    protected static async Task AssertProbeIsNoOpOutsideRunAsync()
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static async Task AssertProbeIsNoOpOutsideRunAsync(CancellationToken cancellationToken = default)
     {
-        var probe = Probe.HitAsync("outside-run", DefaultCancellationToken);
-        Assert.True(probe.IsCompletedSuccessfully);
+        var probe = Probe.HitAsync("outside-run", cancellationToken);
+        _ = await Assert.That(probe.IsCompletedSuccessfully).IsTrue();
         await probe;
     }
 
@@ -108,13 +103,14 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="order">The list that receives the worker label.</param>
     /// <param name="workerLabel">The label to append after the ready probe.</param>
-    protected static void ForkHitReadyAddWorker(RunContext context, IList<string> order, string workerLabel)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkHitReadyAddWorker(RunContext context, IList<string> order, string workerLabel, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(order);
         context.Fork(async () =>
         {
-            await Probe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", cancellationToken);
             order.Add(workerLabel);
         });
     }
@@ -122,13 +118,14 @@ public abstract class TestBase
     /// <summary>Forks a worker that hits ready and increments the completion counter.</summary>
     /// <param name="context">The braid run context.</param>
     /// <param name="completed">The shared completion counter.</param>
-    protected static void ForkHitReadyAndIncrement(RunContext context, CompletionCounter completed)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkHitReadyAndIncrement(RunContext context, CompletionCounter completed, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
         context.Fork(async () =>
         {
-            await Probe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", cancellationToken);
             _ = completed.Increment();
         });
     }
@@ -137,29 +134,31 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index to record.</param>
     /// <param name="releaseOrder">The queue that receives release order entries.</param>
-    protected static void ForkHitReadyForWorker(RunContext context, int workerIndex, ConcurrentQueue<string> releaseOrder)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkHitReadyForWorker(RunContext context, int workerIndex, ConcurrentQueue<string> releaseOrder, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(releaseOrder);
         context.Fork(async () =>
         {
-            await Probe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", cancellationToken);
             releaseOrder.Enqueue($"worker-{workerIndex}");
         });
     }
 
     /// <summary>Forks a worker that hits ready and records its name under a lock.</summary>
     /// <param name="context">The braid run context.</param>
-    /// <param name="workerName">The worker name to record.</param>
+    /// <param name="workerName">The worker's name to record.</param>
     /// <param name="releases">The list that receives worker names.</param>
     /// <param name="gate">The lock protecting <paramref name="releases" />.</param>
-    protected static void ForkHitReadyRecordWorker(RunContext context, string workerName, IList<string> releases, Lock gate)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkHitReadyRecordWorker(RunContext context, string workerName, IList<string> releases, Lock gate, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(releases);
         context.Fork(async () =>
         {
-            await Probe.HitAsync("ready", DefaultCancellationToken);
+            await Probe.HitAsync("ready", cancellationToken);
             lock (gate)
                 releases.Add(workerName);
         });
@@ -192,13 +191,14 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index used in probe names.</param>
     /// <param name="probeCount">The number of probes to hit.</param>
-    protected static void ForkWorkerDeterministicProbes(RunContext context, int workerIndex, int probeCount = 4)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkWorkerDeterministicProbes(RunContext context, int workerIndex, int probeCount = 4, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-                await Probe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
+                await Probe.HitAsync($"w{workerIndex}-p{probeIndex}", cancellationToken);
         });
     }
 
@@ -207,14 +207,15 @@ public abstract class TestBase
     /// <param name="workerIndex">The worker index used in probe names.</param>
     /// <param name="completed">The shared completion counter.</param>
     /// <param name="probeCount">The number of probes to hit.</param>
-    protected static void ForkWorkerRandomProbes(RunContext context, int workerIndex, CompletionCounter completed, int probeCount = 5)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkWorkerRandomProbes(RunContext context, int workerIndex, CompletionCounter completed, int probeCount = 5, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-                await Probe.HitAsync($"w{workerIndex}-p{probeIndex}", DefaultCancellationToken);
+                await Probe.HitAsync($"w{workerIndex}-p{probeIndex}", cancellationToken);
 
             _ = completed.Increment();
         });
@@ -224,23 +225,25 @@ public abstract class TestBase
     /// <param name="context">The braid run context.</param>
     /// <param name="workerIndex">The worker index used in probe names.</param>
     /// <param name="probeCount">The number of probes to hit.</param>
-    protected static void ForkWorkerSequentialProbes(RunContext context, int workerIndex, int probeCount)
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    protected static void ForkWorkerSequentialProbes(RunContext context, int workerIndex, int probeCount, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         context.Fork(async () =>
         {
             for (var probeIndex = 0; probeIndex < probeCount; probeIndex++)
-                await Probe.HitAsync($"step-{workerIndex}-{probeIndex}", DefaultCancellationToken);
+                await Probe.HitAsync($"step-{workerIndex}-{probeIndex}", cancellationToken);
         });
     }
 
     /// <summary>Runs two threads that hit braid probes concurrently under a captured execution context.</summary>
     /// <param name="firstProbe">The first probe name.</param>
     /// <param name="secondProbe">The second probe name.</param>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <exception cref="InvalidOperationException"><see cref="ExecutionContext.Capture" /> returned <see langword="null" />.</exception>
-    protected static Task RunTwoThreadProbeRaceAsync(string firstProbe, string secondProbe)
+    protected static Task RunTwoThreadProbeRaceAsync(string firstProbe, string secondProbe, CancellationToken cancellationToken = default)
     {
-        var token = DefaultCancellationToken;
+        var token = cancellationToken;
         var ec = ExecutionContext.Capture() ?? throw new InvalidOperationException("ExecutionContext.Capture returned null.");
         var readyCount = new CompletionCounter();
         var threadFailure = new Exception?[1];
@@ -260,14 +263,15 @@ public abstract class TestBase
                 if (threadFailure[0] is { } failure)
                     ExceptionDispatchInfo.Capture(failure).Throw();
             },
-            DefaultCancellationToken);
+            cancellationToken);
     }
 
     /// <summary>Schedules a fork from a thread-pool thread and increments the completion counter.</summary>
     /// <param name="context">The braid run context.</param>
     /// <param name="completed">The shared completion counter.</param>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that completes when the fork has been scheduled.</returns>
-    protected static Task ScheduleConcurrentForkAsync(RunContext context, CompletionCounter completed)
+    protected static Task ScheduleConcurrentForkAsync(RunContext context, CompletionCounter completed, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(completed);
@@ -276,11 +280,11 @@ public abstract class TestBase
             {
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", cancellationToken);
                     _ = completed.Increment();
                 });
             },
-            DefaultCancellationToken);
+            cancellationToken);
     }
 
     /// <summary>Starts synchronous work on the thread pool.</summary>
@@ -305,14 +309,15 @@ public abstract class TestBase
 
     /// <summary>Starts a background loop that yields until cancellation is requested.</summary>
     /// <param name="noiseToken">The token that stops the yield loop.</param>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the yield loop.</returns>
-    protected static Task StartNoiseYieldLoopAsync(CancellationToken noiseToken) => StartNewOnThreadPoolAsync(
+    protected static Task StartNoiseYieldLoopAsync(CancellationToken noiseToken, CancellationToken cancellationToken = default) => StartNewOnThreadPoolAsync(
         async () =>
         {
             while (!noiseToken.IsCancellationRequested)
                 await Task.Yield();
         },
-        DefaultCancellationToken);
+        cancellationToken);
 
     private static class BraidTestInternals
     {
