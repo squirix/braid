@@ -231,6 +231,11 @@ jobs:
         container:
             image: ghcr.io/squirix/braid-pvs-studio:latest
         timeout-minutes: 60
+        # TEMPORARY: pvs-studio-dotnet does not support the .NET 11 SDK yet
+        # ("no supported versions of the .NET SDK"). The job still runs and
+        # reports findings, but must not block CI until PVS-Studio ships
+        # .NET 11 support. TODO: drop continue-on-error then.
+        continue-on-error: true
         permissions:
             contents: read
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
