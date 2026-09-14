@@ -158,6 +158,7 @@ dotnet_diagnostic.SA1633.severity = none # file header
 # ===========================================================================
 dotnet_analyzer_diagnostic.category-roslynator.severity = warning # all rules at warning+ so they appear in dotnet build (TreatWarningsAsErrors => error)
 dotnet_diagnostic.RCS1004.severity = error # Roslynator rule (RCS1004)
+dotnet_diagnostic.RCS1070.severity = none # allow redundant default switch section, otherwise it contradicts with new roslyn analyzer 
 dotnet_diagnostic.RCS1134.severity = none # remove redundant statement conflicts with explicit control-flow in some methods
 
 # ===========================================================================
