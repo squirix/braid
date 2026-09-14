@@ -57,23 +57,26 @@ public sealed class BraidOptionsTests : TestBase
     [Test]
     public async Task RunAsyncThrowsForNegativeIterations(CancellationToken cancellationToken)
     {
-        var executed = 0;
+        var executed = new CompletionCounter();
 
-        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    _ = Interlocked.Increment(ref executed);
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Iterations = -1 },
-                cancellationToken);
-        });
+        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, CompletionCounter>(
+            cancellationToken,
+            executed,
+            static (token, counter) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = counter.Increment();
+                        _ = context;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Iterations = -1 },
+                    token);
+            });
 
         _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(RunOptions.Iterations));
-        _ = await Assert.That(executed).IsEqualTo(0);
+        _ = await Assert.That(executed.Value).IsEqualTo(0);
     }
 
     /// <summary>Verifies negative timeout is rejected before the run body starts.</summary>
@@ -81,23 +84,26 @@ public sealed class BraidOptionsTests : TestBase
     [Test]
     public async Task RunAsyncThrowsForNegativeTimeout(CancellationToken cancellationToken)
     {
-        var executed = 0;
+        var executed = new CompletionCounter();
 
-        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    _ = Interlocked.Increment(ref executed);
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Timeout = TimeSpan.FromMilliseconds(-1) },
-                cancellationToken);
-        });
+        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, CompletionCounter>(
+            cancellationToken,
+            executed,
+            static (token, counter) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = counter.Increment();
+                        _ = context;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Timeout = TimeSpan.FromMilliseconds(-1) },
+                    token);
+            });
 
         _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(RunOptions.Timeout));
-        _ = await Assert.That(executed).IsEqualTo(0);
+        _ = await Assert.That(executed.Value).IsEqualTo(0);
     }
 
     /// <summary>Verifies zero iterations are rejected before the run body starts.</summary>
@@ -105,23 +111,26 @@ public sealed class BraidOptionsTests : TestBase
     [Test]
     public async Task RunAsyncThrowsForZeroIterations(CancellationToken cancellationToken)
     {
-        var executed = 0;
+        var executed = new CompletionCounter();
 
-        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    _ = Interlocked.Increment(ref executed);
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Iterations = 0 },
-                cancellationToken);
-        });
+        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, CompletionCounter>(
+            cancellationToken,
+            executed,
+            static (token, counter) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = counter.Increment();
+                        _ = context;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Iterations = 0 },
+                    token);
+            });
 
         _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(RunOptions.Iterations));
-        _ = await Assert.That(executed).IsEqualTo(0);
+        _ = await Assert.That(executed.Value).IsEqualTo(0);
     }
 
     /// <summary>Verifies zero timeout is rejected before the run body starts.</summary>
@@ -129,22 +138,25 @@ public sealed class BraidOptionsTests : TestBase
     [Test]
     public async Task RunAsyncThrowsForZeroTimeout(CancellationToken cancellationToken)
     {
-        var executed = 0;
+        var executed = new CompletionCounter();
 
-        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    _ = Interlocked.Increment(ref executed);
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Timeout = TimeSpan.Zero },
-                cancellationToken);
-        });
+        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, CompletionCounter>(
+            cancellationToken,
+            executed,
+            static (token, counter) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = counter.Increment();
+                        _ = context;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Timeout = TimeSpan.Zero },
+                    token);
+            });
 
         _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(RunOptions.Timeout));
-        _ = await Assert.That(executed).IsEqualTo(0);
+        _ = await Assert.That(executed.Value).IsEqualTo(0);
     }
 }
