@@ -8,11 +8,11 @@ namespace Braid;
 /// <param name="MaxSchedules">The maximum number of distinct replay schedules to try.</param>
 /// <param name="MaxStepsPerSchedule">The maximum number of hit steps per generated replay schedule.</param>
 /// <param name="Timeout">The per-run timeout.</param>
-[StructLayout(LayoutKind.Auto)]
 [Immutable]
+[StructLayout(LayoutKind.Auto)]
 public readonly record struct ExploreOptions(int Seed, int MaxSchedules, int MaxStepsPerSchedule, TimeSpan Timeout)
 {
-    internal readonly void Validate()
+    internal void Validate()
     {
         ValidatePositive(MaxSchedules, nameof(MaxSchedules), "MaxSchedules must be positive.");
         ValidatePositive(MaxStepsPerSchedule, nameof(MaxStepsPerSchedule), "MaxStepsPerSchedule must be positive.");
@@ -27,7 +27,8 @@ public readonly record struct ExploreOptions(int Seed, int MaxSchedules, int Max
 
     private static void ValidatePositive(TimeSpan value, string paramName, string message)
     {
-        if (value <= TimeSpan.Zero)
-            throw new ArgumentOutOfRangeException(paramName, value, message);
+        if (value > TimeSpan.Zero)
+            return;
+        throw new ArgumentOutOfRangeException(paramName, value, message);
     }
 }

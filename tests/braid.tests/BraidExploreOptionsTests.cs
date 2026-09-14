@@ -1,14 +1,13 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers exploration option validation.</summary>
 public sealed class BraidExploreOptionsTests : TestBase
 {
     /// <summary>Verifies invalid schedule caps are rejected before exploration starts.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreRejectsInvalidMaxSchedulesStart()
+    [Test]
+    public async Task ExploreRejectsInvalidMaxSchedulesStart(CancellationToken cancellationToken)
     {
         var ran = false;
 
@@ -19,17 +18,18 @@ public sealed class BraidExploreOptionsTests : TestBase
                 ran = true;
                 await braid.WorkerAsync("worker-1", static () => Task.CompletedTask);
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        _ = await Assertions.ExpectsAsync<ArgumentOutOfRangeException>(operation);
+        _ = await BraidAssertions.AssertExpectsAsync<ArgumentOutOfRangeException>(operation);
 
-        Assert.False(ran);
+        _ = await Assert.That(ran).IsFalse();
     }
 
     /// <summary>Verifies invalid step caps are rejected before exploration starts.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreRejectsInvalidMaxStepsStart()
+    [Test]
+    public async Task ExploreRejectsInvalidMaxStepsStart(CancellationToken cancellationToken)
     {
         var ran = false;
 
@@ -40,46 +40,48 @@ public sealed class BraidExploreOptionsTests : TestBase
                 ran = true;
                 await braid.WorkerAsync("worker-1", static () => Task.CompletedTask);
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        _ = await Assertions.ExpectsAsync<ArgumentOutOfRangeException>(operation);
+        _ = await BraidAssertions.AssertExpectsAsync<ArgumentOutOfRangeException>(operation);
 
-        Assert.False(ran);
+        _ = await Assert.That(ran).IsFalse();
     }
 
     /// <summary>Verifies WithTimeout propagates the configured value to ExploreOptions.</summary>
-    [Fact]
-    public void WithTimeoutSetsTimeoutOnBuiltOptions()
+    [Test]
+    public async Task WithTimeoutSetsTimeoutOnBuiltOptions()
     {
         var timeout = TimeSpan.FromSeconds(42);
         var options = new ExploreOptionsBuilder().WithTimeout(timeout).Build();
 
-        Assert.Equal(timeout, options.Timeout);
+        _ = await Assert.That(options.Timeout).IsEqualTo(timeout);
     }
 
     /// <summary>Verifies zero timeout is rejected before exploration starts.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreRejectsZeroTimeout()
+    [Test]
+    public async Task ExploreRejectsZeroTimeout(CancellationToken cancellationToken)
     {
         var operation = Runner.ExploreAsync(
             new ExploreOptionsBuilder().WithTimeout(TimeSpan.Zero).Build(),
             static async braid => await braid.WorkerAsync("worker-1", static () => Task.CompletedTask),
-            DefaultCancellationToken);
+            cancellationToken);
 
-        _ = await Assertions.ExpectsAsync<ArgumentOutOfRangeException>(operation);
+        _ = await BraidAssertions.AssertExpectsAsync<ArgumentOutOfRangeException>(operation);
     }
 
     /// <summary>Verifies negative timeout is rejected before exploration starts.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExploreRejectsNegativeTimeout()
+    [Test]
+    public async Task ExploreRejectsNegativeTimeout(CancellationToken cancellationToken)
     {
         var operation = Runner.ExploreAsync(
             new ExploreOptionsBuilder().WithTimeout(TimeSpan.FromMilliseconds(-1)).Build(),
             static async braid => await braid.WorkerAsync("worker-1", static () => Task.CompletedTask),
-            DefaultCancellationToken);
+            cancellationToken);
 
-        _ = await Assertions.ExpectsAsync<ArgumentOutOfRangeException>(operation);
+        _ = await BraidAssertions.AssertExpectsAsync<ArgumentOutOfRangeException>(operation);
     }
 }

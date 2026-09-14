@@ -1,4 +1,4 @@
-using Xunit.Sdk;
+using TUnit.Assertions.Exceptions;
 
 namespace Braid.Tests;
 
@@ -16,15 +16,15 @@ namespace Braid.Tests;
 ///     awaitable itself.
 ///     </para>
 /// </remarks>
-public static class Assertions
+public static class BraidAssertions
 {
     /// <summary>Invokes an operation and asserts it throws exactly <typeparamref name="TException" />.</summary>
     /// <typeparam name="TException">Expected exception type.</typeparam>
     /// <param name="operation">Operation expected to throw.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="operation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation does not throw exactly <typeparamref name="TException" />.</exception>
-    public static TException Expects<TException>(Action operation)
+    /// <exception cref="AssertionException">Thrown when the operation does not throw exactly <typeparamref name="TException" />.</exception>
+    public static TException AssertExpects<TException>(Action operation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(operation);
@@ -49,8 +49,8 @@ public static class Assertions
     /// <param name="operation">Operation expected to throw.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="operation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation does not throw exactly <typeparamref name="TException" />.</exception>
-    public static TException Expects<TException, TState>(TState state, Action<TState> operation)
+    /// <exception cref="AssertionException">Thrown when the operation does not throw exactly <typeparamref name="TException" />.</exception>
+    public static TException AssertExpects<TException, TState>(TState state, Action<TState> operation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(operation);
@@ -77,8 +77,8 @@ public static class Assertions
     /// <param name="operation">Operation expected to throw.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="operation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation does not throw exactly <typeparamref name="TException" />.</exception>
-    public static TException Expects<TException, TState1, TState2>(TState1 state1, TState2 state2, Action<TState1, TState2> operation)
+    /// <exception cref="AssertionException">Thrown when the operation does not throw exactly <typeparamref name="TException" />.</exception>
+    public static TException AssertExpects<TException, TState1, TState2>(TState1 state1, TState2 state2, Action<TState1, TState2> operation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(operation);
@@ -103,8 +103,8 @@ public static class Assertions
     /// <param name="operation">Operation expected to throw.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="operation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation completes without throwing.</exception>
-    public static TException ExpectsAny<TException, TState>(TState state, Action<TState> operation)
+    /// <exception cref="AssertionException">Thrown when the operation completes without throwing.</exception>
+    public static TException AssertExpectsAny<TException, TState>(TState state, Action<TState> operation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(operation);
@@ -125,8 +125,8 @@ public static class Assertions
     /// <param name="startOperation">Factory that starts and returns the operation expected to fault.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="startOperation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation completes without faulting.</exception>
-    public static Task<TException> ExpectsAnyAsync<TException>(Func<ValueTask> startOperation)
+    /// <exception cref="AssertionException">Thrown when the operation completes without faulting.</exception>
+    public static Task<TException> AssertExpectsAnyAsync<TException>(Func<ValueTask> startOperation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(startOperation);
@@ -140,8 +140,8 @@ public static class Assertions
     /// <param name="startOperation">Starts the faulting task given <paramref name="state" />.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="startOperation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation completes without faulting.</exception>
-    public static Task<TException> ExpectsAnyAsync<TException, TState>(TState state, Func<TState, Task> startOperation)
+    /// <exception cref="AssertionException">Thrown when the operation completes without faulting.</exception>
+    public static Task<TException> AssertExpectsAnyAsync<TException, TState>(TState state, Func<TState, Task> startOperation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(startOperation);
@@ -153,8 +153,8 @@ public static class Assertions
     /// <param name="operation">The in-flight operation expected to fault.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="operation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation completes without faulting exactly with <typeparamref name="TException" />.</exception>
-    public static Task<TException> ExpectsAsync<TException>(Task operation)
+    /// <exception cref="AssertionException">Thrown when the operation completes without faulting exactly with <typeparamref name="TException" />.</exception>
+    public static Task<TException> AssertExpectsAsync<TException>(Task operation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(operation);
@@ -168,8 +168,8 @@ public static class Assertions
     /// <param name="startOperation">Starts the operation expected to fault given <paramref name="state" />.</param>
     /// <returns>The observed exception.</returns>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="startOperation" /> is <see langword="null" />.</exception>
-    /// <exception cref="XunitException">Thrown when the operation completes without faulting exactly with <typeparamref name="TException" />.</exception>
-    public static Task<TException> ExpectsAsync<TException, TState>(TState state, Func<TState, Task> startOperation)
+    /// <exception cref="AssertionException">Thrown when the operation completes without faulting exactly with <typeparamref name="TException" />.</exception>
+    public static Task<TException> AssertExpectsAsync<TException, TState>(TState state, Func<TState, Task> startOperation)
         where TException : Exception
     {
         ArgumentNullException.ThrowIfNull(startOperation);
@@ -240,9 +240,9 @@ public static class Assertions
         throw Missing<TException>();
     }
 
-    private static XunitException Missing<TException>()
+    private static AssertionException Missing<TException>()
         where TException : Exception => new($"Expected exception of type {typeof(TException).FullName} but none was thrown.");
 
-    private static XunitException Unexpected<TException>(Exception thrown)
+    private static AssertionException Unexpected<TException>(Exception thrown)
         where TException : Exception => new($"Expected exception of type {typeof(TException).FullName} but a different exception was thrown: {thrown}");
 }
