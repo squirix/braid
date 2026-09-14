@@ -1,44 +1,44 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers run-result snapshots, public-surface immutability, and run-scope cleanup.</summary>
 public sealed class BraidRunResultAndScopeTests : TestBase
 {
     /// <summary>Verifies <see cref="RunException.ToString" /> does not mutate between calls.</summary>
-    [Fact]
-    public void BraidRunExceptionToStringIsStable()
+    [Test]
+    public async Task BraidRunExceptionToStringIsStable()
     {
         var exception = new RunException("failed", 42, 3, ["worker-1 forked"], [new ReplayStep("worker-1", "ready")], new InvalidOperationException("inner"));
 
         var first = exception.ToString();
         var second = exception.ToString();
 
-        Assert.Equal(first, second);
+        _ = await Assert.That(second).IsEqualTo(first);
     }
 
     /// <summary>Verifies AsyncLocal scope is cleared after a successful run.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncClearsRunScopeAfterSuccessfulRun()
+    [Test]
+    public async Task RunAsyncClearsRunScopeAfterSuccessfulRun(CancellationToken cancellationToken)
     {
         await Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        await AssertProbeIsNoOpOutsideRunAsync();
+        await AssertProbeIsNoOpOutsideRunAsync(cancellationToken);
     }
 
     /// <summary>Verifies AsyncLocal scope is cleared after a timeout failure.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncClearsRunScopeAfterTimeout()
+    [Test]
+    public async Task RunAsyncClearsRunScopeAfterTimeout(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -47,16 +47,16 @@ public sealed class BraidRunResultAndScopeTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("block", DefaultCancellationToken);
-                    await gate.Task.WaitAsync(DefaultCancellationToken);
+                    await Probe.HitAsync("block", cancellationToken);
+                    await gate.Task.WaitAsync(cancellationToken);
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(runTask, watchdog) != runTask)
         {
             _ = gate.TrySetResult();
@@ -72,26 +72,27 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         }
         catch (RunException exception)
         {
-            Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
+            _ = await Assert.That(exception.Message).Contains("braid run timed out.");
         }
 
-        await AssertProbeIsNoOpOutsideRunAsync();
+        await AssertProbeIsNoOpOutsideRunAsync(cancellationToken);
     }
 
     /// <summary>Verifies a run with no workers and no schedule completes.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncCompletesWithNoWorkersSchedule()
+    [Test]
+    public async Task RunAsyncCompletesWithNoWorkersSchedule(CancellationToken cancellationToken)
     {
         var options = new RunOptions { Iterations = 1, Seed = 12345 };
-        await Runner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
+        await Runner.RunAsync(static _ => Task.CompletedTask, options, cancellationToken);
 
-        await AssertProbeIsNoOpOutsideRunAsync();
+        await AssertProbeIsNoOpOutsideRunAsync(cancellationToken);
     }
 
     /// <summary>Verifies cancellation is observed before the user callback runs.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
+    [Test]
     public async Task RunAsyncSurfacesCancellationBeforeFork()
     {
         using var canceled = new CancellationTokenSource();
@@ -99,7 +100,7 @@ public sealed class BraidRunResultAndScopeTests : TestBase
 
         var executed = new[] { false };
 
-        _ = Assertions.Expects<OperationCanceledException, CancellationTokenSource, bool[]>(
+        _ = BraidAssertions.AssertExpects<OperationCanceledException, CancellationTokenSource, bool[]>(
             canceled,
             executed,
             static (state, executed) =>
@@ -115,54 +116,55 @@ public sealed class BraidRunResultAndScopeTests : TestBase
                     state.Token);
             });
 
-        Assert.False(executed[0]);
+        _ = await Assert.That(executed[0]).IsFalse();
     }
 
     /// <summary>Verifies failure reports snapshot schedule and are not affected by later caller mutations.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunExceptionSnapshotsTraceAndSchedule()
+    [Test]
+    public async Task RunExceptionSnapshotsTraceAndSchedule(CancellationToken cancellationToken)
     {
         var backing = new[] { new ReplayStep("worker-1", "ready") };
         var schedule = ReplaySchedule.Replay(backing);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("ready", DefaultCancellationToken);
+                        await Probe.HitAsync("ready", cancellationToken);
                         throw new InvalidOperationException("after-ready");
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions { Iterations = 1, Seed = 12345, Schedule = schedule },
-                DefaultCancellationToken));
+                cancellationToken));
 
         backing[0] = new ReplayStep("worker-9", "mutated");
 
         var report = exception.ToString();
-        Assert.Contains("worker-1 @ ready", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("worker-9", report, StringComparison.Ordinal);
-        Assert.Equal(new ReplayStep("worker-1", "ready"), exception.Steps[0]);
+        _ = await Assert.That(report).Contains("worker-1 @ ready");
+        _ = await Assert.That(report).DoesNotContain("worker-9");
+        _ = await Assert.That(exception.Steps[0]).IsEqualTo(new ReplayStep("worker-1", "ready"));
     }
 
     /// <summary>Verifies schedule steps exposed from <see cref="ReplaySchedule" /> cannot be mutated as a list.</summary>
-    [Fact]
-    public void ScheduleStepsCannotBeMutatedPublic()
+    [Test]
+    public async Task ScheduleStepsCannotBeMutatedPublic()
     {
         var schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready"));
         var steps = schedule.Steps;
 
-        Assert.Equal(new ReplayStep("worker-1", "ready"), steps[0]);
+        _ = await Assert.That(steps[0]).IsEqualTo(new ReplayStep("worker-1", "ready"));
 
-        var list = Assert.IsType<IList<ReplayStep>>(steps, false);
-        _ = Assertions.Expects<NotSupportedException, IList<ReplayStep>>(list, static state => state.Add(new ReplayStep("worker-2", "x")));
-        _ = Assertions.Expects<NotSupportedException, IList<ReplayStep>>(list, static state => state.Clear());
-        _ = Assertions.Expects<NotSupportedException, IList<ReplayStep>>(list, static state => state[0] = new ReplayStep("worker-9", "mutated"));
+        var list = await Assert.That(steps).IsTypeOf<IList<ReplayStep>>();
+        _ = BraidAssertions.AssertExpects<NotSupportedException, IList<ReplayStep>>(list!, static state => state.Add(new ReplayStep("worker-2", "x")));
+        _ = BraidAssertions.AssertExpects<NotSupportedException, IList<ReplayStep>>(list!, static state => state.Clear());
+        _ = BraidAssertions.AssertExpects<NotSupportedException, IList<ReplayStep>>(list!, static state => state[0] = new ReplayStep("worker-9", "mutated"));
 
-        Assert.Equal(new ReplayStep("worker-1", "ready"), schedule.Steps[0]);
+        _ = await Assert.That(schedule.Steps[0]).IsEqualTo(new ReplayStep("worker-1", "ready"));
     }
 }

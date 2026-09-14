@@ -1,36 +1,36 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers explicit probe behavior.</summary>
 public sealed class BraidProbeTests : TestBase
 {
     /// <summary>Verifies probe behavior does not leak outside a failed run.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task HitAsyncOutsideRunCompletesFailedRun()
+    [Test]
+    public async Task HitAsyncOutsideRunCompletesFailedRun(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static async () =>
+                context.Fork(async () =>
                 {
-                    await Probe.HitAsync("before-failure", DefaultCancellationToken);
+                    await Probe.HitAsync("before-failure", cancellationToken);
                     throw new InvalidOperationException("scope-failure");
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        _ = await Assertions.ExpectsAsync<RunException>(operation);
+        _ = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        await Probe.HitAsync("outside-run", DefaultCancellationToken);
+        await Probe.HitAsync("outside-run", cancellationToken);
     }
 
     /// <summary>Verifies probes are no-ops outside a braid run.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task HitAsyncOutsideRunCompletesImmediately() => AssertProbeIsNoOpOutsideRunAsync();
+    [Test]
+    public Task HitAsyncOutsideRunCompletesImmediately(CancellationToken cancellationToken) => AssertProbeIsNoOpOutsideRunAsync(cancellationToken);
 }

@@ -1,80 +1,78 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers <see cref="RunException.TryGetReplayText" /> behavior.</summary>
 public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 {
     /// <summary>Verifies <see cref="RunException.ToString" /> still embeds replay lines when export succeeds.</summary>
-    [Fact]
-    public void ToStringIncludesReplayTextWhenExportable()
+    [Test]
+    public async Task ToStringIncludesReplayTextWhenExportable()
     {
         var steps = new[] { ReplayStep.Hit("worker-1", "ready") };
         var exception = new RunException("failed", 1, 0, ["worker-1 forked"], steps, null);
 
-        Assert.True(exception.TryGetReplayText(out var expectedText, out _));
+        _ = await Assert.That(exception.TryGetReplayText(out var expectedText, out _)).IsTrue();
 
         var report = exception.ToString();
-        Assert.Contains("Replay text:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Replay text:");
         foreach (var segment in expectedText.Split(Environment.NewLine))
-            Assert.Contains(segment, report, StringComparison.Ordinal);
+            _ = await Assert.That(report).Contains(segment);
     }
 
     /// <summary>Verifies <see cref="RunException.ToString" /> keeps the generic unavailable line when export fails.</summary>
-    [Fact]
-    public void ToStringReportsUnavailableNotExportable()
+    [Test]
+    public async Task ToStringReportsUnavailableNotExportable()
     {
         var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("has space", "ready")], null);
 
-        Assert.False(exception.TryGetReplayText(out _, out var apiError));
-        Assert.NotNull(apiError);
+        _ = await Assert.That(exception.TryGetReplayText(out _, out var apiError)).IsFalse();
+        _ = await Assert.That(apiError).IsNotNull();
 
         var report = exception.ToString();
-        Assert.Contains("Replay text unavailable", report, StringComparison.Ordinal);
-        Assert.Contains("cannot be represented", report, StringComparison.Ordinal);
-        Assert.DoesNotContain(apiError, report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Replay text unavailable");
+        _ = await Assert.That(report).Contains("cannot be represented");
+        _ = await Assert.That(report).DoesNotContain(apiError);
     }
 
     /// <summary>Verifies whitespace in probe name prevents replay-text export with a diagnostic error.</summary>
-    [Fact]
-    public void FalseOnProbeWhitespace()
+    [Test]
+    public async Task FalseOnProbeWhitespace()
     {
         var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("worker-1", "bad probe")], null);
 
-        Assert.False(exception.TryGetReplayText(out var text, out var error));
-        Assert.Equal(string.Empty, text);
-        Assert.NotNull(error);
-        Assert.Contains("Probe name", error, StringComparison.Ordinal);
-        Assert.Contains("whitespace", error, StringComparison.Ordinal);
+        _ = await Assert.That(exception.TryGetReplayText(out var text, out var error)).IsFalse();
+        _ = await Assert.That(text).IsEqualTo(string.Empty);
+        _ = await Assert.That(error).IsNotNull();
+        _ = await Assert.That(error).Contains("Probe name");
+        _ = await Assert.That(error).Contains("whitespace");
     }
 
     /// <summary>Verifies whitespace in worker id prevents replay-text export with a diagnostic error.</summary>
-    [Fact]
-    public void FalseOnWorkerWhitespace()
+    [Test]
+    public async Task FalseOnWorkerWhitespace()
     {
         var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("worker id", "ready")], null);
 
-        Assert.False(exception.TryGetReplayText(out var text, out var error));
-        Assert.Equal(string.Empty, text);
-        Assert.NotNull(error);
-        Assert.Contains("Worker id", error, StringComparison.Ordinal);
-        Assert.Contains("whitespace", error, StringComparison.Ordinal);
+        _ = await Assert.That(exception.TryGetReplayText(out var text, out var error)).IsFalse();
+        _ = await Assert.That(text).IsEqualTo(string.Empty);
+        _ = await Assert.That(error).IsNotNull();
+        _ = await Assert.That(error).Contains("Worker id");
+        _ = await Assert.That(error).Contains("whitespace");
     }
 
     /// <summary>Verifies random-only (empty schedule) yields false with no export error.</summary>
-    [Fact]
-    public void FalseWhenScheduleEmpty()
+    [Test]
+    public async Task FalseWhenScheduleEmpty()
     {
         var exception = new RunException("failed", 1, 0, [], [], null);
 
-        Assert.False(exception.TryGetReplayText(out var text, out var error));
-        Assert.Equal(string.Empty, text);
-        Assert.Null(error);
+        _ = await Assert.That(exception.TryGetReplayText(out var text, out var error)).IsFalse();
+        _ = await Assert.That(text).IsEqualTo(string.Empty);
+        _ = await Assert.That(error).IsNull();
     }
 
     /// <summary>Verifies a typed exportable schedule yields canonical replay text.</summary>
-    [Fact]
-    public void TrueForExportable()
+    [Test]
+    public async Task TrueForExportable()
     {
         var steps = new[]
         {
@@ -84,9 +82,9 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 
         var exception = new RunException("failed", 1, 0, [], steps, null);
 
-        Assert.True(exception.TryGetReplayText(out var text, out var error));
-        Assert.Null(error);
-        Assert.Equal(ReplaySchedule.Replay(steps).ToReplayText(), text);
-        Assert.Contains("hit worker-1 after-read", text, StringComparison.Ordinal);
+        _ = await Assert.That(exception.TryGetReplayText(out var text, out var error)).IsTrue();
+        _ = await Assert.That(error).IsNull();
+        _ = await Assert.That(text).IsEqualTo(ReplaySchedule.Replay(steps).ToReplayText());
+        _ = await Assert.That(text).Contains("hit worker-1 after-read");
     }
 }

@@ -1,5 +1,4 @@
 using System.Runtime.CompilerServices;
-using Xunit;
 
 namespace Braid.Tests;
 
@@ -7,37 +6,39 @@ namespace Braid.Tests;
 public sealed class BraidInnerExceptionStackTraceTests : TestBase
 {
     /// <summary>Verifies callback failures preserve original inner exception stack trace.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task CallbackFailurePreservesStackTrace()
+    [Test]
+    public async Task CallbackFailurePreservesStackTrace(CancellationToken cancellationToken)
     {
-        var operation = Runner.RunAsync(static _ => ThrowFromCallbackHelperAsync(), DefaultCancellationToken);
+        var operation = Runner.RunAsync(static _ => ThrowFromCallbackHelperAsync(), cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        Assert.NotNull(exception.InnerException);
-        Assert.Contains(nameof(ThrowFromCallbackHelperAsync), exception.InnerException.StackTrace ?? string.Empty, StringComparison.Ordinal);
+        _ = await Assert.That(exception.InnerException).IsNotNull();
+        _ = await Assert.That(exception.InnerException.StackTrace ?? string.Empty).Contains(nameof(ThrowFromCallbackHelperAsync));
     }
 
-    /// <summary>Verifies worker failures preserve original inner exception stack trace.</summary>
+    /// <summary>Verifies worker failures preserve the original inner exception stack trace.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerFailurePreservesStackTrace()
+    [Test]
+    public async Task WorkerFailurePreservesStackTrace(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static () => StartNewOnThreadPoolAsync(ThrowFromWorkerHelper, DefaultCancellationToken));
-                await context.JoinAsync(DefaultCancellationToken);
+                context.Fork(() => StartNewOnThreadPoolAsync(ThrowFromWorkerHelper, cancellationToken));
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 4010 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        Assert.NotNull(exception.InnerException);
-        Assert.Contains(nameof(ThrowFromWorkerHelper), exception.InnerException.StackTrace ?? string.Empty, StringComparison.Ordinal);
-        Assert.Contains(nameof(InvalidOperationException), exception.ToString(), StringComparison.Ordinal);
+        _ = await Assert.That(exception.InnerException).IsNotNull();
+        _ = await Assert.That(exception.InnerException.StackTrace ?? string.Empty).Contains(nameof(ThrowFromWorkerHelper));
+        _ = await Assert.That(exception.ToString()).Contains(nameof(InvalidOperationException));
     }
 
     [MethodImpl(MethodImplOptions.NoInlining)]

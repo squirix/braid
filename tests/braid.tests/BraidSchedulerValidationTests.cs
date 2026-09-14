@@ -1,32 +1,32 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers scheduler validation behavior of the braid scheduler and run reporting.</summary>
 public sealed class BraidSchedulerValidationTests : TestBase
 {
     /// <summary>Verifies shared default options are not mutated by runs.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task DefaultOptionsAreNotMutatedByRunAsync()
+    [Test]
+    public async Task DefaultOptionsAreNotMutatedByRunAsync(CancellationToken cancellationToken)
     {
         var beforeIterations = RunOptions.Default.Iterations;
         var beforeSeed = RunOptions.Default.Seed;
         var beforeTimeout = RunOptions.Default.Timeout;
         var beforeSchedule = RunOptions.Default.Schedule;
 
-        await Runner.RunAsync(static _ => Task.CompletedTask, DefaultCancellationToken);
+        await Runner.RunAsync(static _ => Task.CompletedTask, cancellationToken);
 
-        Assert.Equal(beforeIterations, RunOptions.Default.Iterations);
-        Assert.Equal(beforeSeed, RunOptions.Default.Seed);
-        Assert.Equal(beforeTimeout, RunOptions.Default.Timeout);
-        Assert.Same(beforeSchedule, RunOptions.Default.Schedule);
+        _ = await Assert.That(RunOptions.Default.Iterations).IsEqualTo(beforeIterations);
+        _ = await Assert.That(RunOptions.Default.Seed).IsEqualTo(beforeSeed);
+        _ = await Assert.That(RunOptions.Default.Timeout).IsEqualTo(beforeTimeout);
+        _ = await Assert.That(RunOptions.Default.Schedule).IsSameReferenceAs(beforeSchedule);
     }
 
     /// <summary>Verifies duplicate scripted steps for the same worker and probe are rejected or fail clearly after the worker completes.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task DuplicateScriptedHitStepFailsClearly()
+    [Test]
+    public async Task DuplicateScriptedHitStepFailsClearly(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -36,106 +36,111 @@ public sealed class BraidSchedulerValidationTests : TestBase
         };
 
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        Assert.Contains("Scripted schedule contained unused steps after all workers completed.", exception.Message, StringComparison.Ordinal);
+        _ = await Assert.That(exception.Message).Contains("Scripted schedule contained unused steps after all workers completed.");
     }
 
     /// <summary>Verifies fork delegates that return null fail clearly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ForkOperationReturningNullFailsClearly()
+    [Test]
+    public async Task ForkOperationReturningNullFailsClearly(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
                 context.Fork(NullTestValues.NullReturningFork);
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
-        Assert.Contains("A forked operation failed.", exception.Message, StringComparison.Ordinal);
-        Assert.True(
-            report.Contains("null", StringComparison.OrdinalIgnoreCase) || report.Contains("Fork operation", StringComparison.OrdinalIgnoreCase),
-            $"Expected clear null-task messaging. Report:{Environment.NewLine}{report}");
+        _ = await Assert.That(exception.Message).Contains("A forked operation failed.");
+        _ = await Assert.That(report.Contains("null", StringComparison.OrdinalIgnoreCase) || report.Contains("Fork operation", StringComparison.OrdinalIgnoreCase)).IsTrue().Because($"Expected clear null-task messaging. Report:{Environment.NewLine}{report}");
     }
 
     /// <summary>Verifies invalid probe names are rejected inside a worker before scheduler state is corrupted.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task HitAsyncRejectsInvalidProbeInsideWorker()
+    [Test]
+    public Task HitAsyncRejectsInvalidProbeInsideWorker(CancellationToken cancellationToken)
     {
         return AssertCompletesBeforeWatchdogAsync(
-            static () => Runner.RunAsync(
-                static async context =>
+            () => Runner.RunAsync(
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-                        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(string.Empty, DefaultCancellationToken));
-                        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(" ", DefaultCancellationToken));
-                        await Probe.HitAsync("ok", DefaultCancellationToken);
+                        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(NullTestValues.String, cancellationToken));
+                        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(string.Empty, cancellationToken));
+                        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(" ", cancellationToken));
+                        await Probe.HitAsync("ok", cancellationToken);
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions { Iterations = 1, Seed = 12345 },
-                DefaultCancellationToken),
-            "Invalid probe names inside worker should throw ArgumentException without corrupting the run.");
+                cancellationToken),
+            "Invalid probe names inside worker should throw ArgumentException without corrupting the run.",
+            cancellationToken: cancellationToken);
     }
 
     /// <summary>Verifies invalid probe names are rejected outside a braid run.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task HitAsyncRejectsInvalidProbeOutsideRun()
+    [Test]
+    public async Task HitAsyncRejectsInvalidProbeOutsideRun(CancellationToken cancellationToken)
     {
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(string.Empty, DefaultCancellationToken));
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(" ", DefaultCancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(NullTestValues.String, cancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(string.Empty, cancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(" ", cancellationToken));
     }
 
     /// <summary>Verifies callback null-task failures are clearly reported.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncCallbackReturnsNullFailsClearly()
+    [Test]
+    public async Task RunAsyncCallbackReturnsNullFailsClearly(CancellationToken cancellationToken)
     {
-        var operation = Runner.RunAsync(NullTestValues.NullReturningRunCallback, DefaultCancellationToken);
+        var operation = Runner.RunAsync(NullTestValues.NullReturningRunCallback, cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
-        Assert.DoesNotContain(nameof(NullReferenceException), report, StringComparison.Ordinal);
-        Assert.Contains("null", report, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("callback", report, StringComparison.OrdinalIgnoreCase);
+        _ = await Assert.That(report).DoesNotContain(nameof(NullReferenceException));
+        _ = await Assert.That(report).Contains("null", StringComparison.OrdinalIgnoreCase);
+        _ = await Assert.That(report).Contains("callback", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Verifies empty runs complete with empty replay schedules.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncCompletesNoWorkersEmptySchedule()
+    [Test]
+    public async Task RunAsyncCompletesNoWorkersEmptySchedule(CancellationToken cancellationToken)
     {
         var options = new RunOptions { Iterations = 1, Seed = 24, Schedule = ReplaySchedule.Replay() };
-        await Runner.RunAsync(static _ => Task.CompletedTask, options, DefaultCancellationToken);
-        Assert.Empty(options.Schedule.Steps);
+        await Runner.RunAsync(static _ => Task.CompletedTask, options, cancellationToken);
+        _ = await Assert.That(options.Schedule.Steps).IsEmpty();
     }
 
     /// <summary>Verifies empty runs fail with non-empty replay schedules.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncFailsNoWorkersNonEmptySchedule()
+    [Test]
+    public async Task RunAsyncFailsNoWorkersNonEmptySchedule(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
             static _ => Task.CompletedTask,
@@ -145,19 +150,20 @@ public sealed class BraidSchedulerValidationTests : TestBase
                 Seed = 25,
                 Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
-        Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Schedule:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("unused steps", StringComparison.OrdinalIgnoreCase);
+        _ = await Assert.That(report).Contains("Schedule:");
     }
 
     /// <summary>Verifies a scripted schedule with steps that no worker can satisfy after the run completes is reported as a failure.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncFailsWhenScheduleHasUnusedSteps()
+    [Test]
+    public async Task RunAsyncFailsWhenScheduleHasUnusedSteps(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -167,42 +173,44 @@ public sealed class BraidSchedulerValidationTests : TestBase
         };
 
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        Assert.Contains("Scripted schedule contained unused steps after all workers completed.", exception.Message, StringComparison.Ordinal);
+        _ = await Assert.That(exception.Message).Contains("Scripted schedule contained unused steps after all workers completed.");
     }
 
     /// <summary>Verifies probe-free workers complete with empty replay schedules.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerNoProbesCompletesEmptySchedule()
+    [Test]
+    public async Task WorkerNoProbesCompletesEmptySchedule(CancellationToken cancellationToken)
     {
         var options = new RunOptions { Iterations = 1, Seed = 23, Schedule = ReplaySchedule.Replay() };
         await Runner.RunAsync(
-            static async context =>
+            async context =>
             {
                 context.Fork(static () => Task.CompletedTask);
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Empty(options.Schedule.Steps);
+        _ = await Assert.That(options.Schedule.Steps).IsEmpty();
     }
 
     /// <summary>Verifies probe-free workers can complete without schedules.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerNoProbesCompletesWithoutSchedule()
+    [Test]
+    public async Task WorkerNoProbesCompletesWithoutSchedule(CancellationToken cancellationToken)
     {
         var counter = 0;
         await Runner.RunAsync(
@@ -214,24 +222,25 @@ public sealed class BraidSchedulerValidationTests : TestBase
                     return Task.CompletedTask;
                 });
 
-                return context.JoinAsync(DefaultCancellationToken);
+                return context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 21 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Equal(1, counter);
+        _ = await Assert.That(counter).IsEqualTo(1);
     }
 
     /// <summary>Verifies probe-free workers fail when replay steps are configured.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerNoProbesFailsWhenProbeSteps()
+    [Test]
+    public async Task WorkerNoProbesFailsWhenProbeSteps(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
                 context.Fork(static () => Task.CompletedTask);
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions
             {
@@ -239,12 +248,12 @@ public sealed class BraidSchedulerValidationTests : TestBase
                 Seed = 22,
                 Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
         var report = exception.ToString();
-        Assert.Contains("unused steps", report, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("worker-1 completed", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("unused steps", StringComparison.OrdinalIgnoreCase);
+        _ = await Assert.That(report).Contains("worker-1 completed");
     }
 }

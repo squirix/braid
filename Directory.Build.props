@@ -29,8 +29,8 @@
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(IsBraidTestProject)' == 'true'">
-        <!-- xUnit: public test, fixture, and helper types. -->
-        <!-- Tests run on xUnit's sync context; ConfigureAwait(false) is unnecessary and can break test semantics. -->
+        <!-- TUnit: public test and helper types. -->
+        <!-- Tests run on TUnit's sync context; ConfigureAwait(false) is unnecessary and can break test semantics. -->
         <NoWarn>$(NoWarn);CA1515;CA2007;MA0004</NoWarn>
         <MeziantouAnalysisMode>all-errors</MeziantouAnalysisMode>
         <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
@@ -53,11 +53,6 @@
 
     <ItemGroup Label="SquirixAnalyzers">
         <PackageReference Include="squirix.analyzers" PrivateAssets="all"/>
-    </ItemGroup>
-
-    <!-- Test-project analyzers: tests/** (not src/**). -->
-    <ItemGroup Label="TestAnalyzers" Condition="'$(IsBraidTestProject)' == 'true'">
-        <PackageReference Include="xunit.analyzers" PrivateAssets="all"/>
     </ItemGroup>
 
     <!-- MTP native code coverage for every test executable. -->

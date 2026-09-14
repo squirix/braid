@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using Xunit;
+using TUnit.Assertions.Enums;
 
 namespace Braid.Tests;
 
@@ -7,9 +7,10 @@ namespace Braid.Tests;
 public sealed class BraidForkConcurrencyTests : TestBase
 {
     /// <summary>Verifies concurrent fork calls before join assign unique workers and complete.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ConcurrentForkBeforeJoinUniqueWorkerIds()
+    [Test]
+    public async Task ConcurrentForkBeforeJoinUniqueWorkerIds(CancellationToken cancellationToken)
     {
         var completed = new CompletionCounter();
 
@@ -18,17 +19,17 @@ public sealed class BraidForkConcurrencyTests : TestBase
             {
                 var forks = new Task[20];
                 for (var forkIndex = 0; forkIndex < forks.Length; forkIndex++)
-                    forks[forkIndex] = ScheduleConcurrentForkAsync(context, completed);
+                    forks[forkIndex] = ScheduleConcurrentForkAsync(context, completed, cancellationToken);
 
                 await Task.WhenAll(forks);
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
                 throw new InvalidOperationException("forced-failure");
             },
             new RunOptions { Iterations = 1, Seed = 5502 },
-            DefaultCancellationToken);
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+            cancellationToken);
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        Assert.Equal(20, completed.Value);
+        _ = await Assert.That(completed.Value).IsEqualTo(20);
 
         var distinctWorkerIds = new HashSet<string>(StringComparer.Ordinal);
         foreach (var entry in exception.Traces)
@@ -37,13 +38,14 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 _ = distinctWorkerIds.Add(entry);
         }
 
-        Assert.Equal(20, distinctWorkerIds.Count);
+        _ = await Assert.That(distinctWorkerIds.Count).IsEqualTo(20);
     }
 
     /// <summary>Verifies forking from an external task during active join fails clearly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ForkFromExternalTaskFailsClearly()
+    [Test]
+    public async Task ForkFromExternalTaskFailsClearly(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
@@ -53,23 +55,31 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 {
                     context.Fork(async () =>
                     {
-                        await Probe.HitAsync("ready", DefaultCancellationToken);
-                        await gate.Task.WaitAsync(DefaultCancellationToken);
+                        await Probe.HitAsync("ready", cancellationToken);
+                        await gate.Task.WaitAsync(cancellationToken);
                     });
 
-                    var joinTask = context.JoinAsync(DefaultCancellationToken);
+                    var joinTask = context.JoinAsync(cancellationToken);
                     await Task.Yield();
 
-                    var forkException = await Record.ExceptionAsync(() => StartNewOnThreadPoolAsync(() => context.Fork(static () => Task.CompletedTask), DefaultCancellationToken));
+                    Exception? forkException = null;
+                    try
+                    {
+                        await StartNewOnThreadPoolAsync(() => context.Fork(static () => Task.CompletedTask), cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is InvalidOperationException or RunException)
+                    {
+                        forkException = ex;
+                    }
 
-                    Assert.NotNull(forkException);
-                    Assert.True(forkException is InvalidOperationException or RunException, $"Unexpected fork exception type: {forkException.GetType().FullName}");
+                    _ = await Assert.That(forkException).IsNotNull();
+                    _ = await Assert.That(forkException is InvalidOperationException or RunException).IsTrue().Because($"Unexpected fork exception type: {forkException.GetType().FullName}");
 
                     _ = gate.TrySetResult();
                     await joinTask;
                 },
                 new RunOptions { Iterations = 1, Seed = 5501, Timeout = TimeSpan.FromSeconds(2) },
-                DefaultCancellationToken);
+                cancellationToken);
         }
         finally
         {
@@ -78,9 +88,10 @@ public sealed class BraidForkConcurrencyTests : TestBase
     }
 
     /// <summary>Verifies fork racing with join either succeeds consistently or fails clearly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ForkRacingFailsClearlyOrCompletes()
+    [Test]
+    public async Task ForkRacingFailsClearlyOrCompletes(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
@@ -91,36 +102,44 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 {
                     context.Fork(async () =>
                     {
-                        await Probe.HitAsync("ready", DefaultCancellationToken);
+                        await Probe.HitAsync("ready", cancellationToken);
                         _ = Interlocked.Increment(ref completed);
-                        await gate.Task.WaitAsync(DefaultCancellationToken);
+                        await gate.Task.WaitAsync(cancellationToken);
                     });
 
-                    var joinTask = context.JoinAsync(DefaultCancellationToken);
-                    var forkException = await Record.ExceptionAsync(() => StartNewOnThreadPoolAsync(
-                        () =>
-                        {
-                            context.Fork(() =>
+                    var joinTask = context.JoinAsync(cancellationToken);
+                    Exception? forkException = null;
+                    try
+                    {
+                        await StartNewOnThreadPoolAsync(
+                            () =>
                             {
-                                _ = Interlocked.Increment(ref completed);
-                                return Task.CompletedTask;
-                            });
-                        },
-                        DefaultCancellationToken));
+                                context.Fork(() =>
+                                {
+                                    _ = Interlocked.Increment(ref completed);
+                                    return Task.CompletedTask;
+                                });
+                            },
+                            cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is InvalidOperationException or RunException)
+                    {
+                        forkException = ex;
+                    }
 
                     _ = gate.TrySetResult();
                     await joinTask;
 
                     if (forkException == null)
                     {
-                        Assert.True(completed == 1 || completed == 2, $"Expected completed workers to be 1 or 2 but observed {completed}.");
+                        _ = await Assert.That(completed == 1 || completed == 2).IsTrue().Because($"Expected completed workers to be 1 or 2 but observed {completed}.");
                         return;
                     }
 
-                    Assert.True(forkException is InvalidOperationException or RunException, $"Unexpected fork exception type: {forkException.GetType().FullName}");
+                    _ = await Assert.That(forkException is InvalidOperationException or RunException).IsTrue().Because($"Unexpected fork exception type: {forkException.GetType().FullName}");
                 },
                 new RunOptions { Iterations = 1, Seed = 5503, Timeout = TimeSpan.FromSeconds(2) },
-                DefaultCancellationToken);
+                cancellationToken);
         }
         finally
         {
@@ -129,9 +148,10 @@ public sealed class BraidForkConcurrencyTests : TestBase
     }
 
     /// <summary>Verifies many probe-free workers complete successfully.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ManyProbeFreeWorkersComplete()
+    [Test]
+    public async Task ManyProbeFreeWorkersComplete(CancellationToken cancellationToken)
     {
         var completed = new CompletionCounter();
         await Runner.RunAsync(
@@ -140,35 +160,36 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 for (var workerIndex = 0; workerIndex < 200; workerIndex++)
                     ForkIncrementCompleted(context, completed);
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 5302, Timeout = TimeSpan.FromSeconds(2) },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Equal(200, completed.Value);
+        _ = await Assert.That(completed.Value).IsEqualTo(200);
     }
 
     /// <summary>Verifies many synchronously failing workers do not hang join.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ManySynchronouslyFailingNoHangJoin()
+    [Test]
+    public async Task ManySynchronouslyFailingNoHangJoin(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
-            static async context =>
+            async context =>
             {
                 for (var workerIndex = 0; workerIndex < 20; workerIndex++)
                     ForkSyncFailWorker(context, workerIndex);
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 5301 },
-            DefaultCancellationToken);
-        var exceptionTask = Assertions.ExpectsAsync<RunException>(operation);
+            cancellationToken);
+        var exceptionTask = BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false);
+        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Join should fail quickly for many synchronous failures.", TimeSpan.FromSeconds(3), false, cancellationToken);
         var exception = await exceptionTask;
         var report = exception.ToString();
-        Assert.Contains("sync-fail-", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("sync-fail-");
         var forkedTraceCount = 0;
         for (var traceIndex = 0; traceIndex < exception.Traces.Count; traceIndex++)
         {
@@ -176,13 +197,14 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 forkedTraceCount++;
         }
 
-        Assert.True(forkedTraceCount >= 20);
+        _ = await Assert.That(forkedTraceCount >= 20).IsTrue();
     }
 
     /// <summary>Verifies many workers at same probe can follow scripted reverse order.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ManyWorkersSameProbeOrderCompletes()
+    [Test]
+    public async Task ManyWorkersSameProbeOrderCompletes(CancellationToken cancellationToken)
     {
         const int workerCount = 20;
         var releaseOrder = new ConcurrentQueue<string>();
@@ -195,9 +217,9 @@ public sealed class BraidForkConcurrencyTests : TestBase
             async context =>
             {
                 for (var workerIndex = 1; workerIndex <= workerCount; workerIndex++)
-                    ForkHitReadyForWorker(context, workerIndex, releaseOrder);
+                    ForkHitReadyForWorker(context, workerIndex, releaseOrder, cancellationToken);
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions
             {
@@ -205,57 +227,58 @@ public sealed class BraidForkConcurrencyTests : TestBase
                 Seed = 5303,
                 Schedule = ReplaySchedule.Replay(steps),
             },
-            DefaultCancellationToken);
+            cancellationToken);
 
         var expectedOrder = new List<string>(workerCount);
         for (var workerIndex = workerCount; workerIndex >= 1; workerIndex--)
             expectedOrder.Add($"worker-{workerIndex}");
 
-        Assert.Equal(expectedOrder, releaseOrder, StringComparer.Ordinal);
+        _ = await Assert.That(releaseOrder).IsEquivalentTo(expectedOrder, CollectionOrdering.Matching);
     }
 
     /// <summary>Verifies random scheduling with same seed remains stable under parallel background noise.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task SameSeedSchedulingStableUnderNoise()
+    [Test]
+    public async Task SameSeedSchedulingStableUnderNoise(CancellationToken cancellationToken)
     {
-        var first = await RunScenarioAsync();
-        var second = await RunScenarioAsync();
-        Assert.Equal(first, second);
+        var first = await RunScenarioAsync(cancellationToken);
+        var second = await RunScenarioAsync(cancellationToken);
+        _ = await Assert.That(second).IsEqualTo(first);
         return;
 
-        static async Task<string> RunScenarioAsync()
+        static async Task<string> RunScenarioAsync(CancellationToken cancellationToken)
         {
             using var noiseCts = new CancellationTokenSource();
             var noiseToken = noiseCts.Token;
 
             var noiseTasks = new Task[4];
             for (var noiseIndex = 0; noiseIndex < noiseTasks.Length; noiseIndex++)
-                noiseTasks[noiseIndex] = StartNoiseYieldLoopAsync(noiseToken);
+                noiseTasks[noiseIndex] = StartNoiseYieldLoopAsync(noiseToken, cancellationToken);
 
             try
             {
                 var operation = Runner.RunAsync(
-                    static async context =>
+                    async context =>
                     {
-                        context.Fork(static async () =>
+                        context.Fork(async () =>
                         {
-                            await Probe.HitAsync("a", DefaultCancellationToken);
-                            await Probe.HitAsync("a2", DefaultCancellationToken);
+                            await Probe.HitAsync("a", cancellationToken);
+                            await Probe.HitAsync("a2", cancellationToken);
                         });
 
-                        context.Fork(static async () =>
+                        context.Fork(async () =>
                         {
-                            await Probe.HitAsync("b", DefaultCancellationToken);
-                            await Probe.HitAsync("b2", DefaultCancellationToken);
+                            await Probe.HitAsync("b", cancellationToken);
+                            await Probe.HitAsync("b2", cancellationToken);
                         });
 
-                        await context.JoinAsync(DefaultCancellationToken);
+                        await context.JoinAsync(cancellationToken);
                         throw new InvalidOperationException("forced-failure");
                     },
                     new RunOptions { Iterations = 1, Seed = 5401 },
-                    DefaultCancellationToken);
-                var exception = await Assertions.ExpectsAsync<RunException>(operation);
+                    cancellationToken);
+                var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
                 return exception.ToString().ReplaceLineEndings("\n");
             }

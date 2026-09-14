@@ -1,61 +1,63 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers the public braid API contract.</summary>
 public sealed class BraidApiContractTests : TestBase
 {
     /// <summary>Verifies fork after join starts fails with a braid run exception.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task ForkAfterJoinStartedFailsClearly()
+    [Test]
+    public Task ForkAfterJoinStartedFailsClearly(CancellationToken cancellationToken)
     {
         return Runner.RunAsync(
-            static async context =>
+            async context =>
             {
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
 
-                var exception = Assertions.Expects<RunException, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
-                Assert.Contains("Cannot fork after JoinAsync has started.", exception.Message, StringComparison.Ordinal);
+                var exception = BraidAssertions.AssertExpects<RunException, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
+                _ = await Assert.That(exception.Message).Contains("Cannot fork after JoinAsync has started.");
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
     }
 
     /// <summary>Verifies fork validation rejects a null operation.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task ForkThrowsForNullOperation()
+    [Test]
+    public Task ForkThrowsForNullOperation(CancellationToken cancellationToken)
     {
         return Runner.RunAsync(
             static context =>
             {
-                _ = Assertions.Expects<ArgumentNullException, RunContext>(context, static state => state.Fork(NullTestValues.ForkOperation));
+                _ = BraidAssertions.AssertExpects<ArgumentNullException, RunContext>(context, static state => state.Fork(NullTestValues.ForkOperation));
                 return Task.CompletedTask;
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
     }
 
     /// <summary>Verifies fork validation rejects a null worker id.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public Task ForkWithWorkerIdThrowsForNullWorkerId()
+    [Test]
+    public Task ForkWithWorkerIdThrowsForNullWorkerId(CancellationToken cancellationToken)
     {
         return Runner.RunAsync(
             static context =>
             {
-                _ = Assertions.Expects<ArgumentNullException, RunContext>(context, static state => state.Fork(NullTestValues.String, static () => Task.CompletedTask));
+                _ = BraidAssertions.AssertExpects<ArgumentNullException, RunContext>(context, static state => state.Fork(NullTestValues.String, static () => Task.CompletedTask));
                 return Task.CompletedTask;
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
     }
 
     /// <summary>Verifies a named fork uses the supplied worker id in the scheduling trace.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ForkWorkerIdUsesStableWorkerIdInTrace()
+    [Test]
+    public async Task ForkWorkerIdUsesStableWorkerIdInTrace(CancellationToken cancellationToken)
     {
         RunContext? capturedContext = null;
 
@@ -63,47 +65,49 @@ public sealed class BraidApiContractTests : TestBase
             async context =>
             {
                 capturedContext = context;
-                context.Fork("reader", static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
-                await context.JoinAsync(DefaultCancellationToken);
+                context.Fork("reader", async () => await Probe.HitAsync("ready", cancellationToken));
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.NotNull(capturedContext);
-        Assert.Contains("reader forked", capturedContext.TraceSteps, StringComparer.Ordinal);
-        Assert.Contains("reader hit ready", capturedContext.TraceSteps, StringComparer.Ordinal);
+        _ = await Assert.That(capturedContext).IsNotNull();
+        _ = await Assert.That(capturedContext.TraceSteps).Contains("reader forked");
+        _ = await Assert.That(capturedContext.TraceSteps).Contains("reader hit ready");
     }
 
     /// <summary>Verifies probe validation rejects invalid names.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task HitAsyncRejectsInvalidProbeNames()
+    [Test]
+    public async Task HitAsyncRejectsInvalidProbeNames(CancellationToken cancellationToken)
     {
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(NullTestValues.String, DefaultCancellationToken));
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(string.Empty, DefaultCancellationToken));
-        _ = await Assertions.ExpectsAnyAsync<ArgumentException>(static () => Probe.HitAsync(" ", DefaultCancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(NullTestValues.String, cancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(string.Empty, cancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(" ", cancellationToken));
     }
 
     /// <summary>Verifies replay schedules snapshot the supplied steps.</summary>
-    [Fact]
-    public void ReplaySnapshotsInputArray()
+    [Test]
+    public async Task ReplaySnapshotsInputArray()
     {
         var steps = new[] { new ReplayStep("worker-1", "ready") };
 
         var schedule = ReplaySchedule.Replay(steps);
         steps[0] = new ReplayStep("worker-2", "changed");
 
-        Assert.Equal(new ReplayStep("worker-1", "ready"), schedule.Steps[0]);
+        _ = await Assert.That(schedule.Steps[0]).IsEqualTo(new ReplayStep("worker-1", "ready"));
     }
 
     /// <summary>Verifies replay validation rejects a null steps array.</summary>
-    [Fact]
-    public void ReplayThrowsForNullStepsArray() => _ = Assertions.Expects<ArgumentNullException>(static () => _ = ReplaySchedule.Replay(NullTestValues.ReplaySteps));
+    [Test]
+    public void ReplayThrowsForNullStepsArray() => _ = BraidAssertions.AssertExpects<ArgumentNullException>(static () => _ = ReplaySchedule.Replay(NullTestValues.ReplaySteps));
 
     /// <summary>Verifies null options use default options.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncAcceptsNullOptions()
+    [Test]
+    public async Task RunAsyncAcceptsNullOptions(CancellationToken cancellationToken)
     {
         var ran = false;
 
@@ -115,18 +119,19 @@ public sealed class BraidApiContractTests : TestBase
                 return Task.CompletedTask;
             },
             null,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.True(ran);
+        _ = await Assert.That(ran).IsTrue();
     }
 
     /// <summary>Verifies invalid timeouts are rejected before the run starts.</summary>
-    [Fact]
-    public void RunAsyncRejectsInvalidTimeoutAtStart()
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    [Test]
+    public async Task RunAsyncRejectsInvalidTimeoutAtStart(CancellationToken cancellationToken)
     {
         var ran = false;
 
-        _ = Assertions.Expects<ArgumentOutOfRangeException>(() =>
+        _ = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
         {
             _ = Runner.RunAsync(
                 context =>
@@ -136,29 +141,30 @@ public sealed class BraidApiContractTests : TestBase
                     return Task.CompletedTask;
                 },
                 new RunOptions { Timeout = TimeSpan.Zero },
-                DefaultCancellationToken);
+                cancellationToken);
         });
 
-        Assert.False(ran);
+        _ = await Assert.That(ran).IsFalse();
     }
 
     /// <summary>Verifies run validation rejects a null test delegate.</summary>
-    [Fact]
-    public void RunAsyncThrowsForNullTestDelegate() =>
-        _ = Assertions.Expects<ArgumentNullException>(static () => _ = Runner.RunAsync(NullTestValues.RunCallback, DefaultCancellationToken));
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    [Test]
+    public void RunAsyncThrowsForNullTestDelegate(CancellationToken cancellationToken) =>
+        _ = BraidAssertions.AssertExpects<ArgumentNullException>(() => _ = Runner.RunAsync(NullTestValues.RunCallback, cancellationToken));
 
     /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
-    [Fact]
-    public void RunExceptionExposesNullScheduleAsEmpty()
+    [Test]
+    public async Task RunExceptionExposesNullScheduleAsEmpty()
     {
         var exception = new RunException("failed", 12345, 0, ["trace"], null, null);
 
-        Assert.Empty(exception.Steps);
+        _ = await Assert.That(exception.Steps).IsEmpty();
     }
 
     /// <summary>Verifies braid run exceptions snapshot trace and schedule values.</summary>
-    [Fact]
-    public void RunExceptionSnapshotsTraceAndSchedule()
+    [Test]
+    public async Task RunExceptionSnapshotsTraceAndSchedule()
     {
         var trace = new[] { "worker-1 forked" };
         var schedule = new[] { new ReplayStep("worker-1", "ready") };
@@ -167,18 +173,19 @@ public sealed class BraidApiContractTests : TestBase
         trace[0] = "changed";
         schedule[0] = new ReplayStep("worker-2", "changed");
 
-        Assert.Equal(["worker-1 forked"], exception.Traces);
-        Assert.Equal([new ReplayStep("worker-1", "ready")], exception.Steps);
-        Assert.Null(exception.SchedulerDiagnostics);
+        _ = await Assert.That(exception.Traces).IsEquivalentTo(["worker-1 forked"]);
+        _ = await Assert.That(exception.Steps).IsEquivalentTo([new ReplayStep("worker-1", "ready")]);
+        _ = await Assert.That(exception.SchedulerDiagnostics).IsNull();
     }
 
     /// <summary>Verifies invalid iteration counts are rejected before the run starts.</summary>
-    [Fact]
-    public void RunRejectsInvalidIterationsBeforeStart()
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    [Test]
+    public async Task RunRejectsInvalidIterationsBeforeStart(CancellationToken cancellationToken)
     {
         var ran = false;
 
-        _ = Assertions.Expects<ArgumentOutOfRangeException>(() =>
+        _ = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
         {
             _ = Runner.RunAsync(
                 context =>
@@ -188,9 +195,9 @@ public sealed class BraidApiContractTests : TestBase
                     return Task.CompletedTask;
                 },
                 new RunOptions { Iterations = 0 },
-                DefaultCancellationToken);
+                cancellationToken);
         });
 
-        Assert.False(ran);
+        _ = await Assert.That(ran).IsFalse();
     }
 }

@@ -1,14 +1,13 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers cancellation and timeout behavior.</summary>
 public sealed class BraidCancellationTests : TestBase
 {
     /// <summary>Verifies timeout failures are reported as braid run exceptions.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncReportsTimeoutAsRunException()
+    [Test]
+    public async Task RunAsyncReportsTimeoutAsRunException(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -17,33 +16,42 @@ public sealed class BraidCancellationTests : TestBase
             Timeout = TimeSpan.FromMilliseconds(50),
         };
 
-        var operation = Runner.RunAsync(
-            static async context =>
-            {
-                context.Fork(static async () => await Task.Delay(TimeSpan.FromMilliseconds(200), TimeProvider.System, DefaultCancellationToken));
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            var operation = Runner.RunAsync(
+                async context =>
+                {
+                    context.Fork(async () => await gate.Task.WaitAsync(cancellationToken).ConfigureAwait(false));
 
-                await context.JoinAsync(DefaultCancellationToken);
-            },
-            options,
-            DefaultCancellationToken);
-        var exception = await Assertions.ExpectsAsync<RunException>(operation);
+                    await context.JoinAsync(cancellationToken);
+                },
+                options,
+                cancellationToken);
+            var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
-        var report = exception.ToString();
-        Assert.Contains("braid run timed out.", report, StringComparison.Ordinal);
-        Assert.Contains("Seed: 12345", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+            var report = exception.ToString();
+            _ = await Assert.That(report).Contains("braid run timed out.");
+            _ = await Assert.That(report).Contains("Seed: 12345");
+            _ = await Assert.That(report).Contains("Trace:");
+        }
+        finally
+        {
+            _ = gate.TrySetResult();
+        }
     }
 
     /// <summary>Verifies external cancellation unblocks a waiting braid run.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncSurfacesCanceledExternally() => _ = await Assert.ThrowsAnyAsync<OperationCanceledException>(RunAndCancelExternallyAsync);
+    [Test]
+    public Task RunAsyncSurfacesCanceledExternally(CancellationToken cancellationToken) => BraidAssertions.AssertExpectsAnyAsync<OperationCanceledException, CancellationToken>(cancellationToken, static state => RunAndCancelExternallyAsync(state));
 
-    private static async Task RunAndCancelExternallyAsync()
+    private static async Task RunAndCancelExternallyAsync(CancellationToken cancellationToken = default)
     {
         using var cancellation = new CancellationTokenSource();
         cancellation.CancelAfter(TimeSpan.FromMilliseconds(30));
-        var cancellationToken = cancellation.Token;
+        var externalToken = cancellation.Token;
         var options = new RunOptions
         {
             Iterations = 1,
@@ -55,17 +63,17 @@ public sealed class BraidCancellationTests : TestBase
         await Runner.RunAsync(
             async context =>
             {
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
                 context.Fork(async () =>
                 {
-                    while (!cancellationToken.IsCancellationRequested)
-                        await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, cancellationToken).ConfigureAwait(false);
+                    while (!externalToken.IsCancellationRequested)
+                        await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, externalToken).ConfigureAwait(false);
                 });
 
-                await context.JoinAsync(cancellationToken);
+                await context.JoinAsync(externalToken);
             },
             options,
-            cancellationToken);
+            externalToken);
     }
 }

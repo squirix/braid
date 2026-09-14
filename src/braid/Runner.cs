@@ -185,12 +185,7 @@ public static class Runner
         }
     }
 
-    private static bool IsExplorationTargetFailure(RunException exception)
-    {
-        return exception.FailureOrigin == RunFailureOrigin.UserTest
-            && exception.InnerException != null
-            && exception.InnerException is not RunException;
-    }
+    private static bool IsExplorationTargetFailure(RunException ex) => ex is { FailureOrigin: RunFailureOrigin.UserTest, InnerException: not null and not RunException };
 
     private static Task RunScheduledExploreAttemptAsync(ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
     {
@@ -248,7 +243,10 @@ public static class Runner
             return copy;
         }
 
-        private static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateHitSchedulesCore(IReadOnlyDictionary<string, IReadOnlyList<string>> sequences, int maxSchedules, int maxSteps)
+        private static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateHitSchedulesCore(
+            IReadOnlyDictionary<string, IReadOnlyList<string>> sequences,
+            int maxSchedules,
+            int maxSteps)
         {
             if (!TryCreateWorkerState(sequences, out var workerIds, out var lists))
                 yield break;
@@ -303,7 +301,7 @@ public static class Runner
                     ReplayStep.Hit(workerIds[workerIndex], sequences[workerIndex][frame.Progress[workerIndex]]),
                 };
 
-                stack.Push(new SearchFrame(frame.Progress, frame.Steps, workerIndex + 1));
+                stack.Push(frame with { NextWorkerIndex = workerIndex + 1 });
                 stack.Push(new SearchFrame(nextProgress, nextSteps, 0));
                 return;
             }
@@ -328,7 +326,10 @@ public static class Runner
             }
         }
 
-        private static bool TryCreateWorkerState(IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences, out string[] workerIds, out IReadOnlyList<string>[] sequences)
+        private static bool TryCreateWorkerState(
+            IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
+            out string[] workerIds,
+            out IReadOnlyList<string>[] sequences)
         {
             workerIds = [];
             sequences = [];

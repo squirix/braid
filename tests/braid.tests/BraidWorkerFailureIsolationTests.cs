@@ -1,32 +1,31 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers isolation of worker failures so they are reported rather than masked by siblings.</summary>
 public sealed class BraidWorkerFailureIsolationTests : TestBase
 {
     /// <summary>Verifies multiple worker failures report one failure while trace still records both workers.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task MultipleWorkersOneFailureBothTraced()
+    [Test]
+    public async Task MultipleWorkersOneFailureBothTraced(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("first", DefaultCancellationToken);
+                        await Probe.HitAsync("first", cancellationToken);
                         throw new InvalidOperationException("worker one failed");
                     });
 
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("second", DefaultCancellationToken);
+                        await Probe.HitAsync("second", cancellationToken);
                         throw new InvalidOperationException("worker two failed");
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions
                 {
@@ -34,87 +33,88 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                     Seed = 5103,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "first"), new ReplayStep("worker-2", "second")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.True(
-            report.Contains("worker one failed", StringComparison.Ordinal) || report.Contains("worker two failed", StringComparison.Ordinal),
-            "Expected at least one worker failure message in report.");
-        Assert.Contains("worker-1", report, StringComparison.Ordinal);
-        Assert.Contains("worker-2", report, StringComparison.Ordinal);
+        _ = await Assert.That(report.Contains("worker one failed", StringComparison.Ordinal) || report.Contains("worker two failed", StringComparison.Ordinal)).IsTrue().Because("Expected at least one worker failure message in report.");
+        _ = await Assert.That(report).Contains("worker-1");
+        _ = await Assert.That(report).Contains("worker-2");
     }
 
     /// <summary>Verifies synchronously completing worker trace includes fork/startup release/complete.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task SynchronouslyCompletingWorkerFullTrace()
+    [Test]
+    public async Task SynchronouslyCompletingWorkerFullTrace(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
                     context.Fork(static () => Task.CompletedTask);
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fail-after-join");
                 },
                 new RunOptions { Iterations = 1, Seed = 5106 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 released", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 completed", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("released at", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("worker-1 forked");
+        _ = await Assert.That(report).Contains("worker-1 released");
+        _ = await Assert.That(report).Contains("worker-1 completed");
+        _ = await Assert.That(report).DoesNotContain("released at");
     }
 
     /// <summary>Verifies synchronously throwing fork delegates are reported clearly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task SynchronouslyThrowingWorkerReported()
+    [Test]
+    public async Task SynchronouslyThrowingWorkerReported(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
                     context.Fork(static () => throw new InvalidOperationException("sync throw"));
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions { Iterations = 1, Seed = 5107 },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("sync throw", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 completed", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("sync throw");
+        _ = await Assert.That(report).Contains("worker-1 forked");
+        _ = await Assert.That(report).Contains("worker-1 completed");
     }
 
     /// <summary>Verifies primary worker failures are not masked by non-cooperative sibling workers.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerFailureNotMaskedDuringStop()
+    [Test]
+    public async Task WorkerFailureNotMaskedDuringStop(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
-            var exceptionTask = Assertions.ExpectsAsync<RunException>(
+            var exceptionTask = BraidAssertions.AssertExpectsAsync<RunException>(
                 Runner.RunAsync(
                     async context =>
                     {
                         context.Fork(static () => Task.FromException(new InvalidOperationException("primary worker failure")));
                         context.Fork(async () =>
                         {
-                            await Probe.HitAsync("waiter", DefaultCancellationToken);
-                            await gate.Task.WaitAsync(DefaultCancellationToken);
+                            await Probe.HitAsync("waiter", cancellationToken);
+                            await gate.Task.WaitAsync(cancellationToken);
                         });
 
-                        await context.JoinAsync(DefaultCancellationToken);
+                        await context.JoinAsync(cancellationToken);
                     },
                     new RunOptions { Iterations = 1, Seed = 5102 },
-                    DefaultCancellationToken));
+                    cancellationToken));
 
-            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false);
+            await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Worker failure should not be masked by stop path.", TimeSpan.FromSeconds(3), false, cancellationToken);
             var exception = await exceptionTask;
-            Assert.Contains("primary worker failure", exception.ToString(), StringComparison.Ordinal);
+            _ = await Assert.That(exception.ToString()).Contains("primary worker failure");
         }
         finally
         {
@@ -123,23 +123,24 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
     }
 
     /// <summary>Verifies worker failure while sibling waits at probe stops sibling cleanly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerFailureStopsWaitingSiblingCleanly()
+    [Test]
+    public async Task WorkerFailureStopsWaitingSiblingCleanly(CancellationToken cancellationToken)
     {
-        var exceptionTask = Assertions.ExpectsAsync<RunException>(
+        var exceptionTask = BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("fail-ready", DefaultCancellationToken);
+                        await Probe.HitAsync("fail-ready", cancellationToken);
                         throw new InvalidOperationException("failing worker");
                     });
 
-                    context.Fork(static async () => await Probe.HitAsync("blocked", DefaultCancellationToken));
+                    context.Fork(async () => await Probe.HitAsync("blocked", cancellationToken));
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions
                 {
@@ -147,12 +148,12 @@ public sealed class BraidWorkerFailureIsolationTests : TestBase
                     Seed = 5104,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "fail-ready"), new ReplayStep("worker-2", "blocked")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false);
+        await AssertCompletesBeforeWatchdogAsync(exceptionTask, "Run should fail without deadlock.", TimeSpan.FromSeconds(3), false, cancellationToken);
         var exception = await exceptionTask;
         var report = exception.ToString();
-        Assert.Contains("failing worker", report, StringComparison.Ordinal);
-        Assert.Contains("worker-2 hit blocked", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("failing worker");
+        _ = await Assert.That(report).Contains("worker-2 hit blocked");
     }
 }

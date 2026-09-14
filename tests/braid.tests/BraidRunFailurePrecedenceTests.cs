@@ -1,14 +1,13 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers precedence between worker failures, timeouts, external cancellation, and schedule misuse.</summary>
 public sealed class BraidRunFailurePrecedenceTests : TestBase
 {
     /// <summary>Verifies external cancellation wins over a subsequent worker failure.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task ExternalCancellationWinsWhenCanceled()
+    [Test]
+    public async Task ExternalCancellationWinsWhenCanceled(CancellationToken cancellationToken)
     {
         using var runCts = new CancellationTokenSource();
         var runToken = runCts.Token;
@@ -18,10 +17,10 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("gate", DefaultCancellationToken);
+                    await Probe.HitAsync("gate", cancellationToken);
 
                     while (!runToken.IsCancellationRequested)
-                        await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, DefaultCancellationToken);
+                        await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, cancellationToken);
 
                     throw new InvalidOperationException("worker after cancel");
                 });
@@ -31,10 +30,10 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
             new RunOptions { Iterations = 1, Seed = 12345 },
             runToken);
 
-        await Task.Delay(TimeSpan.FromMilliseconds(40), TimeProvider.System, DefaultCancellationToken);
+        await Task.Delay(TimeSpan.FromMilliseconds(40), TimeProvider.System, cancellationToken);
         await runCts.CancelAsync();
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(runTask, watchdog) != runTask)
             Assert.Fail("Braid run did not complete before watchdog timeout.");
 
@@ -50,11 +49,12 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
     }
 
     /// <summary>Verifies an unused schedule with no forked workers fails clearly.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncFailsWhenScheduleNoWorkers()
+    [Test]
+    public async Task RunAsyncFailsWhenScheduleNoWorkers(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
                 static _ => Task.CompletedTask,
                 new RunOptions
@@ -63,31 +63,32 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
                     Seed = 12345,
                     Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
                 },
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Contains("unused steps", exception.Message, StringComparison.OrdinalIgnoreCase);
+        _ = await Assert.That(exception.Message).Contains("unused steps", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Verifies forked startup workers are stopped when the callback throws before join.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncStopsStartupOnThrowAfterFork()
+    [Test]
+    public async Task RunAsyncStopsStartupOnThrowAfterFork(CancellationToken cancellationToken)
     {
         var runTask = Runner.RunAsync(
-            static context =>
+            context =>
             {
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
                 throw new InvalidOperationException("callback failed before join");
             },
             new RunOptions { Iterations = 1, Seed = 12345 },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(runTask, watchdog) != runTask)
             Assert.Fail("Run should not hang after callback throws.");
 
@@ -99,16 +100,17 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
         catch (RunException ex)
         {
             var report = ex.ToString();
-            Assert.Contains("callback failed before join", report, StringComparison.Ordinal);
-            Assert.Contains("worker-1 forked", report, StringComparison.Ordinal);
-            Assert.Contains("Trace:", report, StringComparison.Ordinal);
+            _ = await Assert.That(report).Contains("callback failed before join");
+            _ = await Assert.That(report).Contains("worker-1 forked");
+            _ = await Assert.That(report).Contains("Trace:");
         }
     }
 
     /// <summary>Verifies timeout reports include worker and probe trace context.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task TimeoutReportIncludesRunningWorkerTrace()
+    [Test]
+    public async Task TimeoutReportIncludesRunningWorkerTrace(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -119,16 +121,16 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
                 {
                     context.Fork(async () =>
                     {
-                        await Probe.HitAsync("started", DefaultCancellationToken);
-                        await gate.Task.WaitAsync(DefaultCancellationToken);
+                        await Probe.HitAsync("started", cancellationToken);
+                        await gate.Task.WaitAsync(cancellationToken);
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
-                DefaultCancellationToken);
+                cancellationToken);
 
-            var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+            var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
             if (await Task.WhenAny(runTask, watchdog) != runTask)
                 Assert.Fail("Braid run did not complete before watchdog timeout.");
 
@@ -140,10 +142,10 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
             catch (RunException exception)
             {
                 var report = exception.ToString();
-                Assert.Contains("braid run timed out.", report, StringComparison.Ordinal);
-                Assert.Contains("started", report, StringComparison.Ordinal);
-                Assert.Contains("worker-1", report, StringComparison.Ordinal);
-                Assert.Contains("released", report, StringComparison.Ordinal);
+                _ = await Assert.That(report).Contains("braid run timed out.");
+                _ = await Assert.That(report).Contains("started");
+                _ = await Assert.That(report).Contains("worker-1");
+                _ = await Assert.That(report).Contains("released");
             }
         }
         finally
@@ -153,9 +155,10 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
     }
 
     /// <summary>Verifies timeout wins when the worker failure happens only after the timeout window.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task TimeoutWinsOverLateWorkerFailure()
+    [Test]
+    public async Task TimeoutWinsOverLateWorkerFailure(CancellationToken cancellationToken)
     {
         var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var workerExited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -167,8 +170,8 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
                 {
                     try
                     {
-                        await Probe.HitAsync("block", DefaultCancellationToken);
-                        await gate.Task.WaitAsync(DefaultCancellationToken);
+                        await Probe.HitAsync("block", cancellationToken);
+                        await gate.Task.WaitAsync(cancellationToken);
                         throw new InvalidOperationException("too late after timeout");
                     }
                     finally
@@ -177,12 +180,12 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
                     }
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromMilliseconds(50) },
-            DefaultCancellationToken);
+            cancellationToken);
 
-        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
+        var watchdog = Task.Delay(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(runTask, watchdog) != runTask)
             Assert.Fail("Braid run did not complete before watchdog timeout.");
 
@@ -194,34 +197,35 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
         catch (RunException exception)
         {
             _ = gate.TrySetResult();
-            await workerExited.Task.WaitAsync(TimeSpan.FromSeconds(2), TimeProvider.System, DefaultCancellationToken);
-            Assert.Contains("braid run timed out.", exception.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain("too late after timeout", exception.ToString(), StringComparison.Ordinal);
+            await workerExited.Task.WaitAsync(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
+            _ = await Assert.That(exception.Message).Contains("braid run timed out.");
+            _ = await Assert.That(exception.ToString()).DoesNotContain("too late after timeout");
         }
     }
 
     /// <summary>Verifies worker failure is reported when it occurs before the iteration timeout.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task WorkerFailureWinsOverTimeout()
+    [Test]
+    public async Task WorkerFailureWinsOverTimeout(CancellationToken cancellationToken)
     {
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () =>
+                    context.Fork(async () =>
                     {
-                        await Probe.HitAsync("before-failure", DefaultCancellationToken);
+                        await Probe.HitAsync("before-failure", cancellationToken);
                         throw new InvalidOperationException("worker failed before timeout");
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 new RunOptions { Iterations = 1, Seed = 12345, Timeout = TimeSpan.FromSeconds(5) },
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("worker failed before timeout", report, StringComparison.Ordinal);
-        Assert.DoesNotContain("braid run timed out.", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("worker failed before timeout");
+        _ = await Assert.That(report).DoesNotContain("braid run timed out.");
     }
 }
