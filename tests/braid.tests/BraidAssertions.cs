@@ -148,6 +148,21 @@ public static class BraidAssertions
         return ExpectsAnyAsyncCoreAsync<TException, TState>(state, startOperation);
     }
 
+    /// <summary>Faults when an in-flight value-task operation, started via <paramref name="startOperation" /> with <paramref name="state" />, completes without throwing <typeparamref name="TException" /> or a derived type.</summary>
+    /// <typeparam name="TException">Expected exception type.</typeparam>
+    /// <typeparam name="TState">State type supplied to <paramref name="startOperation" />.</typeparam>
+    /// <param name="state">State value supplied to <paramref name="startOperation" />.</param>
+    /// <param name="startOperation">Starts the faulting value-task given <paramref name="state" />.</param>
+    /// <returns>The observed exception.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="startOperation" /> is <see langword="null" />.</exception>
+    /// <exception cref="AssertionException">Thrown when the operation completes without faulting.</exception>
+    public static Task<TException> AssertExpectsAnyAsync<TException, TState>(TState state, Func<TState, ValueTask> startOperation)
+        where TException : Exception
+    {
+        ArgumentNullException.ThrowIfNull(startOperation);
+        return ExpectsAnyValueTaskAsyncCoreAsync<TException, TState>(state, startOperation);
+    }
+
     /// <summary>Awaits an in-flight operation and asserts its faults with exactly <typeparamref name="TException" />.</summary>
     /// <typeparam name="TException">Expected exception type.</typeparam>
     /// <param name="operation">The in-flight operation expected to fault.</param>
@@ -226,6 +241,21 @@ public static class BraidAssertions
     }
 
     private static async Task<TException> ExpectsAnyAsyncCoreAsync<TException, TState>(TState state, Func<TState, Task> startOperation)
+        where TException : Exception
+    {
+        try
+        {
+            await startOperation(state).ConfigureAwait(false);
+        }
+        catch (TException thrown)
+        {
+            return thrown;
+        }
+
+        throw Missing<TException>();
+    }
+
+    private static async Task<TException> ExpectsAnyValueTaskAsyncCoreAsync<TException, TState>(TState state, Func<TState, ValueTask> startOperation)
         where TException : Exception
     {
         try
