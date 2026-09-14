@@ -48,7 +48,9 @@ public sealed class BraidContextLifecycleTests : TestBase
         var forkException = BraidAssertions.AssertExpectsAny<Exception, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
         _ = await Assert.That(forkException is InvalidOperationException or RunException).IsTrue().Because($"Expected clear context-lifecycle failure. Got {forkException.GetType().FullName}: {forkException.Message}");
 
-        var joinException = await BraidAssertions.AssertExpectsAnyAsync<Exception, RunContext>(context, state => state.JoinAsync(cancellationToken));
+        var joinException = await BraidAssertions.AssertExpectsAnyAsync<Exception, (RunContext Context, CancellationToken Token)>(
+            (context, cancellationToken),
+            static state => state.Context.JoinAsync(state.Token));
         _ = await Assert.That(joinException is InvalidOperationException or RunException).IsTrue().Because($"Expected clear context-lifecycle failure. Got {joinException.GetType().FullName}: {joinException.Message}");
     }
 
@@ -72,7 +74,9 @@ public sealed class BraidContextLifecycleTests : TestBase
         var forkException = BraidAssertions.AssertExpectsAny<Exception, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
         _ = await Assert.That(forkException is InvalidOperationException or RunException).IsTrue().Because($"Expected clear context-lifecycle failure. Got {forkException.GetType().FullName}: {forkException.Message}");
 
-        var joinException = await BraidAssertions.AssertExpectsAnyAsync<Exception, RunContext>(context, state => state.JoinAsync(cancellationToken));
+        var joinException = await BraidAssertions.AssertExpectsAnyAsync<Exception, (RunContext Context, CancellationToken Token)>(
+            (context, cancellationToken),
+            static state => state.Context.JoinAsync(state.Token));
         _ = await Assert.That(joinException is InvalidOperationException or RunException).IsTrue().Because($"Expected clear context-lifecycle failure. Got {joinException.GetType().FullName}: {joinException.Message}");
     }
 
@@ -108,7 +112,9 @@ public sealed class BraidContextLifecycleTests : TestBase
         var forkException = BraidAssertions.AssertExpectsAny<Exception, RunContext>(context, static state => state.Fork(static () => Task.CompletedTask));
         _ = await Assert.That(forkException is InvalidOperationException or RunException).IsTrue().Because($"Expected clear context-lifecycle failure. Got {forkException.GetType().FullName}: {forkException.Message}");
 
-        var joinException = await BraidAssertions.AssertExpectsAnyAsync<Exception, RunContext>(context, state => state.JoinAsync(cancellationToken));
+        var joinException = await BraidAssertions.AssertExpectsAnyAsync<Exception, (RunContext Context, CancellationToken Token)>(
+            (context, cancellationToken),
+            static state => state.Context.JoinAsync(state.Token));
         _ = await Assert.That(joinException is InvalidOperationException or RunException).IsTrue().Because($"Expected clear context-lifecycle failure. Got {joinException.GetType().FullName}: {joinException.Message}");
     }
 

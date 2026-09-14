@@ -82,9 +82,15 @@ public sealed class BraidApiContractTests : TestBase
     [Test]
     public async Task HitAsyncRejectsInvalidProbeNames(CancellationToken cancellationToken)
     {
-        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(NullTestValues.String, cancellationToken));
-        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(string.Empty, cancellationToken));
-        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(" ", cancellationToken));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException, (string? Name, CancellationToken Token)>(
+            (NullTestValues.String, cancellationToken),
+            static state => Probe.HitAsync(state.Name!, state.Token));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException, (string? Name, CancellationToken Token)>(
+            (string.Empty, cancellationToken),
+            static state => Probe.HitAsync(state.Name!, state.Token));
+        _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException, (string? Name, CancellationToken Token)>(
+            (" ", cancellationToken),
+            static state => Probe.HitAsync(state.Name!, state.Token));
     }
 
     /// <summary>Verifies replay schedules snapshot the supplied steps.</summary>
@@ -129,29 +135,32 @@ public sealed class BraidApiContractTests : TestBase
     [Test]
     public async Task RunAsyncRejectsInvalidTimeoutAtStart(CancellationToken cancellationToken)
     {
-        var ran = false;
+        var ran = new bool[1];
 
-        _ = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    ran = true;
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Timeout = TimeSpan.Zero },
-                cancellationToken);
-        });
+        _ = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, bool[]>(
+            cancellationToken,
+            ran,
+            static (token, flag) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = context;
+                        flag[0] = true;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Timeout = TimeSpan.Zero },
+                    token);
+            });
 
-        _ = await Assert.That(ran).IsFalse();
+        _ = await Assert.That(ran[0]).IsFalse();
     }
 
     /// <summary>Verifies run validation rejects a null test delegate.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     [Test]
     public void RunAsyncThrowsForNullTestDelegate(CancellationToken cancellationToken) =>
-        _ = BraidAssertions.AssertExpects<ArgumentNullException>(() => _ = Runner.RunAsync(NullTestValues.RunCallback, cancellationToken));
+        _ = BraidAssertions.AssertExpects<ArgumentNullException, CancellationToken>(cancellationToken, static token => _ = Runner.RunAsync(NullTestValues.RunCallback, token));
 
     /// <summary>Verifies a null schedule is exposed as an empty schedule.</summary>
     [Test]
@@ -183,21 +192,24 @@ public sealed class BraidApiContractTests : TestBase
     [Test]
     public async Task RunRejectsInvalidIterationsBeforeStart(CancellationToken cancellationToken)
     {
-        var ran = false;
+        var ran = new bool[1];
 
-        _ = BraidAssertions.AssertExpects<ArgumentOutOfRangeException>(() =>
-        {
-            _ = Runner.RunAsync(
-                context =>
-                {
-                    _ = context;
-                    ran = true;
-                    return Task.CompletedTask;
-                },
-                new RunOptions { Iterations = 0 },
-                cancellationToken);
-        });
+        _ = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, bool[]>(
+            cancellationToken,
+            ran,
+            static (token, flag) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = context;
+                        flag[0] = true;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Iterations = 0 },
+                    token);
+            });
 
-        _ = await Assert.That(ran).IsFalse();
+        _ = await Assert.That(ran[0]).IsFalse();
     }
 }
