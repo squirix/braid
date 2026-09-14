@@ -3,12 +3,12 @@
 # PVS-Studio analysis image for the braid repository.
 #
 # Pre-bakes the PVS-Studio static analyzer (pvs-studio, pvs-studio-dotnet)
-# on top of the .NET 11.0.100-rc.1 SDK so CI job steps run inside a container that
+# on top of the .NET 10.0.401 SDK so CI job steps run inside a container that
 # already has the analyzer installed. The analyzer license is NOT baked in:
 # each CI run activates it at runtime via `pvs-studio-analyzer credentials`
 # from the PVS_STUDIO_CREDENTIALS secret.
 
-# Use Ubuntu base and install .NET SDK 11.0.100-rc.1 via Microsoft's script
+# Use Ubuntu base and install .NET SDK 10.0.401 via Microsoft's script
 FROM ubuntu:26.04
 
 ENV DOTNET_ROOT=/usr/share/dotnet \
@@ -48,14 +48,9 @@ RUN pvs-studio-analyzer --version \
     && pvs-studio-dotnet --version
 
 # Install .NET SDK via Microsoft's install script, AFTER the pvs-studio apt
-# packages, so this SDK (11.0.100-rc.1) is the one on PATH and under DOTNET_ROOT.
-# Pinned with --version so the image matches global.json's version
-# 11.0.100-rc.1.26425.128 exactly; bump together with global.json on SDK updates.
-#
-# The .NET 10 runtime is installed alongside: pvs-studio-dotnet itself targets
-# Microsoft.NETCore.App 10.0.0 and fails to launch (dotnet exit 150) when only
-# the SDK 11 runtime is present. The runtime floats on channel 10.0 (latest
-# patch) since it only hosts the analyzer tool, not the analyzed code.
+# packages, so this SDK (10.0.401) is the one on PATH and under DOTNET_ROOT.
+# Pinned with --version so the image matches global.json's version 10.0.401
+# exactly; bump together with global.json on SDK updates.
 #
 # The install script is verified before running: it is downloaded alongside
 # Microsoft's detached GPG signature and public key, the key fingerprint is
@@ -76,11 +71,9 @@ RUN set -euo pipefail \
         | grep -qi ":2b930ab1228d11d5d7f6b6acb9cf1a51fc7d3acf:" \
     && gpg --batch --homedir /tmp/gpghome --verify /tmp/dotnet-install.sig /tmp/dotnet-install.sh \
     && chmod +x /tmp/dotnet-install.sh \
-    && /tmp/dotnet-install.sh --version 11.0.100-rc.1.26425.128 --install-dir "$DOTNET_ROOT" \
-    && /tmp/dotnet-install.sh --channel 10.0 --runtime dotnet --install-dir "$DOTNET_ROOT" \
+    && /tmp/dotnet-install.sh --version 10.0.401 --install-dir "$DOTNET_ROOT" \
     && ln -sf "$DOTNET_ROOT/dotnet" /usr/bin/dotnet \
     && rm -rf /tmp/gpghome /tmp/dotnet-install.sh /tmp/dotnet-install.sig /tmp/dotnet-install.asc
 
-# Verify the .NET SDK and runtimes that CI will actually use.
-RUN dotnet --list-sdks \
-    && dotnet --list-runtimes
+# Verify the .NET SDK that CI will actually use.
+RUN dotnet --list-sdks
