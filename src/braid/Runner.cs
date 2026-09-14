@@ -100,7 +100,7 @@ public static class Runner
             discoveryFailure = ex;
         }
 
-        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? new Dictionary<string, List<string>>(StringComparer.Ordinal);
+        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? [with(StringComparer.Ordinal)];
 
         // If the discovery failure targets the user test and no probe sequences were learned, there is nothing to explore — surface it immediately.
         // When sequences were discovered, the failure is deferred: generated schedules may reproduce it under deterministic replay.

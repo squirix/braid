@@ -263,6 +263,9 @@ public sealed class ReplaySchedule
                 workerId = tokens[1];
                 probeName = tokens[2];
                 break;
+            default:
+                error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
+                return false;
         }
 
         return true;
