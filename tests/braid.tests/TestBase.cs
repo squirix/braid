@@ -43,7 +43,10 @@ public abstract class TestBase
 
         var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, cancellationToken);
         if (await Task.WhenAny(completed.Task, watchdog).ConfigureAwait(false) != completed.Task)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+        }
 
         _ = await completed.Task.ConfigureAwait(false);
         BraidTestInternals.RethrowIfFaultedOrCanceled(startedTask);
@@ -399,7 +402,10 @@ public abstract class TestBase
             var task = startTask();
             var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, cancellationToken);
             if (await Task.WhenAny(task, watchdog).ConfigureAwait(false) != task)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
                 Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
+            }
 
             await task.ConfigureAwait(false);
         }
