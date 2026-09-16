@@ -243,9 +243,7 @@ public sealed class BraidFailureReportTests : TestBase
         Assert.Contains("Inner exception:", report, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Verifies replay text in the report matches <see cref="ReplaySchedule.ToReplayText" /> and parses back to the same steps.
-    /// </summary>
+    /// <summary>Verifies replay text in the report matches <see cref="ReplaySchedule.ToReplayText" /> and parses back to the same steps.</summary>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Fact]
     public async Task FailureReportTextParsesBackSchedule()

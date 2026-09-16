@@ -16,11 +16,11 @@ public sealed class BraidScheduleTryParseTests : TestBase
     [InlineData("hit")]
     [InlineData("hit w")]
     [InlineData("hit w p x")]
-    public void TryParseDoesNotThrowForMalformedInput(string? text) => AssertTryParseDoesNotThrow(text);
+    public void DoesNotThrowForMalformedInput(string? text) => AssertTryParseDoesNotThrow(text);
 
     /// <summary>Verifies null input returns false from try-parse with a message.</summary>
     [Fact]
-    public void TryParseNullReturnsFalseWithMessage()
+    public void NullReturnsFalseWithMessage()
     {
         var ok = ReplaySchedule.TryParse(null, out var schedule, out var error);
 
@@ -31,7 +31,7 @@ public sealed class BraidScheduleTryParseTests : TestBase
 
     /// <summary>Verifies try-parse returns false for invalid schedules.</summary>
     [Fact]
-    public void TryParseReturnsFalseForInvalidText()
+    public void ReturnsFalseForInvalidText()
     {
         var ok = ReplaySchedule.TryParse("bogus a b", out var schedule, out var error);
 
@@ -43,7 +43,7 @@ public sealed class BraidScheduleTryParseTests : TestBase
 
     /// <summary>Verifies try-parse returns a schedule for valid input.</summary>
     [Fact]
-    public void TryParseReturnsScheduleForValidText()
+    public void ReturnsScheduleForValidText()
     {
         var ok = ReplaySchedule.TryParse("hit w-1 p1", out var schedule, out var error);
 
