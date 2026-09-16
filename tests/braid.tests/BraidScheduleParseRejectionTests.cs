@@ -61,9 +61,7 @@ public sealed class BraidScheduleParseRejectionTests : TestBase
         Assert.Contains("worker", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    /// <summary>
-    /// Verifies null text throws from <see cref="ReplaySchedule.Parse" />.
-    /// </summary>
+    /// <summary>Verifies null text throws from <see cref="ReplaySchedule.Parse" />.</summary>
     [Fact]
     public void ParseRejectsNullText() => _ = Assertions.Expects<ArgumentNullException>(static () => ReplaySchedule.Parse(NullTestValues.String));
 

@@ -2,14 +2,10 @@ using Xunit;
 
 namespace Braid.Tests;
 
-/// <summary>
-/// Covers <see cref="RunException.TryGetReplayText" /> behavior.
-/// </summary>
+/// <summary>Covers <see cref="RunException.TryGetReplayText" /> behavior.</summary>
 public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 {
-    /// <summary>
-    /// Verifies <see cref="RunException.ToString" /> still embeds replay lines when export succeeds.
-    /// </summary>
+    /// <summary>Verifies <see cref="RunException.ToString" /> still embeds replay lines when export succeeds.</summary>
     [Fact]
     public void ToStringIncludesReplayTextWhenExportable()
     {
@@ -24,9 +20,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
             Assert.Contains(segment, report, StringComparison.Ordinal);
     }
 
-    /// <summary>
-    /// Verifies <see cref="RunException.ToString" /> keeps the generic unavailable line when export fails.
-    /// </summary>
+    /// <summary>Verifies <see cref="RunException.ToString" /> keeps the generic unavailable line when export fails.</summary>
     [Fact]
     public void ToStringReportsUnavailableNotExportable()
     {
@@ -43,7 +37,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 
     /// <summary>Verifies whitespace in probe name prevents replay-text export with a diagnostic error.</summary>
     [Fact]
-    public void TryGetReplayTextFalseOnProbeWhitespace()
+    public void FalseOnProbeWhitespace()
     {
         var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("worker-1", "bad probe")], null);
 
@@ -56,7 +50,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 
     /// <summary>Verifies whitespace in worker id prevents replay-text export with a diagnostic error.</summary>
     [Fact]
-    public void TryGetReplayTextFalseOnWorkerWhitespace()
+    public void FalseOnWorkerWhitespace()
     {
         var exception = new RunException("failed", 1, 0, [], [ReplayStep.Hit("worker id", "ready")], null);
 
@@ -69,7 +63,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 
     /// <summary>Verifies random-only (empty schedule) yields false with no export error.</summary>
     [Fact]
-    public void TryGetReplayTextFalseWhenScheduleEmpty()
+    public void FalseWhenScheduleEmpty()
     {
         var exception = new RunException("failed", 1, 0, [], [], null);
 
@@ -80,7 +74,7 @@ public sealed class BraidRunExceptionTryGetReplayTextTests : TestBase
 
     /// <summary>Verifies a typed exportable schedule yields canonical replay text.</summary>
     [Fact]
-    public void TryGetReplayTextTrueForExportable()
+    public void TrueForExportable()
     {
         var steps = new[]
         {

@@ -5,9 +5,7 @@ namespace Braid.Tests;
 /// <summary>Covers run-result snapshots, public-surface immutability, and run-scope cleanup.</summary>
 public sealed class BraidRunResultAndScopeTests : TestBase
 {
-    /// <summary>
-    /// Verifies <see cref="RunException.ToString" /> does not mutate between calls.
-    /// </summary>
+    /// <summary>Verifies <see cref="RunException.ToString" /> does not mutate between calls.</summary>
     [Fact]
     public void BraidRunExceptionToStringIsStable()
     {
@@ -151,9 +149,7 @@ public sealed class BraidRunResultAndScopeTests : TestBase
         Assert.Equal(new ReplayStep("worker-1", "ready"), exception.Steps[0]);
     }
 
-    /// <summary>
-    /// Verifies schedule steps exposed from <see cref="ReplaySchedule" /> cannot be mutated as a list.
-    /// </summary>
+    /// <summary>Verifies schedule steps exposed from <see cref="ReplaySchedule" /> cannot be mutated as a list.</summary>
     [Fact]
     public void ScheduleStepsCannotBeMutatedPublic()
     {

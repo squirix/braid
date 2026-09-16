@@ -9,27 +9,27 @@
         <PackageVersion Include="AsyncFixer" Version="2.1.0"/>
         <PackageVersion Include="ErrorProne.NET.CoreAnalyzers" Version="0.9.0-beta.4"/>
         <PackageVersion Include="ErrorProne.NET.Structs" Version="0.6.1-beta.1"/>
-        <PackageVersion Include="Meziantou.Analyzer" Version="3.0.231"/>
+        <PackageVersion Include="Meziantou.Analyzer" Version="3.0.257"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401"/>
         <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23"/>
         <PackageVersion Include="Roslynator.Analyzers" Version="5.0.0"/>
-        <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.33.0.1635"/>
+        <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.34.0.3385"/>
         <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556"/>
         <PackageVersion Include="ZeroAlloc.Analyzers" Version="1.5.0"/>
-        <PackageVersion Include="squirix.analyzers" Version="0.1.6"/>
+        <PackageVersion Include="squirix.analyzers" Version="0.1.8"/>
         <PackageVersion Include="JetBrains.Annotations" Version="2026.2.0"/>
     </ItemGroup>
 
     <!-- Test-project analyzers (see Directory.Build.props / TestAnalyzers). -->
     <ItemGroup Label="TestAnalyzers">
-        <PackageVersion Include="xunit.analyzers" Version="2.0.0"/>
+        <PackageVersion Include="xunit.analyzers" Version="2.1.0"/>
     </ItemGroup>
 
     <ItemGroup Label="Testing">
-        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0"/>
-        <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.0"/>
+        <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0"/>
+        <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
         <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0"/>
-        <PackageVersion Include="xunit.v3" Version="4.0.0"/>
+        <PackageVersion Include="xunit.v3" Version="4.0.1"/>
     </ItemGroup>
 </Project>

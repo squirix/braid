@@ -187,13 +187,9 @@ public static class Runner
 
     private static bool IsExplorationTargetFailure(RunException exception)
     {
-        if (exception.FailureOrigin != RunFailureOrigin.UserTest)
-            return false;
-
-        if (exception.InnerException == null)
-            return false;
-
-        return exception.InnerException is not RunException;
+        return exception.FailureOrigin == RunFailureOrigin.UserTest
+            && exception.InnerException != null
+            && exception.InnerException is not RunException;
     }
 
     private static Task RunScheduledExploreAttemptAsync(ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
