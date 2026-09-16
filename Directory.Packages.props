@@ -9,7 +9,7 @@
         <PackageVersion Include="AsyncFixer" Version="2.1.0"/>
         <PackageVersion Include="ErrorProne.NET.CoreAnalyzers" Version="0.9.0-beta.4"/>
         <PackageVersion Include="ErrorProne.NET.Structs" Version="0.6.1-beta.1"/>
-        <PackageVersion Include="Meziantou.Analyzer" Version="3.0.257"/>
+        <PackageVersion Include="Meziantou.Analyzer" Version="3.0.259"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0"/>
         <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.401"/>
         <PackageVersion Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.7.23"/>
@@ -24,6 +24,6 @@
     <!-- Test-project analyzers ship inside the TUnit package (see Braid.Tests.csproj). -->
     <ItemGroup Label="Testing">
         <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
-        <PackageVersion Include="TUnit" Version="1.67.0"/>
+        <PackageVersion Include="TUnit" Version="1.68.0"/>
     </ItemGroup>
 </Project>
