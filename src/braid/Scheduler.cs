@@ -362,10 +362,15 @@ internal sealed class Scheduler : IDisposable
                 nextTask = SchedulerSearch.SelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);
                 _nextScheduleStep = context.NextScheduleStep;
 
-                if (nextTask == null && advancedWithoutRelease)
-                    continue;
-                if (nextTask == null && AllJoinWorkCompleted())
-                    return;
+                switch (nextTask)
+                {
+                    case null when advancedWithoutRelease:
+                        continue;
+                    case null when AllJoinWorkCompleted():
+                        return;
+                    default:
+                        break;
+                }
 
                 if (nextTask != null)
                 {
