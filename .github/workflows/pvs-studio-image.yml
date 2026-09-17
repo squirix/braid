@@ -9,8 +9,8 @@ on:
             - main
     workflow_dispatch:
     schedule:
-        # Weekly rebuild to pick up analyzer updates from the PVS-Studio apt repo.
-        - cron: '0 3 * * 1'
+        # Monthly rebuild to pick up analyzer updates from the PVS-Studio apt repo.
+        - cron: '0 3 1 * *'
 
 concurrency:
     group: ${{ github.workflow }}
