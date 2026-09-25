@@ -24,6 +24,6 @@
     <!-- Test-project analyzers ship inside the TUnit package (see Braid.Tests.csproj). -->
     <ItemGroup Label="Testing">
         <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.11.2"/>
-        <PackageVersion Include="TUnit" Version="1.69.0"/>
+        <PackageVersion Include="TUnit" Version="1.69.16"/>
     </ItemGroup>
 </Project>
