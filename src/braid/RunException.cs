@@ -147,7 +147,7 @@ public sealed class RunException : Exception
             lines.Add("Last matched replay step:");
             lines.Add(
                 diagnostics is { LastMatchedReplayStep: { } lastStep, LastMatchedReplayStepOneBased: { } stepNumber }
-                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(lastStep)}" : "  none");
+                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(in lastStep)}" : "  none");
         }
 
         AppendProbeWaitDiagnostics(lines, "Waiting workers:", diagnostics.WaitingWorkers);
@@ -177,7 +177,7 @@ public sealed class RunException : Exception
         for (var index = 0; index < steps.Count; index++)
         {
             var (oneBasedIndex, step) = steps[index];
-            lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(step)}");
+            lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(in step)}");
         }
     }
 
@@ -223,7 +223,7 @@ public sealed class RunException : Exception
 
     private static class ReplayFormat
     {
-        internal static string CanonicalStepLine(ReplayStep step) => step.Kind switch
+        internal static string CanonicalStepLine(in ReplayStep step) => step.Kind switch
         {
             ReplayStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
             ReplayStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",

@@ -28,7 +28,7 @@ public static class Runner
     }
 
     /// <inheritdoc cref="ExploreAsync(Action{ExploreOptionsBuilder}, Func{ExploreContext, Task}, CancellationToken)" />
-    public static Task ExploreAsync(ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken) =>
+    public static Task ExploreAsync(in ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken) =>
         ExploreAsyncCoreAsync(options, test, cancellationToken);
 
     /// <summary>
@@ -172,7 +172,7 @@ public static class Runner
             var schedule = ReplaySchedule.Replay(steps);
             try
             {
-                await RunScheduledExploreAttemptAsync(options, callback, schedule, cancellationToken).ConfigureAwait(false);
+                await RunScheduledExploreAttemptAsync(in options, callback, schedule, cancellationToken).ConfigureAwait(false);
             }
             catch (RunException ex) when (IsExplorationTargetFailure(ex))
             {
@@ -187,7 +187,7 @@ public static class Runner
 
     private static bool IsExplorationTargetFailure(RunException ex) => ex is { FailureOrigin: RunFailureOrigin.UserTest, InnerException: not null and not RunException };
 
-    private static Task RunScheduledExploreAttemptAsync(ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
+    private static Task RunScheduledExploreAttemptAsync(in ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
     {
         var runOptions = new RunOptions
         {
@@ -283,11 +283,11 @@ public static class Runner
                     continue;
                 }
 
-                ScheduleNextWorker(workerIds, lists, frame, stack);
+                ScheduleNextWorker(workerIds, lists, in frame, stack);
             }
         }
 
-        private static void ScheduleNextWorker(string[] workerIds, IReadOnlyList<string>[] sequences, SearchFrame frame, Stack<SearchFrame> stack)
+        private static void ScheduleNextWorker(string[] workerIds, IReadOnlyList<string>[] sequences, in SearchFrame frame, Stack<SearchFrame> stack)
         {
             for (var workerIndex = frame.NextWorkerIndex; workerIndex < workerIds.Length; workerIndex++)
             {
