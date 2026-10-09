@@ -49,14 +49,16 @@ Full list: README **Run lifecycle**.
 
 ## Waiting for a parked worker
 
-braid runs one released worker at a time and keeps the others parked at their probes until the released worker reaches its next probe or completes.
-A released worker that waits for a parked worker before its next probe (for example for a lock that the parked worker holds across a probe) never
-continues, and the run times out. Real threads would not hang there.
+braid runs one released worker at a time and keeps the others parked before their start or at their probes until the released worker
+reaches its next probe or completes. A released worker that waits for a parked worker before its next probe (for example for a lock that
+the parked worker holds across a probe) never continues, and the run times out. Real threads would not hang there.
 
-- A timeout while workers are parked is reported with `RunFailureOrigin.Scheduler`; the failure report lists the running worker under
-  **Running workers** and the parked ones under **Waiting workers**. `ExploreAsync` skips such schedules.
-- A timeout with no parked worker is reported with `RunFailureOrigin.Timeout` and fails `ExploreAsync`.
-- Avoid probes inside a critical section that another worker waits for, or add a probe before the wait.
+- A timeout while a worker runs and others are parked is reported with `RunFailureOrigin.Scheduler`. The failure report lists the running
+  worker under **Running workers** and the parked ones under **Waiting workers**; `(start)` and `(not started)` mark workers before their first probe.
+- `ExploreAsync` skips such schedules, including a discovery run that timed out this way, so exploration can still complete without failure.
+- A timeout with no running worker blocked on a parked one is reported with `RunFailureOrigin.Timeout` and fails `ExploreAsync`.
+- A deadlock between two or more workers looks the same as such a hang, so `ExploreAsync` does not report it yet.
+- Do not hold a lock that another worker waits for across a probe.
 
 ---
 

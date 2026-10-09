@@ -6,15 +6,17 @@
 
 - `RunFailureOrigin.Timeout` for runs that timed out while no worker was parked at a probe.
 - `SchedulerDiagnostics.RunningWorkers` and a **Running workers** section in failure reports, with the probe each running worker was last released at.
+- `ProbeWaitDiagnostic.StartProbeName` and `NotStartedProbeName` mark workers before their first probe; waiting workers that have not started are now listed.
 
 ### Changed
 
-- Breaking: a run that times out while no worker is parked at a probe reports `RunFailureOrigin.Timeout` instead of `RunFailureOrigin.Scheduler`.
-  A timeout while workers are parked keeps `RunFailureOrigin.Scheduler` and says that the running worker may be waiting for a parked one.
+- Breaking: a run that times out reports `RunFailureOrigin.Timeout` instead of `RunFailureOrigin.Scheduler`, unless a worker was running
+  while others were parked: then it keeps `RunFailureOrigin.Scheduler` and says that the running worker may be waiting for a parked one.
 
 ### Fixed
 
-- `ExploreAsync` no longer passes a test that hangs while no worker is parked at a probe: such a timeout in the discovery run or in a generated schedule fails exploration.
+- `ExploreAsync` no longer passes a test that hangs with no running worker blocked on a parked one:
+  such a timeout in the discovery run or in a generated schedule fails exploration, with a replay token for a generated schedule.
 - `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
   after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
 - `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.

@@ -6,6 +6,24 @@ namespace Braid;
 [Immutable]
 public sealed class SchedulerDiagnostics
 {
+    /// <summary>Initializes a new instance of the <see cref="SchedulerDiagnostics" /> class without running workers.</summary>
+    /// <param name="hasReplaySchedule">Whether a non-empty typed replay schedule was configured.</param>
+    /// <param name="lastMatchedReplayStep">The last replay step that was fully consumed, if any.</param>
+    /// <param name="lastMatchedReplayStepOneBased">One-based index of <paramref name="lastMatchedReplayStep" /> in the configured schedule.</param>
+    /// <param name="waitingWorkers">Workers blocked at probes while waiting to be scheduled.</param>
+    /// <param name="heldWorkers">Workers held after an Arrive replay step.</param>
+    /// <param name="unusedReplaySteps">Remaining replay steps not yet consumed, with one-based schedule indices.</param>
+    public SchedulerDiagnostics(
+        bool hasReplaySchedule,
+        ReplayStep? lastMatchedReplayStep,
+        int? lastMatchedReplayStepOneBased,
+        IReadOnlyList<ProbeWaitDiagnostic> waitingWorkers,
+        IReadOnlyList<ProbeWaitDiagnostic> heldWorkers,
+        IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> unusedReplaySteps)
+        : this(hasReplaySchedule, lastMatchedReplayStep, lastMatchedReplayStepOneBased, waitingWorkers, heldWorkers, unusedReplaySteps, [])
+    {
+    }
+
     /// <summary>Initializes a new instance of the <see cref="SchedulerDiagnostics" /> class.</summary>
     /// <param name="hasReplaySchedule">Whether a non-empty typed replay schedule was configured.</param>
     /// <param name="lastMatchedReplayStep">The last replay step that was fully consumed, if any.</param>
@@ -21,7 +39,7 @@ public sealed class SchedulerDiagnostics
         IReadOnlyList<ProbeWaitDiagnostic> waitingWorkers,
         IReadOnlyList<ProbeWaitDiagnostic> heldWorkers,
         IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> unusedReplaySteps,
-        IReadOnlyList<ProbeWaitDiagnostic>? runningWorkers = null)
+        IReadOnlyList<ProbeWaitDiagnostic> runningWorkers)
     {
         HasReplaySchedule = hasReplaySchedule;
         LastMatchedReplayStep = lastMatchedReplayStep;
@@ -29,7 +47,7 @@ public sealed class SchedulerDiagnostics
         WaitingWorkers = [.. waitingWorkers];
         HeldWorkers = [.. heldWorkers];
         UnusedReplaySteps = [.. unusedReplaySteps];
-        RunningWorkers = runningWorkers == null ? [] : [.. runningWorkers];
+        RunningWorkers = [.. runningWorkers];
     }
 
     /// <summary>Gets a value indicating whether a non-empty typed replay schedule was configured.</summary>
