@@ -18,8 +18,25 @@ public sealed class LostUpdateTests
     [Fact]
     public async Task ReplayTokenCapturesLostUpdateInterleaving()
     {
-        var schedule = ReplaySchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read\nhit worker-1 before-write\nhit worker-2 before-write\n");
+        var schedule = ReplaySchedule.Parse("hit worker-1 before-read\nhit worker-2 before-read\nhit worker-1 before-write\nhit worker-2 before-write\n");
 
+        var exception = await Assert.ThrowsAsync<RunException>(() => RunIncrementsAsync(schedule));
+
+        Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
+        Assert.Equal(schedule.ToReplayText(), replayText);
+    }
+
+    /// <summary>Verifies the sequential schedule keeps both increments, so the token above really selects the race.</summary>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Fact]
+    public Task SequentialScheduleKeepsBothIncrements()
+    {
+        var schedule = ReplaySchedule.Parse("hit worker-1 before-read\nhit worker-1 before-write\nhit worker-2 before-read\nhit worker-2 before-write\n");
+        return RunIncrementsAsync(schedule);
+    }
+
+    private static Task RunIncrementsAsync(ReplaySchedule schedule)
+    {
         var options = new RunOptions
         {
             Iterations = 1,
@@ -27,38 +44,32 @@ public sealed class LostUpdateTests
             Schedule = schedule,
         };
 
-        var exception = await Assert.ThrowsAsync<RunException>(async () =>
-        {
-            await Runner.RunAsync(
-                static async context =>
+        return Runner.RunAsync(
+            static async context =>
+            {
+                var value = 0;
+
+                context.Fork(async () =>
                 {
-                    var value = 0;
+                    await Probe.HitAsync("before-read", TestCancellationToken);
+                    var current = value;
+                    await Probe.HitAsync("before-write", TestCancellationToken);
+                    value = current + 1;
+                });
 
-                    context.Fork(async () =>
-                    {
-                        var current = value;
-                        await Probe.HitAsync("after-read", TestCancellationToken);
-                        await Probe.HitAsync("before-write", TestCancellationToken);
-                        value = current + 1;
-                    });
+                context.Fork(async () =>
+                {
+                    await Probe.HitAsync("before-read", TestCancellationToken);
+                    var current = value;
+                    await Probe.HitAsync("before-write", TestCancellationToken);
+                    value = current + 1;
+                });
 
-                    context.Fork(async () =>
-                    {
-                        var current = value;
-                        await Probe.HitAsync("after-read", TestCancellationToken);
-                        await Probe.HitAsync("before-write", TestCancellationToken);
-                        value = current + 1;
-                    });
+                await context.JoinAsync(TestCancellationToken);
 
-                    await context.JoinAsync(TestCancellationToken);
-
-                    Assert.Equal(2, value);
-                },
-                options,
-                TestCancellationToken);
-        });
-
-        Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
-        Assert.Equal(schedule.ToReplayText(), replayText);
+                Assert.Equal(2, value);
+            },
+            options,
+            TestCancellationToken);
     }
 }

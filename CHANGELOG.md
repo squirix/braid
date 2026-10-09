@@ -26,6 +26,8 @@
 
 ### Documentation
 
+- The lost-update and user-operation-limiter examples put a probe before the shared read, so the replay token decides the race; a sequential schedule passes.
+- `docs/runtime-boundaries.md` states that code before a worker's first probe runs in fork order and is not interleaved.
 - The README quick start compiles: probe, join and run calls pass a `CancellationToken`; README C# snippets are compiled and checked by tests.
 - `RunAsync` XML docs: a null callback task surfaces as `RunException` with an inner `InvalidOperationException`.
 - Fixed stale references in `docs/runtime-boundaries.md`, `docs/replay-token-workflow.md` and `contributing.md` (test names, `RunException.Steps`, TUnit, SDK).

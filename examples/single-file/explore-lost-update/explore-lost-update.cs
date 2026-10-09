@@ -30,7 +30,7 @@ public sealed class ExploreLostUpdateTests
         });
 
         Assert.True(exception.TryGetReplayText(out var replayText, out var error), error);
-        Assert.Contains("after-read", replayText, StringComparison.Ordinal);
+        Assert.Contains("before-read", replayText, StringComparison.Ordinal);
         Assert.Contains("before-write", replayText, StringComparison.Ordinal);
         Assert.Contains("reader", replayText, StringComparison.Ordinal);
         Assert.Contains("writer", replayText, StringComparison.Ordinal);
@@ -59,8 +59,8 @@ public sealed class ExploreLostUpdateTests
             "reader",
             async () =>
             {
+                await Probe.HitAsync("before-read", TestCancellationToken);
                 var current = value;
-                await Probe.HitAsync("after-read", TestCancellationToken);
                 await Probe.HitAsync("before-write", TestCancellationToken);
                 value = current + 1;
             });
@@ -69,8 +69,8 @@ public sealed class ExploreLostUpdateTests
             "writer",
             async () =>
             {
+                await Probe.HitAsync("before-read", TestCancellationToken);
                 var current = value;
-                await Probe.HitAsync("after-read", TestCancellationToken);
                 await Probe.HitAsync("before-write", TestCancellationToken);
                 value = current + 1;
             });
@@ -87,8 +87,8 @@ public sealed class ExploreLostUpdateTests
             "reader",
             async () =>
             {
+                await Probe.HitAsync("before-read", TestCancellationToken);
                 var current = value;
-                await Probe.HitAsync("after-read", TestCancellationToken);
                 await Probe.HitAsync("before-write", TestCancellationToken);
                 value = current + 1;
             });
@@ -97,8 +97,8 @@ public sealed class ExploreLostUpdateTests
             "writer",
             async () =>
             {
+                await Probe.HitAsync("before-read", TestCancellationToken);
                 var current = value;
-                await Probe.HitAsync("after-read", TestCancellationToken);
                 await Probe.HitAsync("before-write", TestCancellationToken);
                 value = current + 1;
             });

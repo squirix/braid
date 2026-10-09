@@ -47,6 +47,16 @@ The XML documentation of `Runner.RunAsync` and `RunContext` lists the exceptions
 
 ---
 
+## Code before the first probe
+
+braid orders workers only at probes. When the run joins, each worker first runs in fork order up to its first probe, before any scheduling
+decision, in random, replay and exploration modes alike. A replay schedule therefore describes the order of code after the first probe only.
+
+- A shared read or write before a worker's first probe is never interleaved with other workers.
+- Put a probe before every shared access that the race depends on, as in `examples/single-file/lost-update`.
+
+---
+
 ## Waiting for a parked worker
 
 braid runs one released worker at a time and keeps the others parked before their start or at their probes until the released worker

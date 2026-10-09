@@ -17,13 +17,13 @@ var allowed = await limiter.TryEnterAsync(cancellationToken);
 The braid test forces that interleaving with a typed replay schedule:
 
 ```text
-worker-1 @ after-read
-worker-2 @ after-read
+worker-1 @ before-read
+worker-2 @ before-read
 worker-1 @ before-write
 worker-2 @ before-write
 ```
 
-You can express the same steps as [text replay](../../README.md#text-replay-schedules) (for example `hit worker-1 after-read`, …) if you prefer `ReplaySchedule.Parse`.
+You can express the same steps as [text replay](../../README.md#text-replay-schedules) (for example `hit worker-1 before-read`, …) if you prefer `ReplaySchedule.Parse`.
 When a run fails under a configured replay schedule, [`RunException`](../../README.md#failure-reproduction) can include **replay text**
 and **scheduler-state diagnostics** in addition to the human-readable schedule and trace.
 

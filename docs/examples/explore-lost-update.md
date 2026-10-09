@@ -5,7 +5,7 @@ Here you start from workers and probe names only — exploration finds a failing
 
 ## Scenario
 
-Two workers (`reader` and `writer`) perform the same read-modify-write on a shared integer. Each worker hits `after-read` then `before-write`.
+Two workers (`reader` and `writer`) perform the same read-modify-write on a shared integer. Each worker hits `before-read`, reads the value, then hits `before-write` and writes it.
 The final assertion expects `2`, but a classic lost update leaves `1` when both workers read the same value before either writes.
 
 ## Exploration

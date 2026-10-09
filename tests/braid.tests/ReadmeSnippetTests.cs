@@ -105,8 +105,8 @@ public sealed class ReadmeSnippetTests : TestBase
         {
             Iterations = 1,
             Schedule = ReplaySchedule.Replay(
-                ReplayStep.Hit("worker-1", "after-read"),
-                ReplayStep.Hit("worker-2", "after-read"),
+                ReplayStep.Hit("worker-1", "before-read"),
+                ReplayStep.Hit("worker-2", "before-read"),
                 ReplayStep.Hit("worker-1", "before-write"),
                 ReplayStep.Hit("worker-2", "before-write")),
         };
