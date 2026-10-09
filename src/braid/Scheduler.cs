@@ -41,7 +41,7 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             tasks = [.. _tasks];
-            workersRunning = _runningWorkers.AnyRunning;
+            workersRunning = _runningWorkers.AnyRunning || _tasks.Exists(static task => task.ProbeWaitInFlight);
         }
 
         if (!_shutdownCts.IsCancellationRequested)
@@ -49,7 +49,7 @@ internal sealed class Scheduler : IDisposable
 
         _joinMutex.Dispose();
 
-        // A worker abandoned after the shutdown drain still uses the shutdown token, the state signal and its permit:
+        // A worker abandoned after the shutdown drain, or a child task still inside a probe, uses the shutdown token, the state signal and a permit:
         // its next probe throws OperationCanceledException instead of ObjectDisposedException. The garbage collector reclaims them.
         if (workersRunning)
             return;
