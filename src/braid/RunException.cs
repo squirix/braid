@@ -92,6 +92,12 @@ public sealed class RunException : Exception
     /// <remarks>Names the workers that were still running after the run stopped, when there were any.</remarks>
     public override string Message => _abandonedWorkers == null ? base.Message : base.Message + Environment.NewLine + _abandonedWorkers;
 
+    /// <summary>
+    /// Gets a value indicating whether exploration skips this failure: the schedule did not fit the run,
+    /// or the run hung only because braid kept a worker parked.
+    /// </summary>
+    internal bool SkippedByExploration { get; private set; }
+
     /// <inheritdoc />
     public override string ToString()
     {
@@ -137,6 +143,14 @@ public sealed class RunException : Exception
             error = ex.Message;
             return false;
         }
+    }
+
+    /// <summary>Marks the failure as one that exploration skips, because it comes from the schedule rather than from the test.</summary>
+    /// <returns>This failure.</returns>
+    internal RunException SkipInExploration()
+    {
+        SkippedByExploration = true;
+        return this;
     }
 
     /// <summary>Adds the description of the workers abandoned after the run stopped to <see cref="Message" />, once.</summary>

@@ -49,10 +49,11 @@ await Runner.ExploreAsync(
 2. **Enumeration** — bounded depth-first generation of hit schedules that preserve each worker's probe order. A schedule longer than `MaxStepsPerSchedule` is cut to its first steps.
 3. **Replay attempts** — each generated schedule runs under `RunAsync` with `Iterations = 1`.
    After its last step, waiting workers are released in fork order, so the test runs to completion; the reported replay token includes those completion steps.
-4. **Stop** — return when bounds are exhausted without failure; throw the first `RunException` caused by a test assertion or a timeout (or a discovery random failure).
+4. **Stop** — return when bounds are exhausted without failure; throw the first `RunException` caused by a test assertion, a timeout or an API misuse error (or a discovery random failure).
 
-Invalid schedules (scheduler mismatch) are skipped. Scheduler-only failures during replay do not stop exploration,
-including a timeout while workers are parked at probes (see [runtime boundaries](../runtime-boundaries.md#waiting-for-a-parked-worker)).
+Invalid schedules (scheduler mismatch, an exhausted or unused script) are skipped, and so is a timeout while workers are parked at probes
+(see [runtime boundaries](../runtime-boundaries.md#waiting-for-a-parked-worker)). Every other failure stops exploration, including API misuse
+errors such as a fork after `JoinAsync` or two probe waits in flight on one worker, which `RunAsync` reports the same way.
 
 ## Determinism
 

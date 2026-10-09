@@ -20,7 +20,7 @@ public static class Runner
     /// <exception cref="ArgumentNullException"><paramref name="configure" /> or <paramref name="test" /> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Configured bounds are invalid.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="RunException">A test failure or a timeout was found under a replay schedule or during discovery.</exception>
+    /// <exception cref="RunException">A test failure, a timeout or an API misuse error was found under a replay schedule or during discovery.</exception>
     public static Task ExploreAsync(Action<ExploreOptionsBuilder> configure, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -225,7 +225,13 @@ public static class Runner
         }
     }
 
-    private static bool IsExplorationTargetFailure(RunException ex) => ex is { FailureOrigin: RunFailureOrigin.Timeout } or { FailureOrigin: RunFailureOrigin.UserTest, InnerException: not null and not RunException };
+    /// <summary>
+    /// Decides whether a failure stops exploration. Only failures that come from the schedule itself are skipped: a schedule that does not fit
+    /// the run, or a hang caused by braid keeping a worker parked. Test failures, timeouts and API misuse errors stop exploration.
+    /// </summary>
+    /// <param name="ex">The failure.</param>
+    /// <returns><see langword="true" /> if the failure stops exploration; otherwise <see langword="false" />.</returns>
+    private static bool IsExplorationTargetFailure(RunException ex) => !ex.SkippedByExploration;
 
     private static Task RunScheduledExploreAttemptAsync(in ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
     {
