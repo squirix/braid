@@ -21,7 +21,7 @@ public sealed class RunOptions
     /// <summary>Gets or initializes the base seed. Each iteration adds its zero-based index to this seed.</summary>
     public int? Seed { get; init; }
 
-    /// <summary>Gets or initializes the per-iteration timeout. It must be positive and at most <see cref="MaxTimeout" />.</summary>
+    /// <summary>Gets or initializes the per-iteration timeout, counted from the start of the run callback. It must be positive and at most <see cref="MaxTimeout" />.</summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>Gets a value indicating whether workers still waiting after the last schedule step are released in fork order instead of failing the run.</summary>

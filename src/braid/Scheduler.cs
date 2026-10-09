@@ -17,7 +17,7 @@ internal sealed class Scheduler : IDisposable
     private readonly CancellationTokenSource _shutdownCts = new();
     private readonly SemaphoreSlim _stateChanged = new(0);
     private readonly List<RunTask> _tasks = [];
-    private readonly TimeSpan _timeout;
+    private readonly CancellationTokenSource _timeoutCts = new();
     private readonly List<string> _trace = [];
     private bool _joined;
     private int _nextScheduleStep;
@@ -27,10 +27,23 @@ internal sealed class Scheduler : IDisposable
     {
         _seed = seed;
         _iteration = iteration;
-        _timeout = timeout;
+        _timeoutCts.CancelAfter(timeout);
         _script = steps == null ? null : new ReplayScript(steps, completesInForkOrder);
         _random = new DeterministicRandom(seed);
     }
+
+    /// <summary>Gets a value indicating whether <see cref="JoinAsync" /> has started.</summary>
+    internal bool HasJoined
+    {
+        get
+        {
+            lock (_gate)
+                return _joined;
+        }
+    }
+
+    /// <summary>Gets the token canceled when the run timeout, counted from the start of the run, elapses.</summary>
+    internal CancellationToken TimeoutToken => _timeoutCts.Token;
 
     private IReadOnlyList<ReplayStep>? ScriptSteps => _script?.Steps;
 
@@ -48,6 +61,7 @@ internal sealed class Scheduler : IDisposable
             _shutdownCts.Cancel();
 
         _joinMutex.Dispose();
+        _timeoutCts.Dispose();
 
         // A worker abandoned after the shutdown drain, or a child task still inside a probe, uses the shutdown token, the state signal and a permit:
         // its next probe throws OperationCanceledException instead of ObjectDisposedException. The garbage collector reclaims them.
@@ -175,15 +189,14 @@ internal sealed class Scheduler : IDisposable
 
     internal async Task JoinAsync(CancellationToken cancellationToken)
     {
-        using var timeoutCts = new CancellationTokenSource(_timeout);
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _timeoutCts.Token);
 
         // A concurrent join waits here; the run timeout bounds that wait too. Cleanup runs only after the mutex is held.
         try
         {
             await _joinMutex.WaitAsync(linkedCts.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
         {
             throw CreateTimeoutException(ex);
         }
@@ -202,7 +215,7 @@ internal sealed class Scheduler : IDisposable
             if (failure != null)
                 throw CreateException("A forked operation failed.", failure, RunFailureOrigin.UserTest);
         }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
         {
             throw CreateTimeoutException(ex);
         }
@@ -435,6 +448,9 @@ internal sealed class Scheduler : IDisposable
 
             lock (_gate)
             {
+                // A linked token is canceled by a callback that may run after a worker already observed the caller's token and changed state,
+                // so check the caller's token under the gate: a cancellation must not surface as a schedule mismatch.
+                cancellationToken.ThrowIfCancellationRequested();
                 context.NextScheduleStep = _nextScheduleStep;
 
                 nextTask = SchedulerSearch.SelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);
