@@ -52,7 +52,7 @@ public sealed class RunException : Exception
     /// <param name="message">The exception message.</param>
     /// <param name="context">Reproducibility context for the failure.</param>
     /// <param name="innerException">The underlying exception.</param>
-    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
+    /// <param name="failureOrigin">Whether the failure came from user test code, braid infrastructure, or a run timeout.</param>
     public RunException(
         string message,
         RunExceptionContext context,
@@ -65,7 +65,7 @@ public sealed class RunException : Exception
         FailureOrigin = failureOrigin;
     }
 
-    /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
+    /// <summary>Gets whether the failure originated from user test code, braid infrastructure, or a run timeout.</summary>
     public RunFailureOrigin FailureOrigin { get; }
 
     /// <summary>Gets the reproducibility context for the failure.</summary>
@@ -152,6 +152,7 @@ public sealed class RunException : Exception
 
         AppendProbeWaitDiagnostics(lines, "Waiting workers:", diagnostics.WaitingWorkers);
         AppendProbeWaitDiagnostics(lines, "Held workers:", diagnostics.HeldWorkers);
+        AppendProbeWaitDiagnostics(lines, "Running workers (last released at):", diagnostics.RunningWorkers);
         AppendUnusedReplayStepDiagnostics(lines, diagnostics.UnusedReplaySteps);
     }
 

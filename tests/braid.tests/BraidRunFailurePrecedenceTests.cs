@@ -199,6 +199,7 @@ public sealed class BraidRunFailurePrecedenceTests : TestBase
             _ = gate.TrySetResult();
             await workerExited.Task.WaitAsync(TimeSpan.FromSeconds(2), TimeProvider.System, cancellationToken);
             _ = await Assert.That(exception.Message).Contains("braid run timed out.");
+            _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Timeout);
             _ = await Assert.That(exception.ToString()).DoesNotContain("too late after timeout");
         }
     }
