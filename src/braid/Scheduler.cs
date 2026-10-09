@@ -551,7 +551,7 @@ internal sealed class Scheduler : IDisposable
             return null;
         }
 
-        private static string BuildStepMismatchMessage(int stepIndex, string action, ReplayStep expectedStep, RunTask? sameWorkerBlockedTask)
+        private static string BuildStepMismatchMessage(int stepIndex, string action, in ReplayStep expectedStep, RunTask? sameWorkerBlockedTask)
         {
             var oneBasedIndex = stepIndex + 1;
             return sameWorkerBlockedTask?.LastProbeName == null
@@ -573,7 +573,7 @@ internal sealed class Scheduler : IDisposable
 
         private static RunTask? SelectArriveStep(
             SchedulerJoinContext context,
-            ReplayStep step,
+            in ReplayStep step,
             RunTask? waitingTask,
             RunTask? sameWorkerBlockedTask,
             bool hasRunningTasks,
@@ -581,7 +581,7 @@ internal sealed class Scheduler : IDisposable
         {
             if (waitingTask == null)
             {
-                var message = BuildStepMismatchMessage(context.NextScheduleStep, "arrive", step, sameWorkerBlockedTask);
+                var message = BuildStepMismatchMessage(context.NextScheduleStep, "arrive", in step, sameWorkerBlockedTask);
                 return hasRunningTasks ? null : throw context.CreateException(message, null, RunFailureOrigin.Scheduler);
             }
 
@@ -594,7 +594,7 @@ internal sealed class Scheduler : IDisposable
 
         private static RunTask? SelectHitStep(
             SchedulerJoinContext context,
-            ReplayStep step,
+            in ReplayStep step,
             RunTask? waitingTask,
             RunTask? heldTask,
             RunTask? sameWorkerBlockedTask,
@@ -604,7 +604,7 @@ internal sealed class Scheduler : IDisposable
             if (releasableTask == null)
             {
                 return hasRunningTasks ? null : throw context.CreateException(
-                    BuildStepMismatchMessage(context.NextScheduleStep, "hit", step, sameWorkerBlockedTask),
+                    BuildStepMismatchMessage(context.NextScheduleStep, "hit", in step, sameWorkerBlockedTask),
                     null,
                     RunFailureOrigin.Scheduler);
             }
@@ -636,11 +636,11 @@ internal sealed class Scheduler : IDisposable
                 : SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
         }
 
-        private static RunTask? SelectReleaseStep(SchedulerJoinContext context, ReplayStep step, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
+        private static RunTask? SelectReleaseStep(SchedulerJoinContext context, in ReplayStep step, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
         {
             if (heldTask == null)
             {
-                var message = BuildStepMismatchMessage(context.NextScheduleStep, "release held", step, sameWorkerBlockedTask);
+                var message = BuildStepMismatchMessage(context.NextScheduleStep, "release held", in step, sameWorkerBlockedTask);
                 return hasRunningTasks ? null : throw context.CreateException(message, null, RunFailureOrigin.Scheduler);
             }
 
@@ -657,13 +657,13 @@ internal sealed class Scheduler : IDisposable
 
             return step.Kind switch
             {
-                ReplayStepKind.Hit => SelectHitStep(context, step, waitingTask, heldTask, sameWorkerBlockedTask, hasRunningTasks),
+                ReplayStepKind.Hit => SelectHitStep(context, in step, waitingTask, heldTask, sameWorkerBlockedTask, hasRunningTasks),
                 ReplayStepKind.Arrive when heldTask != null => throw context.CreateException(
                     $"Scripted schedule step {context.NextScheduleStep + 1} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
                     null,
                     RunFailureOrigin.Scheduler),
-                ReplayStepKind.Arrive => SelectArriveStep(context, step, waitingTask, sameWorkerBlockedTask, hasRunningTasks, ref advancedWithoutRelease),
-                ReplayStepKind.Release => SelectReleaseStep(context, step, heldTask, sameWorkerBlockedTask, hasRunningTasks),
+                ReplayStepKind.Arrive => SelectArriveStep(context, in step, waitingTask, sameWorkerBlockedTask, hasRunningTasks, ref advancedWithoutRelease),
+                ReplayStepKind.Release => SelectReleaseStep(context, in step, heldTask, sameWorkerBlockedTask, hasRunningTasks),
                 _ => throw context.CreateException($"Scripted schedule step {context.NextScheduleStep + 1} has unknown step kind {step.Kind}.", null, RunFailureOrigin.Scheduler),
             };
         }

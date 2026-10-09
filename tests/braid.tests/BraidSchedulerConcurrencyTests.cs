@@ -181,7 +181,7 @@ public sealed class BraidSchedulerConcurrencyTests : TestBase
         _ = await Assert.That(report).Contains("Trace:");
     }
 
-    private static Task RunOrderedWorkerReplayAsync(List<string> order, int seed, ReplayStep firstStep, ReplayStep secondStep, CancellationToken cancellationToken = default) => Runner.RunAsync(
+    private static Task RunOrderedWorkerReplayAsync(List<string> order, int seed, in ReplayStep firstStep, in ReplayStep secondStep, CancellationToken cancellationToken = default) => Runner.RunAsync(
         async context =>
         {
             context.Fork(async () =>
