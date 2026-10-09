@@ -140,9 +140,7 @@ public static class Runner
             catch (RunException ex)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
-                if (scheduler.TryReportAbandonedWorkers(ex, out var reported))
-                    throw reported;
-
+                scheduler.ReportAbandonedWorkers(ex);
                 throw;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -153,7 +151,9 @@ public static class Runner
             catch (Exception ex)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
-                throw scheduler.CreateException("braid run failed.", ex, RunFailureOrigin.UserTest);
+                var failure = scheduler.CreateException("braid run failed.", ex, RunFailureOrigin.UserTest);
+                scheduler.ReportAbandonedWorkers(failure);
+                throw failure;
             }
             finally
             {

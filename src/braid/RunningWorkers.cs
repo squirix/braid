@@ -13,25 +13,20 @@ internal sealed class RunningWorkers
     /// <param name="forkTask">The fork task.</param>
     internal void Add(Task forkTask) => _forkTasks.Add(forkTask);
 
-    /// <summary>Appends the workers abandoned by the last shutdown drain to a failure message.</summary>
-    /// <param name="message">The failure message.</param>
-    /// <returns>The same <paramref name="message" /> instance when no worker was abandoned; otherwise the message followed by the abandoned worker ids.</returns>
-    internal string AppendAbandonedWorkers(string message) =>
-        _abandonedWorkerIds.Length == 0 ? message
-            : $"{message}{Environment.NewLine}Workers still running after the run stopped were abandoned: {string.Join(", ", _abandonedWorkerIds)}. "
+    /// <summary>Records that the last shutdown drain abandoned no worker.</summary>
+    internal void ClearAbandoned() => _abandonedWorkerIds = [];
+
+    /// <summary>Describes the workers abandoned by the last shutdown drain for a failure message.</summary>
+    /// <returns>The description, or <see langword="null" /> when no worker was abandoned.</returns>
+    internal string? DescribeAbandoned() =>
+        _abandonedWorkerIds.Length == 0 ? null
+            : $"Workers still running after the run stopped were abandoned: {string.Join(", ", _abandonedWorkerIds)}. "
             + "Their next probe throws OperationCanceledException; until then they can change shared state.";
 
-    /// <summary>Records the outcome of a shutdown drain.</summary>
-    /// <param name="drained">Whether every fork task completed within the drain timeout.</param>
-    /// <param name="tasks">The workers of the run; those not completed are recorded as abandoned when the drain timed out.</param>
-    internal void RecordDrain(bool drained, List<RunTask> tasks)
+    /// <summary>Records the workers that a timed-out shutdown drain abandoned.</summary>
+    /// <param name="tasks">The workers of the run; those not completed are recorded as abandoned.</param>
+    internal void RecordAbandoned(List<RunTask> tasks)
     {
-        if (drained)
-        {
-            _abandonedWorkerIds = [];
-            return;
-        }
-
         var workerIds = new List<string>();
         for (var index = 0; index < tasks.Count; index++)
         {

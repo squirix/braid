@@ -1,5 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
-
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -74,7 +72,7 @@ internal sealed class Scheduler : IDisposable
         {
             traceSnapshot = [.. _trace];
             scheduleSnapshot = ScriptSteps == null ? [] : [.. ScriptSteps];
-            resolvedMessage = _runningWorkers.AppendAbandonedWorkers(AppendReplayState(message));
+            resolvedMessage = AppendReplayState(message);
             diagnostics = BuildDiagnosticSnapshot();
         }
 
@@ -226,19 +224,16 @@ internal sealed class Scheduler : IDisposable
         await WaitForRunningTasksAsync().ConfigureAwait(false);
     }
 
-    /// <summary>Adds the workers abandoned by the last shutdown drain to a failure created before the drain.</summary>
-    /// <param name="exception">The failure to report.</param>
-    /// <param name="reported">When this method returns <see langword="true" />, a copy of <paramref name="exception" /> whose message names the abandoned workers.</param>
-    /// <returns><see langword="true" /> if the last shutdown drain abandoned workers; otherwise <see langword="false" />.</returns>
-    internal bool TryReportAbandonedWorkers(RunException exception, [NotNullWhen(true)] out RunException? reported)
+    /// <summary>Names the workers abandoned by the last shutdown drain in the message of the run failure.</summary>
+    /// <param name="exception">The run failure.</param>
+    internal void ReportAbandonedWorkers(RunException exception)
     {
-        string message;
+        string? description;
         lock (_gate)
-            message = _runningWorkers.AppendAbandonedWorkers(exception.Message);
+            description = _runningWorkers.DescribeAbandoned();
 
-        reported = ReferenceEquals(message, exception.Message) ? null
-            : new RunException(message, exception.Context, exception.InnerException, exception.FailureOrigin);
-        return reported != null;
+        if (description != null)
+            exception.ReportAbandonedWorkers(description);
     }
 
     /// <summary>
@@ -481,7 +476,7 @@ internal sealed class Scheduler : IDisposable
         {
             runningTasks = _runningWorkers.Snapshot();
             if (runningTasks.Length == 0)
-                _runningWorkers.RecordDrain(true, _tasks);
+                _runningWorkers.ClearAbandoned();
         }
 
         if (runningTasks.Length == 0)
@@ -495,7 +490,12 @@ internal sealed class Scheduler : IDisposable
                 await all.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
 
             lock (_gate)
-                _runningWorkers.RecordDrain(completed == all, _tasks);
+            {
+                if (completed == all)
+                    _runningWorkers.ClearAbandoned();
+                else
+                    _runningWorkers.RecordAbandoned(_tasks);
+            }
 
             return;
         }

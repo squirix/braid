@@ -26,8 +26,35 @@ public sealed class AbandonedWorkerTests : TestBase
         var lateProbe = await stuck.ResumeAsync(cancellationToken);
 
         _ = await Assert.That(exception.Message).Contains("Workers still running after the run stopped were abandoned: stuck.");
-        _ = await Assert.That(exception.ToString()).Contains("abandoned: stuck.");
+        _ = await Assert.That(exception.ToString()).Contains("were abandoned: ");
+        _ = await Assert.That(exception.StackTrace).Contains("JoinAsync");
         _ = await Assert.That(lateProbe).IsEqualTo(TaskStatus.Canceled);
+    }
+
+    /// <summary>Verifies a callback failure raised after a failed join names the abandoned worker once.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task CallbackFailureReportsAbandonedWorker(CancellationToken cancellationToken)
+    {
+        using var stuck = new StuckWorker();
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(
+                async context =>
+                {
+                    context.Fork("stuck", stuck.RunAsync);
+                    var join = await BraidAssertions.AssertExpectsAsync<RunException>(context.JoinAsync(cancellationToken));
+                    throw new InvalidOperationException("callback failed after: " + join.Message);
+                },
+                new RunOptions { Iterations = 1, Seed = 1, Timeout = RunTimeout },
+                cancellationToken));
+
+        _ = await stuck.ResumeAsync(cancellationToken);
+
+        _ = await Assert.That(exception.InnerException).IsTypeOf<InvalidOperationException>();
+        _ = await Assert.That(exception.InnerException!.Message).DoesNotContain("abandoned");
+        _ = await Assert.That(exception.Message.Split("were abandoned").Length).IsEqualTo(2);
+        _ = await Assert.That(exception.Message).Contains("abandoned: stuck.");
     }
 
     /// <summary>Verifies a failure whose workers all stop during the shutdown drain does not mention abandoned workers.</summary>
