@@ -24,6 +24,7 @@ braid targets **.NET 10**.
 ```csharp
 using Braid;
 
+// Inside a test method: cancellationToken is the test framework's token (or CancellationToken.None).
 var workerCompleted = false;
 var options = new RunOptions
 {
@@ -36,13 +37,16 @@ await Runner.RunAsync(
     {
         context.Fork(async () =>
         {
-            await Probe.HitAsync("ready");
+            await Probe.HitAsync("ready", cancellationToken);
             workerCompleted = true;
         });
 
-        await context.JoinAsync();
+        await context.JoinAsync(cancellationToken);
     },
-    options);
+    options,
+    cancellationToken);
+
+// workerCompleted is true here.
 ```
 
 Outside a braid run, `Probe.HitAsync` completes immediately. Inside a
@@ -52,7 +56,7 @@ Don't know the failing interleaving yet? Try bounded exploration:
 
 ```csharp
 await Runner.ExploreAsync(
-    options => options
+    static options => options
         .WithSeed(123)
         .WithMaxSchedules(1_000)
         .WithMaxStepsPerSchedule(100),
@@ -62,11 +66,13 @@ await Runner.ExploreAsync(
         await braid.WorkerAsync("writer", WriterAsync);
 
         await braid.JoinAsync(cancellationToken);
-        Assert.Equal(expected, observed);
+        if (observed != expected)
+            throw new InvalidOperationException($"Observed {observed}, expected {expected}.");
     },
     cancellationToken);
 ```
 
+`ReaderAsync` and `WriterAsync` are your worker methods, and they call `Probe.HitAsync` at the points braid should interleave.
 When a run fails, use `RunException.TryGetReplayText` to export a replay token
 for a stable regression test.
 

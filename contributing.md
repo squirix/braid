@@ -9,7 +9,7 @@ Report bugs and suggest improvements via [GitHub Issues](https://github.com/squi
 
 - Follow `.editorconfig` for formatting and analyzer severity.
 - Use PascalCase for C# member names.
-- Do not use underscores in xUnit test method names. Test methods marked with `[Fact]` or `[Theory]` should use
+- Do not use underscores in test method names. Test methods marked with `[Test]` should use
   descriptive PascalCase names, for example `TryGetReplayTextReturnsTrueForExportableTypedSchedule`.
 - Keep changes focused; add or update tests when behavior changes.
 - After changing production or test code, run the smallest relevant `dotnet test` command that covers the change.
@@ -17,11 +17,11 @@ Report bugs and suggest improvements via [GitHub Issues](https://github.com/squi
 ## Development
 
 This repository is a single .NET 10 NuGet library. All development and testing runs in-process via the .NET CLI and
-xUnit — no databases, Docker, or long-running services.
+TUnit on Microsoft.Testing.Platform — no databases, Docker, or long-running services.
 
 ### Prerequisites
 
-- **.NET SDK 10.0.300+** (pinned in `global.json`).
+- The .NET SDK version pinned in `global.json`.
 
 ### Common commands (from repository root)
 
