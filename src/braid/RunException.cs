@@ -74,7 +74,7 @@ public sealed class RunException : Exception
     /// <summary>Gets the zero-based failing iteration index.</summary>
     public int Iteration => Context.Iteration;
 
-    /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
+    /// <summary>Gets the replay schedule the run executed, including any steps appended to complete it, or an empty list when random scheduling was used.</summary>
     public IReadOnlyList<ReplayStep> Steps => Context.Steps;
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>

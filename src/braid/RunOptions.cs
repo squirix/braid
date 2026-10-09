@@ -21,6 +21,9 @@ public sealed class RunOptions
     /// <summary>Gets or initializes the per-iteration timeout.</summary>
     public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(10);
 
+    /// <summary>Gets a value indicating whether workers still waiting after the last schedule step are released in fork order instead of failing the run.</summary>
+    internal bool CompletesScheduleInForkOrder { get; init; }
+
     internal void Validate()
     {
         ValidatePositive(Iterations, nameof(Iterations), "Iterations must be positive.");

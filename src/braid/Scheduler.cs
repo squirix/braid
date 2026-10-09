@@ -2,13 +2,14 @@ namespace Braid;
 
 internal sealed class Scheduler : IDisposable
 {
+    private const string ScriptExhaustedMessage = "Scripted schedule was exhausted before all workers completed.";
     private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(1);
     private readonly Lock _gate = new();
     private readonly int _iteration;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
     private readonly DeterministicRandom _random;
     private readonly List<Task> _runningForkTasks = [];
-    private readonly IReadOnlyList<ReplayStep>? _steps;
+    private readonly ReplayScript? _script;
     private readonly int _seed;
     private readonly CancellationTokenSource _shutdownCts = new();
     private readonly SemaphoreSlim _stateChanged = new(0);
@@ -19,14 +20,16 @@ internal sealed class Scheduler : IDisposable
     private int _nextScheduleStep;
     private int _nextTaskId;
 
-    internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? steps)
+    internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? steps, bool completesInForkOrder)
     {
         _seed = seed;
         _iteration = iteration;
         _timeout = timeout;
-        _steps = steps;
+        _script = steps == null ? null : new ReplayScript(steps, completesInForkOrder);
         _random = new DeterministicRandom(seed);
     }
+
+    private IReadOnlyList<ReplayStep>? ScriptSteps => _script?.Steps;
 
     public void Dispose()
     {
@@ -55,7 +58,7 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             traceSnapshot = [.. _trace];
-            scheduleSnapshot = _steps == null ? [] : [.. _steps];
+            scheduleSnapshot = ScriptSteps == null ? [] : [.. ScriptSteps];
             resolvedMessage = AppendReplayState(message);
             diagnostics = BuildDiagnosticSnapshot();
         }
@@ -203,7 +206,7 @@ internal sealed class Scheduler : IDisposable
         if (!_tasks.TrueForAll(static task => task.State == RunTaskState.Completed))
             return false;
 
-        if (_steps == null || _nextScheduleStep >= _steps.Count)
+        if (ScriptSteps == null || _nextScheduleStep >= ScriptSteps.Count)
             return true;
         var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
@@ -212,18 +215,18 @@ internal sealed class Scheduler : IDisposable
 
     private string AppendReplayState(string message)
     {
-        if (_steps == null)
+        if (ScriptSteps == null)
             return message;
 
         var details = new List<string>
         {
             message,
-            $"Next replay step: {_nextScheduleStep + 1} of {_steps.Count}",
+            $"Next replay step: {_nextScheduleStep + 1} of {ScriptSteps.Count}",
         };
 
-        if (_nextScheduleStep >= _steps.Count)
+        if (_nextScheduleStep >= ScriptSteps.Count)
             return string.Join(Environment.NewLine, details);
-        var step = _steps[_nextScheduleStep];
+        var step = ScriptSteps[_nextScheduleStep];
         details.Add($"Next replay operation: {FormatStepLocal(step)}");
 
         return string.Join(Environment.NewLine, details);
@@ -236,13 +239,13 @@ internal sealed class Scheduler : IDisposable
 
     private SchedulerDiagnostics BuildDiagnosticSnapshot()
     {
-        var hasReplay = _steps?.Count > 0;
+        var hasReplay = ScriptSteps?.Count > 0;
 
         ReplayStep? lastMatched = null;
         int? lastMatchedOneBased = null;
         if (hasReplay && _nextScheduleStep > 0)
         {
-            lastMatched = _steps![_nextScheduleStep - 1];
+            lastMatched = ScriptSteps![_nextScheduleStep - 1];
             lastMatchedOneBased = _nextScheduleStep;
         }
 
@@ -250,14 +253,14 @@ internal sealed class Scheduler : IDisposable
         var held = SchedulerSearch.CollectProbeWaitDiagnostics(_tasks, RunTaskState.Held);
 
         (int OneBasedIndex, ReplayStep Step)[] unused;
-        if (hasReplay && _nextScheduleStep < _steps!.Count)
+        if (hasReplay && _nextScheduleStep < ScriptSteps!.Count)
         {
-            var remaining = _steps.Count - _nextScheduleStep;
+            var remaining = ScriptSteps.Count - _nextScheduleStep;
             unused = new (int, ReplayStep)[remaining];
             for (var index = 0; index < remaining; index++)
             {
                 var scheduleIndex = _nextScheduleStep + index;
-                unused[index] = (scheduleIndex + 1, _steps[scheduleIndex]);
+                unused[index] = (scheduleIndex + 1, ScriptSteps[scheduleIndex]);
             }
         }
         else
@@ -342,7 +345,7 @@ internal sealed class Scheduler : IDisposable
         {
             Tasks = _tasks,
             NextScheduleStep = _nextScheduleStep,
-            Steps = _steps,
+            Script = _script,
             Random = _random,
             Trace = _trace,
             CreateException = CreateException,
@@ -631,9 +634,40 @@ internal sealed class Scheduler : IDisposable
 
         private static RunTask? SelectScriptedTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
-            return context.NextScheduleStep >= context.Steps!.Count
-                ? throw context.CreateException("Scripted schedule was exhausted before all workers completed.", null, RunFailureOrigin.Scheduler)
-                : SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
+            return context.NextScheduleStep < context.Steps!.Count
+                ? SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease)
+                : SelectExhaustedScriptTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
+        }
+
+        private static RunTask? SelectExhaustedScriptTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
+        {
+            return context.Script!.CompletesInForkOrder
+                ? SelectForkOrderCompletionTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease)
+                : throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler);
+        }
+
+        /// <summary>
+        /// Releases the first waiting worker in fork order once no worker is running, so the choice depends only on which workers are parked.
+        /// The choice is appended to the script as a hit step, so the reported schedule replays the whole run.
+        /// </summary>
+        /// <param name="context">The join context.</param>
+        /// <param name="waitingTasks">The waiting workers, sorted by fork order.</param>
+        /// <param name="hasRunningTasks">Whether a worker is still running.</param>
+        /// <param name="advancedWithoutRelease">Set when the step advanced without releasing a worker.</param>
+        /// <returns>The worker to release, or <see langword="null"/> to wait for a state change.</returns>
+        /// <exception cref="RunException">Only held workers remain, so none can be released.</exception>
+        private static RunTask? SelectForkOrderCompletionTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
+        {
+            if (hasRunningTasks)
+                return null;
+
+            // Fail now instead of waiting for the run timeout.
+            if (waitingTasks.Length == 0)
+                throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler);
+
+            var task = waitingTasks[0];
+            context.Script!.AppendCompletionStep(ReplayStep.Hit(task.WorkerId, task.LastProbeName!));
+            return SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
         }
 
         private static RunTask? SelectReleaseStep(SchedulerJoinContext context, in ReplayStep step, RunTask? heldTask, RunTask? sameWorkerBlockedTask, bool hasRunningTasks)
