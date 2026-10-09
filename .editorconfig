@@ -228,8 +228,6 @@ dotnet_diagnostic.EPC38.severity = warning # ErrorProne.NET correctness rule (EP
 dotnet_diagnostic.EPC39.severity = warning # ErrorProne.NET correctness rule (EPC39)
 dotnet_diagnostic.EPC40.severity = warning # ErrorProne.NET correctness rule (EPC40)
 dotnet_diagnostic.ERP041.severity = warning # EventSource class should be sealed
-dotnet_diagnostic.EPS05.severity = warning # struct could be passed using in-modifier for performance
-dotnet_diagnostic.EPS09.severity = warning # hidden copy of a ref readonly local
 
 # ===========================================================================
 # Microsoft.VisualStudio.Threading (VSTHRD) — promote hidden rule to warning
