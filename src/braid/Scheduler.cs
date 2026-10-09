@@ -273,7 +273,7 @@ internal sealed class Scheduler : IDisposable
             return true;
         var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
-        throw CreateException(message, null);
+        throw CreateException(message, null).SkipInExploration();
     }
 
     /// <summary>
@@ -295,7 +295,7 @@ internal sealed class Scheduler : IDisposable
         }
 
         return blockedOnParkedWorker
-            ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler)
+            ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler).SkipInExploration()
             : CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout);
     }
 
@@ -677,7 +677,7 @@ internal sealed class Scheduler : IDisposable
             if (waitingTask == null)
             {
                 var message = BuildStepMismatchMessage(context.NextScheduleStep, "arrive", in step, sameWorkerBlockedTask);
-                return hasRunningTasks ? null : throw context.CreateException(message, null, RunFailureOrigin.Scheduler);
+                return hasRunningTasks ? null : throw context.CreateException(message, null, RunFailureOrigin.Scheduler).SkipInExploration();
             }
 
             waitingTask.State = RunTaskState.Held;
@@ -701,7 +701,7 @@ internal sealed class Scheduler : IDisposable
                 return hasRunningTasks ? null : throw context.CreateException(
                     BuildStepMismatchMessage(context.NextScheduleStep, "hit", in step, sameWorkerBlockedTask),
                     null,
-                    RunFailureOrigin.Scheduler);
+                    RunFailureOrigin.Scheduler).SkipInExploration();
             }
 
             context.NextScheduleStep++;
@@ -735,7 +735,7 @@ internal sealed class Scheduler : IDisposable
         {
             return context.Script!.CompletesInForkOrder
                 ? SelectForkOrderCompletionTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease)
-                : throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler);
+                : throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler).SkipInExploration();
         }
 
         /// <summary>
@@ -755,7 +755,7 @@ internal sealed class Scheduler : IDisposable
 
             // Fail now instead of waiting for the run timeout.
             if (waitingTasks.Length == 0)
-                throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler);
+                throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler).SkipInExploration();
 
             var task = waitingTasks[0];
             context.Script!.AppendCompletionStep(ReplayStep.Hit(task.WorkerId, task.LastProbeName!));
@@ -767,7 +767,7 @@ internal sealed class Scheduler : IDisposable
             if (heldTask == null)
             {
                 var message = BuildStepMismatchMessage(context.NextScheduleStep, "release held", in step, sameWorkerBlockedTask);
-                return hasRunningTasks ? null : throw context.CreateException(message, null, RunFailureOrigin.Scheduler);
+                return hasRunningTasks ? null : throw context.CreateException(message, null, RunFailureOrigin.Scheduler).SkipInExploration();
             }
 
             context.NextScheduleStep++;
@@ -787,10 +787,10 @@ internal sealed class Scheduler : IDisposable
                 ReplayStepKind.Arrive when heldTask != null => throw context.CreateException(
                     $"Scripted schedule step {context.NextScheduleStep + 1} could not be satisfied: duplicate Arrive for held {step.WorkerId} at {step.ProbeName}.",
                     null,
-                    RunFailureOrigin.Scheduler),
+                    RunFailureOrigin.Scheduler).SkipInExploration(),
                 ReplayStepKind.Arrive => SelectArriveStep(context, in step, waitingTask, sameWorkerBlockedTask, hasRunningTasks, ref advancedWithoutRelease),
                 ReplayStepKind.Release => SelectReleaseStep(context, in step, heldTask, sameWorkerBlockedTask, hasRunningTasks),
-                _ => throw context.CreateException($"Scripted schedule step {context.NextScheduleStep + 1} has unknown step kind {step.Kind}.", null, RunFailureOrigin.Scheduler),
+                _ => throw context.CreateException($"Scripted schedule step {context.NextScheduleStep + 1} has unknown step kind {step.Kind}.", null, RunFailureOrigin.Scheduler).SkipInExploration(),
             };
         }
     }

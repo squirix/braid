@@ -225,7 +225,13 @@ public static class Runner
         }
     }
 
-    private static bool IsExplorationTargetFailure(RunException ex) => ex is { FailureOrigin: RunFailureOrigin.Timeout } or { FailureOrigin: RunFailureOrigin.UserTest, InnerException: not null and not RunException };
+    /// <summary>
+    /// Decides whether a failure stops exploration. Only failures that come from the schedule itself are skipped: a schedule that does not fit
+    /// the run, or a hang caused by braid keeping a worker parked. Test failures, timeouts and API misuse errors stop exploration.
+    /// </summary>
+    /// <param name="ex">The failure.</param>
+    /// <returns><see langword="true" /> if the failure stops exploration; otherwise <see langword="false" />.</returns>
+    private static bool IsExplorationTargetFailure(RunException ex) => !ex.SkippedByExploration && ex.InnerException is not RunException { SkippedByExploration: true };
 
     private static Task RunScheduledExploreAttemptAsync(in ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
     {
