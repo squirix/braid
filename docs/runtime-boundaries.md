@@ -54,7 +54,7 @@ decision, in random, replay and exploration modes alike. A replay schedule there
 
 - Forked workers start only when the run joins. A callback that waits for a forked worker before `JoinAsync` never continues:
   the run fails with `RunFailureOrigin.Timeout` once `RunOptions.Timeout` elapses, and canceling the run token ends it.
-  The timeout counts from the start of the callback.
+  The timeout counts from the start of the callback. A callback that blocks synchronously (for example with `Task.Wait`) is not bounded.
 - A shared read or write before a worker's first probe is never interleaved with other workers.
 - Put a probe before every shared access that the race depends on, as in `examples/single-file/lost-update`.
 

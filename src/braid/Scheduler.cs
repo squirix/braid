@@ -441,9 +441,6 @@ internal sealed class Scheduler : IDisposable
 
         while (true)
         {
-            // A linked token is canceled by a callback that may run after a worker already observed the caller's token,
-            // so check the caller's token first: a cancellation must not surface as a schedule mismatch.
-            cancellationToken.ThrowIfCancellationRequested();
             linkedToken.ThrowIfCancellationRequested();
 
             RunTask? nextTask;
@@ -451,6 +448,9 @@ internal sealed class Scheduler : IDisposable
 
             lock (_gate)
             {
+                // A linked token is canceled by a callback that may run after a worker already observed the caller's token and changed state,
+                // so check the caller's token under the gate: a cancellation must not surface as a schedule mismatch.
+                cancellationToken.ThrowIfCancellationRequested();
                 context.NextScheduleStep = _nextScheduleStep;
 
                 nextTask = SchedulerSearch.SelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);

@@ -6,7 +6,8 @@ namespace Braid;
 public static class Runner
 {
     private const string CallbackTimeoutMessage =
-        "braid run timed out before the callback called JoinAsync. Forked workers start only when the run joins, so a callback that waits for a forked worker before JoinAsync never continues.";
+        "braid run timed out before the callback called JoinAsync. Forked workers start only when the run joins, "
+        + "so a callback that waits for a forked worker before JoinAsync never continues. The callback was abandoned and may keep running.";
 
     /// <summary>
     /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
@@ -167,7 +168,7 @@ public static class Runner
     /// <summary>
     /// Runs and awaits the test callback. Forked workers start only when the run joins, so a callback that waits for a forked worker before it joins
     /// never continues: until the callback joins, the run timeout and <paramref name="cancellationToken" /> end the wait.
-    /// A joined callback ends with the join, which applies the run timeout itself.
+    /// After the callback joins, the join applies the run timeout to itself only. A callback that blocks synchronously before its first await is not bounded.
     /// </summary>
     /// <param name="scheduler">The scheduler of the run.</param>
     /// <param name="test">The test callback.</param>
