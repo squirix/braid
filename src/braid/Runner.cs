@@ -120,7 +120,7 @@ public static class Runner
             cancellationToken.ThrowIfCancellationRequested();
 
             var seed = unchecked(baseSeed + iteration);
-            using var scheduler = new Scheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps);
+            using var scheduler = new Scheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps, resolvedOptions.CompletesScheduleInForkOrder);
             var context = new RunContext(scheduler);
 
             using var scope = RunScope.Enter(scheduler);
@@ -193,6 +193,7 @@ public static class Runner
             Seed = options.Seed,
             Schedule = schedule,
             Timeout = options.Timeout,
+            CompletesScheduleInForkOrder = true,
         };
 
         return RunAsync(callback.RunReplayAsync, runOptions, cancellationToken);

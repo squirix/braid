@@ -127,11 +127,11 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(explored).IsTrue();
     }
 
-    /// <summary>Verifies a discovery failure is surfaced when a step cap below the schedule length prevents replaying it.</summary>
+    /// <summary>Verifies a step cap below the schedule length still runs each generated schedule to completion.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreSurfacesFailureWithSmallSteps(CancellationToken cancellationToken)
+    public async Task ExploreFindsFailureWithSmallSteps(CancellationToken cancellationToken)
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
@@ -140,6 +140,37 @@ public sealed class BraidExploreAsyncTests : TestBase
                 cancellationToken));
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
+        _ = await Assert.That(exception.TryGetReplayText(out _, out var error)).IsTrue().Because(error!);
+        _ = await Assert.That(exception.Steps.Count).IsEqualTo(4);
+    }
+
+    /// <summary>Verifies an assertion after the join fails under a schedule cut by the step cap, and its replay token reproduces it.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ExploreFindsOrderFailureAfterStepCap(CancellationToken cancellationToken)
+    {
+        // The generated schedule "hit second b1; hit second b2" finishes "second" first; fork order then completes "first".
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.ExploreAsync(
+                static options => options.WithSeed(2).WithMaxSchedules(10).WithMaxStepsPerSchedule(2),
+                braid => RunFinishOrderExploreAsync(braid, cancellationToken),
+                cancellationToken));
+
+        _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
+        _ = await Assert.That(exception.Steps).IsEquivalentTo(
+            [ReplayStep.Hit("second", "b1"), ReplayStep.Hit("second", "b2"), ReplayStep.Hit("first", "a1"), ReplayStep.Hit("first", "a2")]);
+
+        _ = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(
+                context => RunFinishOrderAsync(context, cancellationToken),
+                new RunOptions
+                {
+                    Iterations = 1,
+                    Seed = 2,
+                    Schedule = ReplaySchedule.Parse(replayText),
+                },
+                cancellationToken));
     }
 
     /// <summary>Verifies a discovery failure is surfaced when no generated schedule within the bounds reproduces it.</summary>
@@ -249,6 +280,58 @@ public sealed class BraidExploreAsyncTests : TestBase
 
         await braid.JoinAsync(cancellationToken);
         _ = await Assert.That(completedWorkers).IsEqualTo(0);
+    }
+
+    private static async Task RunFinishOrderExploreAsync(ExploreContext braid, CancellationToken cancellationToken = default)
+    {
+        string? finishedFirst = null;
+
+        await braid.WorkerAsync(
+            "first",
+            async () =>
+            {
+                await Probe.HitAsync("a1", cancellationToken);
+                await Probe.HitAsync("a2", cancellationToken);
+                finishedFirst ??= "first";
+            });
+
+        await braid.WorkerAsync(
+            "second",
+            async () =>
+            {
+                await Probe.HitAsync("b1", cancellationToken);
+                await Probe.HitAsync("b2", cancellationToken);
+                finishedFirst ??= "second";
+            });
+
+        await braid.JoinAsync(cancellationToken);
+        _ = await Assert.That(finishedFirst).IsEqualTo("first");
+    }
+
+    private static async Task RunFinishOrderAsync(RunContext context, CancellationToken cancellationToken = default)
+    {
+        string? finishedFirst = null;
+
+        context.Fork(
+            "first",
+            async () =>
+            {
+                await Probe.HitAsync("a1", cancellationToken);
+                await Probe.HitAsync("a2", cancellationToken);
+                finishedFirst ??= "first";
+            });
+
+        context.Fork(
+            "second",
+            async () =>
+            {
+                await Probe.HitAsync("b1", cancellationToken);
+                await Probe.HitAsync("b2", cancellationToken);
+                finishedFirst ??= "second";
+            });
+
+        await context.JoinAsync(cancellationToken);
+        _ = await Assert.That(finishedFirst).IsEqualTo("first");
     }
 
     private static async Task RunOrderDependentExploreAsync(ExploreContext braid, CancellationToken cancellationToken = default)
