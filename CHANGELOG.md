@@ -4,6 +4,7 @@
 
 ### Added
 
+- `RunOptions.MaxTimeout`, the longest supported run timeout (about 49.7 days).
 - `RunFailureOrigin.Timeout` for runs that timed out while no worker was parked at a probe.
 - `SchedulerDiagnostics.RunningWorkers` and a **Running workers** section in failure reports, with the probe each running worker was last released at.
 - `ProbeWaitDiagnostic.StartProbeName` and `NotStartedProbeName` mark workers before their first probe; waiting workers that have not started are now listed.
@@ -15,6 +16,7 @@
 
 ### Fixed
 
+- A timeout above `RunOptions.MaxTimeout` is rejected with `ArgumentOutOfRangeException` when options are validated. It used to fail the run as a user test failure.
 - `RunException.ToString()` includes the inner exception's stack trace and nested inner exceptions, and the report's own stack trace.
 - `ExploreAsync` no longer passes a test that hangs with no running worker blocked on a parked one:
   such a timeout in the discovery run or in a generated schedule fails exploration, with a replay token for a generated schedule.

@@ -163,10 +163,10 @@ internal sealed class Scheduler : IDisposable
 
     internal async Task JoinAsync(CancellationToken cancellationToken)
     {
-        await _joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
-
         using var timeoutCts = new CancellationTokenSource(_timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
+        await _joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {

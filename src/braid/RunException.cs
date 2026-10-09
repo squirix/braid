@@ -135,7 +135,7 @@ public sealed class RunException : Exception
 
     private static void AppendIndentedLines(List<string> lines, string text)
     {
-        foreach (var line in text.Split(Environment.NewLine))
+        foreach (var line in text.Split(["\r\n", "\n", "\r"], StringSplitOptions.None))
             lines.Add($"  {line}");
     }
 
