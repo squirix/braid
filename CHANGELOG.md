@@ -35,7 +35,8 @@
 - A callback that waits before `JoinAsync`, for example for a forked worker (workers start only when the run joins), no longer hangs:
   the run timeout fails it with `RunFailureOrigin.Timeout`, and canceling the run token ends it with `OperationCanceledException`.
 - `ExploreAsync` no longer passes when the test misuses the API, for example forks after `JoinAsync` or hits a second probe on a worker
-  whose probe wait is still in flight: it reports the same `RunException` as `RunAsync`. Only schedule mismatches and parked-worker timeouts are skipped.
+  whose probe wait is still in flight: it reports the same `RunException` as `RunAsync`. Only failures caused by the schedule are skipped:
+  schedule mismatches and parked-worker timeouts. A `RunException` that test code creates and throws now stops exploration too.
 - A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
 
 ### Documentation
