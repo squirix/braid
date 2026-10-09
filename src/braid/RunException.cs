@@ -9,6 +9,8 @@ namespace Braid;
 [PublicAPI]
 public sealed class RunException : Exception
 {
+    private string? _abandonedWorkers;
+
     /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     public RunException()
         : this("A braid run failed.", new RunExceptionContext(0, 0, [], []))
@@ -87,6 +89,10 @@ public sealed class RunException : Exception
     public IReadOnlyList<string> Traces => Context.Traces;
 
     /// <inheritdoc />
+    /// <remarks>Names the workers that were still running after the run stopped, when there were any.</remarks>
+    public override string Message => _abandonedWorkers == null ? base.Message : base.Message + Environment.NewLine + _abandonedWorkers;
+
+    /// <inheritdoc />
     public override string ToString()
     {
         var lines = new List<string>
@@ -132,6 +138,10 @@ public sealed class RunException : Exception
             return false;
         }
     }
+
+    /// <summary>Adds the description of the workers abandoned after the run stopped to <see cref="Message" />, once.</summary>
+    /// <param name="description">The description of the abandoned workers.</param>
+    internal void ReportAbandonedWorkers(string description) => _abandonedWorkers ??= description;
 
     private static void AppendIndentedLines(List<string> lines, string text)
     {

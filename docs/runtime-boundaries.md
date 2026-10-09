@@ -72,6 +72,18 @@ the parked worker holds across a probe) never continues, and the run times out. 
 
 ---
 
+## Workers that outlive a failed run
+
+When a run fails or times out, braid cancels the probe waits of parked workers and waits about one second, at most two, for every worker to finish.
+A worker still running after that, for example one awaiting I/O or a delay that ignores cancellation, is abandoned:
+
+- The failure message names the abandoned workers.
+- Their next probe throws `OperationCanceledException`.
+- Until then they keep running and can change shared state, also while `ExploreAsync` runs later schedules.
+- A run canceled through its `CancellationToken` throws `OperationCanceledException` and does not list abandoned workers.
+
+---
+
 ## What this is not
 
 These boundaries are **not** automatic `await` interception. You choose where probes go; Braid does not rewrite IL or replace `TaskScheduler`.
