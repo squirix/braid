@@ -137,9 +137,12 @@ public static class Runner
                 await callbackTask.ConfigureAwait(false);
                 await context.JoinAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (RunException)
+            catch (RunException ex)
             {
                 await scheduler.StopAsync().ConfigureAwait(false);
+                if (scheduler.TryReportAbandonedWorkers(ex, out var reported))
+                    throw reported;
+
                 throw;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

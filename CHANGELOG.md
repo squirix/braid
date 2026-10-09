@@ -26,6 +26,8 @@
 - `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
   after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
 - `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
+- A worker still running after a failed run stopped waiting for it no longer gets `ObjectDisposedException` from its next probe:
+  the probe throws `OperationCanceledException`, and the failure message names the abandoned workers.
 
 ### Documentation
 

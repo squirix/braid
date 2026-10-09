@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -11,7 +13,7 @@ internal sealed class Scheduler : IDisposable
     private readonly int _iteration;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
     private readonly DeterministicRandom _random;
-    private readonly List<Task> _runningForkTasks = [];
+    private readonly RunningWorkers _runningWorkers = new();
     private readonly ReplayScript? _script;
     private readonly int _seed;
     private readonly CancellationTokenSource _shutdownCts = new();
@@ -37,15 +39,25 @@ internal sealed class Scheduler : IDisposable
     public void Dispose()
     {
         RunTask[] tasks;
+        bool workersRunning;
         lock (_gate)
+        {
             tasks = [.. _tasks];
+            workersRunning = _runningWorkers.AnyRunning;
+        }
 
         if (!_shutdownCts.IsCancellationRequested)
             _shutdownCts.Cancel();
 
+        _joinMutex.Dispose();
+
+        // A worker abandoned after the shutdown drain still uses the shutdown token, the state signal and its permit:
+        // its next probe throws OperationCanceledException instead of ObjectDisposedException. The garbage collector reclaims them.
+        if (workersRunning)
+            return;
+
         _shutdownCts.Dispose();
         _stateChanged.Dispose();
-        _joinMutex.Dispose();
 
         for (var index = 0; index < tasks.Length; index++)
             tasks[index].Dispose();
@@ -62,7 +74,7 @@ internal sealed class Scheduler : IDisposable
         {
             traceSnapshot = [.. _trace];
             scheduleSnapshot = ScriptSteps == null ? [] : [.. ScriptSteps];
-            resolvedMessage = AppendReplayState(message);
+            resolvedMessage = _runningWorkers.AppendAbandonedWorkers(AppendReplayState(message));
             diagnostics = BuildDiagnosticSnapshot();
         }
 
@@ -99,7 +111,7 @@ internal sealed class Scheduler : IDisposable
         {
             registration.ForkTask = forkTask;
             if (!forkTask.IsCompleted)
-                _runningForkTasks.Add(forkTask);
+                _runningWorkers.Add(forkTask);
         }
     }
 
@@ -212,6 +224,21 @@ internal sealed class Scheduler : IDisposable
     {
         await CancelBlockedTasksAsync().ConfigureAwait(false);
         await WaitForRunningTasksAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>Adds the workers abandoned by the last shutdown drain to a failure created before the drain.</summary>
+    /// <param name="exception">The failure to report.</param>
+    /// <param name="reported">When this method returns <see langword="true" />, a copy of <paramref name="exception" /> whose message names the abandoned workers.</param>
+    /// <returns><see langword="true" /> if the last shutdown drain abandoned workers; otherwise <see langword="false" />.</returns>
+    internal bool TryReportAbandonedWorkers(RunException exception, [NotNullWhen(true)] out RunException? reported)
+    {
+        string message;
+        lock (_gate)
+            message = _runningWorkers.AppendAbandonedWorkers(exception.Message);
+
+        reported = ReferenceEquals(message, exception.Message) ? null
+            : new RunException(message, exception.Context, exception.InnerException, exception.FailureOrigin);
+        return reported != null;
     }
 
     /// <summary>
@@ -384,10 +411,11 @@ internal sealed class Scheduler : IDisposable
         }
         finally
         {
-            lock (_gate)
-                _ = _runningForkTasks.Remove(registration.ForkTask);
-
             CompleteForkedOperation(braidTask);
+
+            // Removed last: once a worker leaves the running list, it no longer touches anything that Dispose releases.
+            lock (_gate)
+                _runningWorkers.Remove(registration.ForkTask);
         }
     }
 
@@ -451,16 +479,9 @@ internal sealed class Scheduler : IDisposable
 
         lock (_gate)
         {
-            if (_runningForkTasks.Count == 0)
-            {
-                runningTasks = [];
-            }
-            else
-            {
-                runningTasks = new Task[_runningForkTasks.Count];
-                for (var index = 0; index < _runningForkTasks.Count; index++)
-                    runningTasks[index] = _runningForkTasks[index];
-            }
+            runningTasks = _runningWorkers.Snapshot();
+            if (runningTasks.Length == 0)
+                _runningWorkers.RecordDrain(true, _tasks);
         }
 
         if (runningTasks.Length == 0)
@@ -472,6 +493,9 @@ internal sealed class Scheduler : IDisposable
             var completed = await Task.WhenAny(all, Task.Delay(ShutdownDrainTimeout, TimeProvider.System, CancellationToken.None)).ConfigureAwait(false);
             if (completed == all)
                 await all.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+            lock (_gate)
+                _runningWorkers.RecordDrain(completed == all, _tasks);
 
             return;
         }
