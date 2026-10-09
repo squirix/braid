@@ -39,6 +39,7 @@ Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`,
 
 - Nested `Runner.RunAsync` calls are not supported.
 - `RunContext` is valid only during the active run callback.
+- `JoinAsync` cannot be called from a forked worker: the join would wait for the worker itself.
 - Fork delegates must return a non-null `Task`.
 - Probe names cannot be null, empty, or whitespace.
 - Non-empty replay schedules must be fully consumed.

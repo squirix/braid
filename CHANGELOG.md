@@ -16,6 +16,8 @@
 - Breaking: forking a second worker with an id already used in the run throws `ArgumentException` from `Fork` / `WorkerAsync`;
   uncaught, `RunAsync` and `ExploreAsync` report it as `RunException` with that `ArgumentException` as the inner exception.
   Duplicate ids used to be accepted, and exploration merged their probe sequences and missed interleavings.
+- Breaking: `JoinAsync` called from a forked worker throws `InvalidOperationException` at once; uncaught, `RunAsync` and `ExploreAsync`
+  report it as `RunException` with `RunFailureOrigin.UserTest` and that inner exception. It used to hang until the run timed out.
 - Breaking: `RunOptions.Timeout` and `ExploreOptionsBuilder.WithTimeout` count from the start of the run callback instead of from `JoinAsync`,
   so slow setup before the join now counts toward the timeout.
 
