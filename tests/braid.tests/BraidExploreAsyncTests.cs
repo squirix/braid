@@ -148,6 +148,8 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Test]
     public async Task ExploreSurfacesFailureOutsideBounds(CancellationToken cancellationToken)
     {
+        // Seed 0 makes the random discovery run release "second" first, so it fails.
+        // The only generated schedule within MaxSchedules(1) is "first, second", which passes.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
@@ -156,6 +158,7 @@ public sealed class BraidExploreAsyncTests : TestBase
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
         _ = await Assert.That(exception.InnerException).IsTypeOf<InvalidOperationException>();
+        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo("second ran before first");
     }
 
     /// <summary>Verifies exhausting MaxSchedules returns without failure when only a passing schedule is evaluated.</summary>
