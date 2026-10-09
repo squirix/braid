@@ -2,7 +2,9 @@
 
 braid is deterministic concurrency testing for .NET libraries (currently **.NET 10**) using explicit async probe points.
 
-The current stable product intentionally focuses on small, reproducible async interleavings. Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control, binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
+The current stable product intentionally focuses on small, reproducible async interleavings.
+Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control,
+binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
 **Recommended next release:** **v0.8.0** — fairness-aware search and richer failure collection (v0.7.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
@@ -156,4 +158,5 @@ braid will not aim to become:
 - a general actor runtime or a built-in linearizability checker
 - a Rider plugin or UI before core 1.0-quality story
 
-Related: braid does not hide races behind sleeps, delays, or timing assumptions; probes stay explicit. This mirrors [README.md](../README.md) (“What braid does not do”) in spirit and detail.
+Related: braid does not hide races behind sleeps, delays, or timing assumptions; probes stay explicit.
+This mirrors [README.md](../README.md) (“What braid does not do”) in spirit and detail.

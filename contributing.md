@@ -26,7 +26,7 @@ xUnit — no databases, Docker, or long-running services.
 ### Common commands (from repository root)
 
 | Task | Command |
-|------|---------|
+| ------ | --------- |
 | Restore | `dotnet restore` |
 | Build | `dotnet build --configuration Release` |
 | Test (full solution) | `dotnet test --configuration Release` |

@@ -14,7 +14,11 @@
 
 ### Changed
 
-- Breaking: renamed all public `Braid`-prefixed types to drop the redundant prefix, matching the `Braid` namespace (SQR0007): `BraidRunner` → `Runner`, `BraidContext` → `RunContext`, `BraidOptions` → `RunOptions`, `BraidRunException` → `RunException`, `BraidRunFailureOrigin` → `RunFailureOrigin`, `BraidSchedule` → `ReplaySchedule`, `BraidStep` → `ReplayStep`, `BraidStepKind` → `ReplayStepKind`, `BraidProbe` → `Probe`, `BraidProbeWaitDiagnostic` → `ProbeWaitDiagnostic`, `BraidSchedulerDiagnostics` → `SchedulerDiagnostics`, `BraidExploreOptions` → `ExploreOptions`, `BraidExploreOptionsBuilder` → `ExploreOptionsBuilder`, `BraidExploreContext` → `ExploreContext`.
+- Breaking: renamed all public `Braid`-prefixed types to drop the redundant prefix, matching the `Braid` namespace (SQR0007):
+  `BraidRunner` → `Runner`, `BraidContext` → `RunContext`, `BraidOptions` → `RunOptions`, `BraidRunException` → `RunException`,
+  `BraidRunFailureOrigin` → `RunFailureOrigin`, `BraidSchedule` → `ReplaySchedule`, `BraidStep` → `ReplayStep`, `BraidStepKind` → `ReplayStepKind`,
+  `BraidProbe` → `Probe`, `BraidProbeWaitDiagnostic` → `ProbeWaitDiagnostic`, `BraidSchedulerDiagnostics` → `SchedulerDiagnostics`,
+  `BraidExploreOptions` → `ExploreOptions`, `BraidExploreOptionsBuilder` → `ExploreOptionsBuilder`, `BraidExploreContext` → `ExploreContext`.
 - Converted `ExploreOptions` to a readonly record struct and extracted `RunExceptionContext` to simplify failure-report construction.
 - Centralized the assembly version in `Directory.Build.props`.
 
@@ -102,11 +106,14 @@
 
 ### Documentation
 
-- Aligned README, roadmap, release checklist/process examples, and example walkthroughs with **.NET 10**, **v0.3.0** text replay schedules, **Arrive / Hit / Release** semantics, **random-only failure** limits (no synthesized full replay schedule), and explicit **non-goals** (`TaskScheduler` replacement, await interception, binary rewriting, exhaustive model checking).
+- Aligned README, roadmap, release checklist/process examples, and example walkthroughs with **.NET 10**,
+  **v0.3.0** text replay schedules, **Arrive / Hit / Release** semantics, **random-only failure** limits (no synthesized full replay schedule),
+  and explicit **non-goals** (`TaskScheduler` replacement, await interception, binary rewriting, exhaustive model checking).
 
 ### Fixed
 
-- Stabilized `CancellationWhileWorkerIsHeldDoesNotDeadlock`: assertion now allows either cancellation propagation or normal replay completion before cancellation, matching the intent “no deadlock on teardown.”
+- Stabilized `CancellationWhileWorkerIsHeldDoesNotDeadlock`: assertion now allows either cancellation propagation
+  or normal replay completion before cancellation, matching the intent “no deadlock on teardown.”
 
 ## 0.3.0
 
@@ -147,18 +154,18 @@ Stable release of braid.
 
 ### Added
 
-* Deterministic explicit-probe concurrency testing for .NET with `Braid.RunAsync`.
-* Fork/join orchestration through `BraidContext`.
-* Probe control with `BraidProbe.HitAsync`.
-* Typed replay schedules through `BraidSchedule` and `BraidStep`.
-* Failure reports with seed, iteration, schedule, and trace.
+- Deterministic explicit-probe concurrency testing for .NET with `Braid.RunAsync`.
+- Fork/join orchestration through `BraidContext`.
+- Probe control with `BraidProbe.HitAsync`.
+- Typed replay schedules through `BraidSchedule` and `BraidStep`.
+- Failure reports with seed, iteration, schedule, and trace.
 
 ### Known limitations
 
-* Explicit probes are required.
-* No automatic `await` interception.
-* No `TaskScheduler` replacement.
-* No exhaustive state-space search.
+- Explicit probes are required.
+- No automatic `await` interception.
+- No `TaskScheduler` replacement.
+- No exhaustive state-space search.
 
 ## 0.1.0-preview.1
 
@@ -166,20 +173,20 @@ Initial preview of braid.
 
 ### Added
 
-* Explicit probe-based concurrency testing with `BraidProbe.HitAsync`.
-* Fork/join run model through `Braid.RunAsync` and `BraidContext`.
-* Deterministic seed-based scheduling.
-* Typed replay schedules through `BraidSchedule` and `BraidStep`.
-* Reproducible failure reports with seed, iteration, schedule, and trace.
-* Scripted schedule failure handling.
-* Cancellation and timeout handling.
-* Public API contract tests and scheduler stress smoke tests.
+- Explicit probe-based concurrency testing with `BraidProbe.HitAsync`.
+- Fork/join run model through `Braid.RunAsync` and `BraidContext`.
+- Deterministic seed-based scheduling.
+- Typed replay schedules through `BraidSchedule` and `BraidStep`.
+- Reproducible failure reports with seed, iteration, schedule, and trace.
+- Scripted schedule failure handling.
+- Cancellation and timeout handling.
+- Public API contract tests and scheduler stress smoke tests.
 
 ### Known limitations
 
-* Explicit probes are required.
-* No automatic `await` interception.
-* No `TaskScheduler` replacement.
-* No exhaustive state-space search.
-* No string schedule parser yet.
-* No test-framework-specific output adapters yet.
+- Explicit probes are required.
+- No automatic `await` interception.
+- No `TaskScheduler` replacement.
+- No exhaustive state-space search.
+- No string schedule parser yet.
+- No test-framework-specific output adapters yet.

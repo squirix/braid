@@ -85,14 +85,15 @@ catch (RunException ex)
 
 ## Scheduler diagnostics
 
-When available, `ex.SchedulerDiagnostics` includes last matched replay step, waiting workers, held workers (after `Arrive`), and unused replay steps. Use these to fix incomplete or mismatched schedules—not to replace a replay token.
+When available, `ex.SchedulerDiagnostics` includes last matched replay step, waiting workers, held workers (after `Arrive`), and unused replay steps.
+Use these to fix incomplete or mismatched schedules—not to replace a replay token.
 
 ---
 
 ## Honest limits
 
 | Situation | Replay token |
-|-----------|----------------|
+| ----------- | ---------------- |
 | Typed or text schedule configured and exportable | Yes — `TryGetReplayText` or failure report |
 | Random-only run | No automatic full token — build schedule manually |
 | Whitespace in worker id or probe name | Token export may fail; use typed `ReplayStep` list |

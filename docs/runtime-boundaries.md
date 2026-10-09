@@ -21,7 +21,7 @@ If a worker calls `HitAsync` while already waiting at another probe, the run fai
 A forked worker may start work on another thread or task (for example `Task.Run`) that shares the same logical worker id.
 
 | Pattern | Result |
-|---------|--------|
+| ------- | ------ |
 | Child hits a probe **while** the parent is still waiting at a different probe | **Rejected** — concurrent probe hit on the same worker |
 | Child hits a probe **after** the parent’s probe has completed and released | **Allowed** — serialized probes on one worker |
 

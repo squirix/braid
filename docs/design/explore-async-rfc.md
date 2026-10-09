@@ -6,7 +6,8 @@ See also: [roadmap.md](../roadmap.md), [replay-token-workflow.md](../replay-toke
 
 ## Problem
 
-`Runner.RunAsync` with random scheduling can find flaky failures, but turning them into stable replay regressions still requires manual schedule construction. Users need a bounded, deterministic search that stops at the first reproducible failure and exports a replay token when possible.
+`Runner.RunAsync` with random scheduling can find flaky failures, but turning them into stable replay regressions still requires manual schedule construction.
+Users need a bounded, deterministic search that stops at the first reproducible failure and exports a replay token when possible.
 
 ## Goals
 
@@ -57,7 +58,8 @@ Same seed, bounds, and test callback produce the same discovery trace and the sa
 
 ## Failure artifacts
 
-When exploration fails under a replay schedule, use `RunException.TryGetReplayText` exactly as with `RunAsync`. Random-only discovery failures may not export replay text until a replay schedule reproduces the assertion.
+When exploration fails under a replay schedule, use `RunException.TryGetReplayText` exactly as with `RunAsync`.
+Random-only discovery failures may not export replay text until a replay schedule reproduces the assertion.
 
 ## Seed corpus (docs convention)
 
