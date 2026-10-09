@@ -5,6 +5,9 @@ namespace Braid;
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
 public static class Runner
 {
+    private const string CallbackTimeoutMessage =
+        "braid run timed out before the callback called JoinAsync. Forked workers start only when the run joins, so a callback that waits for a forked worker before JoinAsync never continues.";
+
     /// <summary>
     /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
     /// Discovery uses one random run to learn per-worker probe sequences, then tries generated hit schedules up to the configured bounds.
@@ -133,8 +136,7 @@ public static class Runner
 
             try
             {
-                var callbackTask = test(context) ?? throw new InvalidOperationException("Braid run callback returned a null task.");
-                await callbackTask.ConfigureAwait(false);
+                await RunCallbackAsync(scheduler, test, context, cancellationToken).ConfigureAwait(false);
                 await context.JoinAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (RunException ex)
@@ -160,6 +162,36 @@ public static class Runner
                 context.Complete();
             }
         }
+    }
+
+    /// <summary>
+    /// Runs and awaits the test callback. Forked workers start only when the run joins, so a callback that waits for a forked worker before it joins
+    /// never continues: until the callback joins, the run timeout and <paramref name="cancellationToken" /> end the wait.
+    /// A joined callback ends with the join, which applies the run timeout itself.
+    /// </summary>
+    /// <param name="scheduler">The scheduler of the run.</param>
+    /// <param name="test">The test callback.</param>
+    /// <param name="context">The context passed to <paramref name="test" />.</param>
+    /// <param name="cancellationToken">The cancellation token of the run.</param>
+    /// <returns>A task that completes when the callback completes.</returns>
+    /// <exception cref="InvalidOperationException"><paramref name="test" /> returned a null task.</exception>
+    /// <exception cref="RunException">The run timed out before the callback joined.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled before the callback joined.</exception>
+    private static async Task RunCallbackAsync(Scheduler scheduler, Func<RunContext, Task> test, RunContext context, CancellationToken cancellationToken)
+    {
+        var callbackTask = test(context) ?? throw new InvalidOperationException("Braid run callback returned a null task.");
+        using (var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, scheduler.TimeoutToken))
+            await callbackTask.WaitAsync(linkedCts.Token).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+        if (!callbackTask.IsCompleted && !scheduler.HasJoined)
+        {
+            // The callback is left behind; observe a later fault so it is not reported as unobserved.
+            _ = callbackTask.ContinueWith(static task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+            cancellationToken.ThrowIfCancellationRequested();
+            throw scheduler.CreateException(CallbackTimeoutMessage, null, RunFailureOrigin.Timeout);
+        }
+
+        await callbackTask.ConfigureAwait(false);
     }
 
     private static async Task ExploreGeneratedSchedulesAsync(

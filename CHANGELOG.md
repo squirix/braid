@@ -16,6 +16,7 @@
 - Breaking: forking a second worker with an id already used in the run throws `ArgumentException` from `Fork` / `WorkerAsync`;
   uncaught, `RunAsync` and `ExploreAsync` report it as `RunException` with that `ArgumentException` as the inner exception.
   Duplicate ids used to be accepted, and exploration merged their probe sequences and missed interleavings.
+- `RunOptions.Timeout` and `ExploreOptionsBuilder.WithTimeout` count from the start of the run callback instead of from `JoinAsync`.
 
 ### Fixed
 
@@ -28,6 +29,9 @@
 - `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
 - A worker still running after a failed run stopped waiting for it no longer gets `ObjectDisposedException` from its next probe:
   the probe throws `OperationCanceledException`, and the failure message names the abandoned workers.
+- A callback that waits before `JoinAsync`, for example for a forked worker (workers start only when the run joins), no longer hangs:
+  the run timeout fails it with `RunFailureOrigin.Timeout`, and canceling the run token ends it with `OperationCanceledException`.
+- A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
 
 ### Documentation
 
