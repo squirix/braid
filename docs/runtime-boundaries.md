@@ -2,7 +2,7 @@
 
 Braid controls scheduling only at explicit `Probe.HitAsync` calls. These rules keep behavior deterministic and failures understandable.
 
-See also: [replay-token-workflow.md](replay-token-workflow.md), [README.md](../README.md) (Run lifecycle).
+See also: [replay-token-workflow.md](replay-token-workflow.md), [README.md](../README.md).
 
 ---
 
@@ -25,7 +25,7 @@ A forked worker may start work on another thread or task (for example `Task.Run`
 | Child hits a probe **while** the parent is still waiting at a different probe | **Rejected** — concurrent probe hit on the same worker |
 | Child hits a probe **after** the parent’s probe has completed and released | **Allowed** — serialized probes on one worker |
 
-Tests: `BraidRuntimeBoundaryTests.ProbeInsideFlowingChildTaskConcurrentWithParentFailsClearlyOrSerializes`, `ProbeInsideFlowingChildTaskAfterParentProbeCompletesSucceeds`.
+Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`, `ProbeInsideFlowingAfterParentSucceeds`.
 
 ---
 
@@ -43,7 +43,7 @@ Tests: `BraidRuntimeBoundaryTests.ProbeInsideFlowingChildTaskConcurrentWithParen
 - Probe names cannot be null, empty, or whitespace.
 - Non-empty replay schedules must be fully consumed.
 
-Full list: README **Run lifecycle**.
+The XML documentation of `Runner.RunAsync` and `RunContext` lists the exceptions for each rule.
 
 ---
 

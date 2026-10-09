@@ -64,7 +64,7 @@ catch (RunException ex)
     else
     {
         // Schedule present but not text-exportable (e.g. whitespace in worker/probe names).
-        // Use ex.Schedule typed steps or fix naming.
+        // Use ex.Steps typed steps or fix naming.
     }
 }
 ```
@@ -107,4 +107,4 @@ Use these to fix incomplete or mismatched schedules—not to replace a replay to
 - A **concurrent** probe hit on the same worker (for example from a flowing child task while the parent waits) fails with a clear error.
 - A probe in a child task **after** the parent’s probe completes is allowed (serialized).
 
-See [runtime-boundaries.md](runtime-boundaries.md) and `tests/braid.tests/BraidRuntimeBoundaryTests.cs`.
+See [runtime-boundaries.md](runtime-boundaries.md) and `tests/braid.tests/BraidProbeConcurrencyBoundaryTests.cs`.

@@ -41,9 +41,12 @@ public static class Runner
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="test" /> is null.</exception>
-    /// <exception cref="InvalidOperationException">A braid run is already active, or the callback returned a null task.</exception>
+    /// <exception cref="InvalidOperationException">A braid run is already active.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="RunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
+    /// <exception cref="RunException">
+    /// A forked worker failed, the run timed out, scheduling could not satisfy the replay script, or the callback returned a null task
+    /// (reported with <see cref="RunFailureOrigin.UserTest" /> and an inner <see cref="InvalidOperationException" />).
+    /// </exception>
     public static Task RunAsync(Func<RunContext, Task> test, CancellationToken cancellationToken) => RunAsync(test, null, cancellationToken);
 
     /// <summary>
@@ -57,10 +60,13 @@ public static class Runner
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="test" /> is null.</exception>
-    /// <exception cref="InvalidOperationException">A braid run is already active, or the callback returned a null task.</exception>
+    /// <exception cref="InvalidOperationException">A braid run is already active.</exception>
     /// <exception cref="ArgumentException"><paramref name="options" /> failed validation.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="RunException">A forked worker failed, the run timed out, or scheduling could not satisfy the replay script.</exception>
+    /// <exception cref="RunException">
+    /// A forked worker failed, the run timed out, scheduling could not satisfy the replay script, or the callback returned a null task
+    /// (reported with <see cref="RunFailureOrigin.UserTest" /> and an inner <see cref="InvalidOperationException" />).
+    /// </exception>
     public static Task RunAsync(Func<RunContext, Task> test, RunOptions? options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(test);

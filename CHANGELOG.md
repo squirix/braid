@@ -24,6 +24,16 @@
   after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
 - `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
 
+### Documentation
+
+- The README quick start compiles: probe, join and run calls pass a `CancellationToken`; README C# snippets are compiled and checked by tests.
+- `RunAsync` XML docs: a null callback task surfaces as `RunException` with an inner `InvalidOperationException`.
+- Fixed stale references in `docs/runtime-boundaries.md`, `docs/replay-token-workflow.md` and `contributing.md` (test names, `RunException.Steps`, TUnit, SDK).
+
+### Packaging
+
+- Builds on GitHub Actions set `ContinuousIntegrationBuild`, so PDB paths are deterministic.
+
 ## 0.7.0
 
 ### Added
