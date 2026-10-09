@@ -16,7 +16,7 @@ public static class Runner
     /// <exception cref="ArgumentNullException"><paramref name="configure" /> or <paramref name="test" /> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Configured bounds are invalid.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="RunException">A test failure was found under a replay schedule or during discovery.</exception>
+    /// <exception cref="RunException">A test failure or a timeout was found under a replay schedule or during discovery.</exception>
     public static Task ExploreAsync(Action<ExploreOptionsBuilder> configure, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -183,7 +183,7 @@ public static class Runner
         }
     }
 
-    private static bool IsExplorationTargetFailure(RunException ex) => ex is { FailureOrigin: RunFailureOrigin.UserTest, InnerException: not null and not RunException };
+    private static bool IsExplorationTargetFailure(RunException ex) => ex is { FailureOrigin: RunFailureOrigin.Timeout } or { FailureOrigin: RunFailureOrigin.UserTest, InnerException: not null and not RunException };
 
     private static Task RunScheduledExploreAttemptAsync(in ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
     {

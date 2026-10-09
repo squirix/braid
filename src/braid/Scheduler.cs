@@ -181,7 +181,7 @@ internal sealed class Scheduler : IDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
         {
-            throw CreateException("braid run timed out.", ex);
+            throw CreateException("braid run timed out.", ex, RunFailureOrigin.Timeout);
         }
         catch
         {

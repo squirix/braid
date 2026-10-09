@@ -2,8 +2,14 @@
 
 ## Unreleased
 
+### Added
+
+- `RunFailureOrigin.Timeout` for runs that did not complete within the configured timeout. Timeouts were reported with `RunFailureOrigin.Scheduler`.
+
 ### Fixed
 
+- `ExploreAsync` no longer passes a test that hangs or deadlocks: a timeout in the discovery run or in a generated schedule fails exploration,
+  and a timeout under a generated schedule comes with a replay token that reproduces the hang.
 - `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
   after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
 - `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
