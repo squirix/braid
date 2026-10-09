@@ -13,6 +13,9 @@
 
 - Breaking: a run that times out reports `RunFailureOrigin.Timeout` instead of `RunFailureOrigin.Scheduler`, unless a worker was running
   while others were parked: then it keeps `RunFailureOrigin.Scheduler` and says that the running worker may be waiting for a parked one.
+- Breaking: forking a second worker with an id already used in the run throws `ArgumentException` from `Fork` / `WorkerAsync`;
+  uncaught, `RunAsync` and `ExploreAsync` report it as `RunException` with that `ArgumentException` as the inner exception.
+  Duplicate ids used to be accepted, and exploration merged their probe sequences and missed interleavings.
 
 ### Fixed
 
