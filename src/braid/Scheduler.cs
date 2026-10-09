@@ -80,7 +80,9 @@ internal sealed class Scheduler : IDisposable
             if (_joined)
                 throw CreateException("Cannot fork after JoinAsync has started.", null);
 
-            braidTask = new RunTask(++_nextTaskId, workerId);
+            braidTask = new RunTask(_nextTaskId + 1, workerId);
+            ThrowIfWorkerIdInUse(braidTask.WorkerId);
+            _nextTaskId++;
             _tasks.Add(braidTask);
             _trace.Add($"{braidTask.WorkerId} forked");
         }
@@ -210,6 +212,21 @@ internal sealed class Scheduler : IDisposable
     {
         await CancelBlockedTasksAsync().ConfigureAwait(false);
         await WaitForRunningTasksAsync().ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Rejects a second worker with the same id: replay steps and explored probe sequences address workers by id,
+    /// so two workers with one id could not be scheduled or replayed separately.
+    /// </summary>
+    /// <param name="workerId">The id of the worker being forked, explicit or generated.</param>
+    /// <exception cref="ArgumentException">Another worker in this run already uses <paramref name="workerId" />.</exception>
+    private void ThrowIfWorkerIdInUse(string workerId)
+    {
+        for (var index = 0; index < _tasks.Count; index++)
+        {
+            if (string.Equals(_tasks[index].WorkerId, workerId, StringComparison.Ordinal))
+                throw new ArgumentException($"Worker id '{workerId}' is already used in this run. Each forked worker needs a unique id.", nameof(workerId));
+        }
     }
 
     private bool AllJoinWorkCompleted()
