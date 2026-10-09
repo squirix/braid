@@ -127,16 +127,38 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(explored).IsTrue();
     }
 
-    /// <summary>Verifies a step cap below the required schedule length prevents finding a failure.</summary>
+    /// <summary>Verifies a discovery failure is surfaced when a step cap below the schedule length prevents replaying it.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreCompletesSmallStepsForLostUpdate(CancellationToken cancellationToken)
+    public async Task ExploreSurfacesFailureWithSmallSteps(CancellationToken cancellationToken)
     {
-        _ = await Assert.That(() => Runner.ExploreAsync(
-            static options => options.WithSeed(77).WithMaxSchedules(100).WithMaxStepsPerSchedule(3),
-            braid => RunLostUpdateExploreAsync(braid, cancellationToken),
-            cancellationToken)).ThrowsNothing();
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.ExploreAsync(
+                static options => options.WithSeed(77).WithMaxSchedules(100).WithMaxStepsPerSchedule(3),
+                braid => RunLostUpdateExploreAsync(braid, cancellationToken),
+                cancellationToken));
+
+        _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
+    }
+
+    /// <summary>Verifies a discovery failure is surfaced when no generated schedule within the bounds reproduces it.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ExploreSurfacesFailureOutsideBounds(CancellationToken cancellationToken)
+    {
+        // Seed 0 makes the random discovery run release "second" first, so it fails.
+        // The only generated schedule within MaxSchedules(1) is "first, second", which passes.
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.ExploreAsync(
+                static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
+                braid => RunOrderDependentExploreAsync(braid, cancellationToken),
+                cancellationToken));
+
+        _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
+        _ = await Assert.That(exception.InnerException).IsTypeOf<InvalidOperationException>();
+        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo("second ran before first");
     }
 
     /// <summary>Verifies exhausting MaxSchedules returns without failure when only a passing schedule is evaluated.</summary>
@@ -227,6 +249,30 @@ public sealed class BraidExploreAsyncTests : TestBase
 
         await braid.JoinAsync(cancellationToken);
         _ = await Assert.That(completedWorkers).IsEqualTo(0);
+    }
+
+    private static async Task RunOrderDependentExploreAsync(ExploreContext braid, CancellationToken cancellationToken = default)
+    {
+        var firstDone = 0;
+
+        await braid.WorkerAsync(
+            "first",
+            async () =>
+            {
+                await Probe.HitAsync("a", cancellationToken);
+                firstDone = 1;
+            });
+
+        await braid.WorkerAsync(
+            "second",
+            async () =>
+            {
+                await Probe.HitAsync("b", cancellationToken);
+                if (firstDone == 0)
+                    throw new InvalidOperationException("second ran before first");
+            });
+
+        await braid.JoinAsync(cancellationToken);
     }
 
     private static async Task RunLostUpdateExploreAsync(ExploreContext braid, CancellationToken cancellationToken = default)
