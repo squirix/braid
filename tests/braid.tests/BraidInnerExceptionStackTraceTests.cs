@@ -41,6 +41,23 @@ public sealed class BraidInnerExceptionStackTraceTests : TestBase
         _ = await Assert.That(exception.ToString()).Contains(nameof(InvalidOperationException));
     }
 
+    /// <summary>Verifies the failure report includes the inner exception's stack trace, nested inner exceptions, and the report's own stack trace.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ReportIncludesStackTraces(CancellationToken cancellationToken)
+    {
+        var operation = Runner.RunAsync(static _ => ThrowWrappedFromCallbackHelperAsync(), new RunOptions { Iterations = 1, Seed = 4011 }, cancellationToken);
+
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
+        var report = exception.ToString();
+
+        _ = await Assert.That(report).Contains(nameof(ThrowFromCallbackHelperCore));
+        _ = await Assert.That(report).Contains("callback-helper-failure");
+        _ = await Assert.That(report).Contains("wrapped-failure");
+        _ = await Assert.That(report).Contains("Stack trace:");
+    }
+
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static Task ThrowFromCallbackHelperAsync()
     {
@@ -49,6 +66,21 @@ public sealed class BraidInnerExceptionStackTraceTests : TestBase
     }
 
     private static void ThrowFromCallbackHelperCore() => throw new InvalidOperationException("callback-helper-failure");
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Task ThrowWrappedFromCallbackHelperAsync()
+    {
+        try
+        {
+            ThrowFromCallbackHelperCore();
+        }
+        catch (InvalidOperationException ex)
+        {
+            throw new AggregateException("wrapped-failure", ex);
+        }
+
+        return Task.CompletedTask;
+    }
 
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void ThrowFromWorkerHelper() => ThrowFromWorkerHelperCore();

@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- `RunException.ToString()` includes the inner exception's stack trace and nested inner exceptions, and the report's own stack trace.
 - `ExploreAsync` no longer passes a test that hangs with no running worker blocked on a parked one:
   such a timeout in the discovery run or in a generated schedule fails exploration, with a replay token for a generated schedule.
 - `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
