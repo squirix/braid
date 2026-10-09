@@ -166,7 +166,15 @@ internal sealed class Scheduler : IDisposable
         using var timeoutCts = new CancellationTokenSource(_timeout);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-        await _joinMutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // A concurrent join waits here; the run timeout bounds that wait too. Cleanup runs only after the mutex is held.
+        try
+        {
+            await _joinMutex.WaitAsync(linkedCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
+        {
+            throw CreateTimeoutException(ex);
+        }
 
         try
         {
