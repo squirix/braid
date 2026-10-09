@@ -20,8 +20,8 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
 
    ```csharp
    var schedule = ReplaySchedule.Parse("""
-   hit worker-1 after-read
-   hit worker-2 after-read
+   hit worker-1 before-read
+   hit worker-2 before-read
    hit worker-1 before-write
    hit worker-2 before-write
    """);
