@@ -1,10 +1,12 @@
 # Explore lost update example
 
-This example complements [lost-update](lost-update.md). There you start from a known replay token. Here you start from workers and probe names only — exploration finds a failing interleaving for you.
+This example complements [lost-update](lost-update.md). There you start from a known replay token.
+Here you start from workers and probe names only — exploration finds a failing interleaving for you.
 
 ## Scenario
 
-Two workers (`reader` and `writer`) perform the same read-modify-write on a shared integer. Each worker hits `after-read` then `before-write`. The final assertion expects `2`, but a classic lost update leaves `1` when both workers read the same value before either writes.
+Two workers (`reader` and `writer`) perform the same read-modify-write on a shared integer. Each worker hits `after-read` then `before-write`.
+The final assertion expects `2`, but a classic lost update leaves `1` when both workers read the same value before either writes.
 
 ## Exploration
 
