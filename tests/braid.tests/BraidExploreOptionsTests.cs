@@ -84,4 +84,19 @@ public sealed class BraidExploreOptionsTests : TestBase
 
         _ = await BraidAssertions.AssertExpectsAsync<ArgumentOutOfRangeException>(operation);
     }
+
+    /// <summary>Verifies a timeout above <see cref="RunOptions.MaxTimeout" /> is rejected before exploration starts.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ExploreRejectsTimeoutAboveMax(CancellationToken cancellationToken)
+    {
+        var operation = Runner.ExploreAsync(
+            new ExploreOptionsBuilder().WithTimeout(TimeSpan.MaxValue).Build(),
+            static async braid => await braid.WorkerAsync("worker-1", static () => Task.CompletedTask),
+            cancellationToken);
+
+        var exception = await BraidAssertions.AssertExpectsAsync<ArgumentOutOfRangeException>(operation);
+        _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(ExploreOptions.Timeout));
+    }
 }

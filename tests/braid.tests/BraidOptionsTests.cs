@@ -159,4 +159,47 @@ public sealed class BraidOptionsTests : TestBase
         _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(RunOptions.Timeout));
         _ = await Assert.That(executed.Value).IsEqualTo(0);
     }
+
+    /// <summary>Verifies a timeout above <see cref="RunOptions.MaxTimeout" /> is rejected before the run body starts.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    [Test]
+    public async Task RunAsyncThrowsForTimeoutAboveMax(CancellationToken cancellationToken)
+    {
+        var executed = new CompletionCounter();
+
+        var exception = BraidAssertions.AssertExpects<ArgumentOutOfRangeException, CancellationToken, CompletionCounter>(
+            cancellationToken,
+            executed,
+            static (token, counter) =>
+            {
+                _ = Runner.RunAsync(
+                    context =>
+                    {
+                        _ = counter.Increment();
+                        _ = context;
+                        return Task.CompletedTask;
+                    },
+                    new RunOptions { Timeout = TimeSpan.FromDays(60) },
+                    token);
+            });
+
+        _ = await Assert.That(exception.ParamName).IsEqualTo(nameof(RunOptions.Timeout));
+        _ = await Assert.That(executed.Value).IsEqualTo(0);
+    }
+
+    /// <summary>Verifies <see cref="RunOptions.MaxTimeout" /> itself is accepted.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task RunAsyncAcceptsMaxTimeout(CancellationToken cancellationToken)
+    {
+        _ = await Assert.That(() => Runner.RunAsync(
+            static async context =>
+            {
+                context.Fork("w", static () => Task.CompletedTask);
+                await context.JoinAsync(CancellationToken.None);
+            },
+            new RunOptions { Iterations = 1, Seed = 1, Timeout = RunOptions.MaxTimeout },
+            cancellationToken)).ThrowsNothing();
+    }
 }

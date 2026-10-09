@@ -16,19 +16,12 @@ public readonly record struct ExploreOptions(int Seed, int MaxSchedules, int Max
     {
         ValidatePositive(MaxSchedules, nameof(MaxSchedules), "MaxSchedules must be positive.");
         ValidatePositive(MaxStepsPerSchedule, nameof(MaxStepsPerSchedule), "MaxStepsPerSchedule must be positive.");
-        ValidatePositive(Timeout, nameof(Timeout), "Timeout must be positive.");
+        RunOptions.ValidateTimeout(Timeout, nameof(Timeout));
     }
 
     private static void ValidatePositive(int value, string paramName, string message)
     {
         if (value <= 0)
             throw new ArgumentOutOfRangeException(paramName, value, message);
-    }
-
-    private static void ValidatePositive(TimeSpan value, string paramName, string message)
-    {
-        if (value > TimeSpan.Zero)
-            return;
-        throw new ArgumentOutOfRangeException(paramName, value, message);
     }
 }

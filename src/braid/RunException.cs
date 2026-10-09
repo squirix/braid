@@ -100,6 +100,7 @@ public sealed class RunException : Exception
         AppendSchedulerDiagnosticsLines(lines, SchedulerDiagnostics);
         AppendTraceSection(lines);
         AppendInnerExceptionSection(lines);
+        AppendStackTraceSection(lines);
 
         return string.Join(Environment.NewLine, lines);
     }
@@ -130,6 +131,12 @@ public sealed class RunException : Exception
             error = ex.Message;
             return false;
         }
+    }
+
+    private static void AppendIndentedLines(List<string> lines, string text)
+    {
+        foreach (var line in text.Split(["\r\n", "\n", "\r"], StringSplitOptions.None))
+            lines.Add($"  {line}");
     }
 
     private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
@@ -219,7 +226,16 @@ public sealed class RunException : Exception
             return;
 
         lines.Add("Inner exception:");
-        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
+        AppendIndentedLines(lines, InnerException.ToString());
+    }
+
+    private void AppendStackTraceSection(List<string> lines)
+    {
+        if (StackTrace == null)
+            return;
+
+        lines.Add("Stack trace:");
+        AppendIndentedLines(lines, StackTrace);
     }
 
     private static class ReplayFormat
