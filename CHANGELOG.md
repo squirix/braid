@@ -4,7 +4,8 @@
 
 ### Fixed
 
-- `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`: after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
+- `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
+  after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
 - `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
 
 ## 0.7.0
