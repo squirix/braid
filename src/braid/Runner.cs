@@ -102,15 +102,13 @@ public static class Runner
 
         var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? [with(StringComparer.Ordinal)];
 
-        // If the discovery failure targets the user test and no probe sequences were learned, there is nothing to explore — surface it immediately.
-        // When sequences were discovered, the failure is deferred: generated schedules may reproduce it under deterministic replay.
-        if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure) && workerProbeSequences.Count == 0)
+        // When sequences were discovered, a target failure is deferred: generated schedules may reproduce it with a replay token.
+        // If none does, the discovery failure is surfaced, so exploration never passes after a target failure was observed.
+        if (workerProbeSequences.Count > 0)
+            await ExploreGeneratedSchedulesAsync(options, callback, workerProbeSequences, cancellationToken).ConfigureAwait(false);
+
+        if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure))
             throw discoveryFailure;
-
-        if (workerProbeSequences.Count == 0)
-            return;
-
-        await ExploreGeneratedSchedulesAsync(options, callback, workerProbeSequences, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)

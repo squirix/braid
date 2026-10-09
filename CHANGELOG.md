@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
+
 ## 0.7.0
 
 ### Added
