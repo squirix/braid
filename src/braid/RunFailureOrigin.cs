@@ -9,6 +9,10 @@ public enum RunFailureOrigin
     /// <summary>Failure from user test code in the run callback or a forked worker.</summary>
     UserTest = 1,
 
-    /// <summary>The run did not complete within <see cref="RunOptions.Timeout" />, for example because workers deadlocked or a worker hung.</summary>
+    /// <summary>
+    /// The run did not complete within <see cref="RunOptions.Timeout" /> or <see cref="ExploreOptions.Timeout" /> while no worker was parked at a probe,
+    /// for example because a worker hung. A timeout while workers were parked at probes is reported with <see cref="Scheduler" />,
+    /// because the running worker may be waiting for a parked one.
+    /// </summary>
     Timeout = 2,
 }

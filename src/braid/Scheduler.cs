@@ -2,6 +2,9 @@ namespace Braid;
 
 internal sealed class Scheduler : IDisposable
 {
+    private const string ParkedTimeoutMessage =
+        "braid run timed out. A running worker did not reach a probe while other workers were parked at probes; it may be waiting for one of them.";
+
     private const string ScriptExhaustedMessage = "Scripted schedule was exhausted before all workers completed.";
     private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(1);
     private readonly Lock _gate = new();
@@ -181,7 +184,7 @@ internal sealed class Scheduler : IDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && timeoutCts.IsCancellationRequested)
         {
-            throw CreateException("braid run timed out.", ex, RunFailureOrigin.Timeout);
+            throw CreateTimeoutException(ex);
         }
         catch
         {
@@ -211,6 +214,23 @@ internal sealed class Scheduler : IDisposable
         var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
         throw CreateException(message, null);
+    }
+
+    /// <summary>
+    /// Creates the timeout failure. While a worker runs, braid keeps every other worker parked at its probe, so a run that times out
+    /// with parked workers may hang only because the running worker waits for a parked one, which real threads would not do.
+    /// </summary>
+    /// <param name="exception">The cancellation raised by the run timeout.</param>
+    /// <returns>A <see cref="RunFailureOrigin.Scheduler" /> failure when workers are parked; otherwise a <see cref="RunFailureOrigin.Timeout" /> failure.</returns>
+    private RunException CreateTimeoutException(OperationCanceledException exception)
+    {
+        bool hasParkedWorkers;
+        lock (_gate)
+            hasParkedWorkers = _tasks.Exists(static task => task.State is RunTaskState.Waiting or RunTaskState.Held);
+
+        return hasParkedWorkers
+            ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler)
+            : CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout);
     }
 
     private string AppendReplayState(string message)
@@ -251,6 +271,7 @@ internal sealed class Scheduler : IDisposable
 
         var waiting = SchedulerSearch.CollectProbeWaitDiagnostics(_tasks, RunTaskState.Waiting);
         var held = SchedulerSearch.CollectProbeWaitDiagnostics(_tasks, RunTaskState.Held);
+        var running = SchedulerSearch.CollectProbeWaitDiagnostics(_tasks, RunTaskState.Running);
 
         (int OneBasedIndex, ReplayStep Step)[] unused;
         if (hasReplay && _nextScheduleStep < ScriptSteps!.Count)
@@ -268,7 +289,7 @@ internal sealed class Scheduler : IDisposable
             unused = [];
         }
 
-        return new SchedulerDiagnostics(hasReplay, lastMatched, lastMatchedOneBased, waiting, held, unused);
+        return new SchedulerDiagnostics(hasReplay, lastMatched, lastMatchedOneBased, waiting, held, unused, running);
     }
 
     private async Task CancelBlockedTasksAsync()

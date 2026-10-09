@@ -51,7 +51,8 @@ await Runner.ExploreAsync(
    After its last step, waiting workers are released in fork order, so the test runs to completion; the reported replay token includes those completion steps.
 4. **Stop** — return when bounds are exhausted without failure; throw the first `RunException` caused by a test assertion or a timeout (or a discovery random failure).
 
-Invalid schedules (scheduler mismatch) are skipped. Scheduler-only failures during replay do not stop exploration.
+Invalid schedules (scheduler mismatch) are skipped. Scheduler-only failures during replay do not stop exploration,
+including a timeout while workers are parked at probes (see [runtime boundaries](../runtime-boundaries.md#waiting-for-a-parked-worker)).
 
 ## Determinism
 

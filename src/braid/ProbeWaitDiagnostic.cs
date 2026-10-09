@@ -2,7 +2,7 @@ using Braid.Attributes;
 
 namespace Braid;
 
-/// <summary>Describes a worker waiting or held at a probe for diagnostic output.</summary>
+/// <summary>Describes a worker and the probe it waits at, is held at, or was last released at, for diagnostic output.</summary>
 /// <param name="WorkerId">The worker id.</param>
 /// <param name="ProbeName">The probe name.</param>
 [Immutable]

@@ -13,13 +13,15 @@ public sealed class SchedulerDiagnostics
     /// <param name="waitingWorkers">Workers blocked at probes while waiting to be scheduled.</param>
     /// <param name="heldWorkers">Workers held after an Arrive replay step.</param>
     /// <param name="unusedReplaySteps">Remaining replay steps not yet consumed, with one-based schedule indices.</param>
+    /// <param name="runningWorkers">Workers running user code, with the probe they were last released at.</param>
     public SchedulerDiagnostics(
         bool hasReplaySchedule,
         ReplayStep? lastMatchedReplayStep,
         int? lastMatchedReplayStepOneBased,
         IReadOnlyList<ProbeWaitDiagnostic> waitingWorkers,
         IReadOnlyList<ProbeWaitDiagnostic> heldWorkers,
-        IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> unusedReplaySteps)
+        IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> unusedReplaySteps,
+        IReadOnlyList<ProbeWaitDiagnostic>? runningWorkers = null)
     {
         HasReplaySchedule = hasReplaySchedule;
         LastMatchedReplayStep = lastMatchedReplayStep;
@@ -27,6 +29,7 @@ public sealed class SchedulerDiagnostics
         WaitingWorkers = [.. waitingWorkers];
         HeldWorkers = [.. heldWorkers];
         UnusedReplaySteps = [.. unusedReplaySteps];
+        RunningWorkers = runningWorkers == null ? [] : [.. runningWorkers];
     }
 
     /// <summary>Gets a value indicating whether a non-empty typed replay schedule was configured.</summary>
@@ -40,6 +43,9 @@ public sealed class SchedulerDiagnostics
 
     /// <summary>Gets the one-based schedule index of <see cref="LastMatchedReplayStep" />, when present.</summary>
     public int? LastMatchedReplayStepOneBased { get; }
+
+    /// <summary>Gets workers running user code when the failure was recorded, with the probe they were last released at.</summary>
+    public IReadOnlyList<ProbeWaitDiagnostic> RunningWorkers { get; }
 
     /// <summary>Gets remaining replay steps not yet consumed, with one-based schedule indices.</summary>
     public IReadOnlyList<(int OneBasedIndex, ReplayStep Step)> UnusedReplaySteps { get; }
