@@ -42,9 +42,11 @@ public sealed class RunContext
     /// <summary>Runs all forked operations until they complete or the scheduler detects a failure.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all forked operations complete.</returns>
+    /// <exception cref="InvalidOperationException">The run callback has completed, or the call comes from a forked worker, which would wait for its own completion.</exception>
     public Task JoinAsync(CancellationToken cancellationToken)
     {
         ThrowIfInactive();
+        ThrowIfCalledFromWorker();
         return _runScheduler.JoinAsync(cancellationToken);
     }
 
@@ -53,6 +55,12 @@ public sealed class RunContext
         TraceSteps = _runScheduler.GetTraceSnapshot();
         WorkerProbeSequences = _runScheduler.GetWorkerProbeSequences();
         _ = Interlocked.Exchange(ref _isActive, 0);
+    }
+
+    private static void ThrowIfCalledFromWorker()
+    {
+        if (RunTaskSlot.Current != null)
+            throw new InvalidOperationException("JoinAsync cannot be called from a forked worker: the join would wait for the worker itself.");
     }
 
     private void ThrowIfInactive()

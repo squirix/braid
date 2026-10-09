@@ -26,5 +26,6 @@ public sealed class ExploreContext
     /// <summary>Waits for all registered workers to complete.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all workers complete.</returns>
+    /// <exception cref="InvalidOperationException">The exploration callback has completed, or the call comes from a worker, which would wait for its own completion.</exception>
     public Task JoinAsync(CancellationToken cancellationToken) => _context.JoinAsync(cancellationToken);
 }
