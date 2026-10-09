@@ -62,6 +62,8 @@ Same seed, bounds, and test callback produce the same discovery trace and the sa
 
 When exploration fails under a replay schedule, use `RunException.TryGetReplayText` exactly as with `RunAsync`.
 Random-only discovery failures may not export replay text until a replay schedule reproduces the assertion.
+A failure or timeout in a discovery run that hit no probe has no replay text: there is no scheduling choice to record,
+so rerunning the test with the same seed reproduces it.
 
 ## Seed corpus (docs convention)
 
