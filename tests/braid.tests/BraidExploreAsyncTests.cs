@@ -1,3 +1,5 @@
+using TUnit.Assertions.Enums;
+
 namespace Braid.Tests;
 
 /// <summary>Covers bounded schedule exploration.</summary>
@@ -157,11 +159,13 @@ public sealed class BraidExploreAsyncTests : TestBase
                 braid => RunFinishOrderExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
+        _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
         _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
         _ = await Assert.That(exception.Steps).IsEquivalentTo(
-            [ReplayStep.Hit("second", "b1"), ReplayStep.Hit("second", "b2"), ReplayStep.Hit("first", "a1"), ReplayStep.Hit("first", "a2")]);
+            [ReplayStep.Hit("second", "b1"), ReplayStep.Hit("second", "b2"), ReplayStep.Hit("first", "a1"), ReplayStep.Hit("first", "a2")],
+            CollectionOrdering.Matching);
 
-        _ = await BraidAssertions.AssertExpectsAsync<RunException>(
+        var replayed = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
                 context => RunFinishOrderAsync(context, cancellationToken),
                 new RunOptions
@@ -171,6 +175,10 @@ public sealed class BraidExploreAsyncTests : TestBase
                     Schedule = ReplaySchedule.Parse(replayText),
                 },
                 cancellationToken));
+
+        _ = await Assert.That(replayed.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
+        _ = await Assert.That(replayed.InnerException).IsNotTypeOf<RunException>();
+        _ = await Assert.That(replayed.SchedulerDiagnostics!.UnusedReplaySteps).IsEmpty();
     }
 
     /// <summary>Verifies a discovery failure is surfaced when no generated schedule within the bounds reproduces it.</summary>

@@ -6,7 +6,7 @@ namespace Braid;
 /// <summary>Bounds and seed options for bounded exploration.</summary>
 /// <param name="Seed">The base seed used for discovery and replay runs.</param>
 /// <param name="MaxSchedules">The maximum number of distinct replay schedules to try.</param>
-/// <param name="MaxStepsPerSchedule">The maximum number of hit steps per generated replay schedule. Workers still waiting after the last step are released in fork order, so every attempt runs the test to completion.</param>
+/// <param name="MaxStepsPerSchedule">The maximum number of hit steps per generated replay schedule. Workers still waiting after the last step are released in fork order, so the test can run to completion.</param>
 /// <param name="Timeout">The per-run timeout.</param>
 [Immutable]
 [StructLayout(LayoutKind.Auto)]

@@ -2,6 +2,7 @@ namespace Braid;
 
 internal sealed class Scheduler : IDisposable
 {
+    private const string ScriptExhaustedMessage = "Scripted schedule was exhausted before all workers completed.";
     private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(1);
     private readonly Lock _gate = new();
     private readonly int _iteration;
@@ -642,7 +643,7 @@ internal sealed class Scheduler : IDisposable
         {
             return context.Script!.CompletesInForkOrder
                 ? SelectForkOrderCompletionTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease)
-                : throw context.CreateException("Scripted schedule was exhausted before all workers completed.", null, RunFailureOrigin.Scheduler);
+                : throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler);
         }
 
         /// <summary>
@@ -654,10 +655,15 @@ internal sealed class Scheduler : IDisposable
         /// <param name="hasRunningTasks">Whether a worker is still running.</param>
         /// <param name="advancedWithoutRelease">Set when the step advanced without releasing a worker.</param>
         /// <returns>The worker to release, or <see langword="null"/> to wait for a state change.</returns>
+        /// <exception cref="RunException">Only held workers remain, so none can be released.</exception>
         private static RunTask? SelectForkOrderCompletionTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
-            if (hasRunningTasks || waitingTasks.Length == 0)
+            if (hasRunningTasks)
                 return null;
+
+            // Fail now instead of waiting for the run timeout.
+            if (waitingTasks.Length == 0)
+                throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler);
 
             var task = waitingTasks[0];
             context.Script!.AppendCompletionStep(ReplayStep.Hit(task.WorkerId, task.LastProbeName!));
