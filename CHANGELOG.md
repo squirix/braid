@@ -73,7 +73,8 @@
 
 - The lost-update and user-operation-limiter examples put a probe before the shared read, so the replay token decides the race; a sequential schedule passes.
 - `docs/runtime-boundaries.md` states when a task started by a worker may hit a probe: only while the worker waits for that task.
-  It used to call every probe from such a task allowed; a probe hit while the worker keeps running lets two workers run at once, undetected.
+  It used to call every probe from such a task allowed; a probe hit while the worker keeps running lets two workers run at once,
+  which braid reports only if the worker then hits a probe or returns while that task still waits.
 - `docs/runtime-boundaries.md` states which code the scheduler orders: a worker runs alone between its start and its first probe, and between probes.
 - The README quick start compiles: probe, join and run calls pass a `CancellationToken`; README C# snippets are compiled and checked by tests.
 - `RunAsync` and `ExploreAsync` XML docs: a null callback task surfaces as `RunException` with an inner `InvalidOperationException`.
