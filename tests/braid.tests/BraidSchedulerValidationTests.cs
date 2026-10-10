@@ -109,22 +109,11 @@ public sealed class BraidSchedulerValidationTests : TestBase
         _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(" ", cancellationToken));
     }
 
-    /// <summary>Verifies empty runs complete with empty replay schedules.</summary>
+    /// <summary>Verifies empty runs fail with replay schedules.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task RunAsyncCompletesNoWorkersEmptySchedule(CancellationToken cancellationToken)
-    {
-        var options = new RunOptions { Iterations = 1, Seed = 24, Schedule = ReplaySchedule.Replay() };
-        await Runner.RunAsync(static _ => Task.CompletedTask, options, cancellationToken);
-        _ = await Assert.That(options.Schedule.Steps).IsEmpty();
-    }
-
-    /// <summary>Verifies empty runs fail with non-empty replay schedules.</summary>
-    /// <param name="cancellationToken">The cancellation token for the current test.</param>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Test]
-    public async Task RunAsyncFailsNoWorkersNonEmptySchedule(CancellationToken cancellationToken)
+    public async Task RunAsyncFailsNoWorkersWithSchedule(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
             static _ => Task.CompletedTask,
@@ -141,6 +130,7 @@ public sealed class BraidSchedulerValidationTests : TestBase
         var report = exception.ToString();
         _ = await Assert.That(report).Contains("unused steps", StringComparison.OrdinalIgnoreCase);
         _ = await Assert.That(report).Contains("Schedule:");
+        _ = await Assert.That(exception.SchedulerDiagnostics!.HasReplaySchedule).IsTrue();
     }
 
     /// <summary>Verifies a scripted schedule with steps that no worker can satisfy after the run completes is reported as a failure.</summary>
@@ -169,25 +159,6 @@ public sealed class BraidSchedulerValidationTests : TestBase
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 
         _ = await Assert.That(exception.Message).Contains("Scripted schedule contained unused steps after all workers completed.");
-    }
-
-    /// <summary>Verifies probe-free workers complete with empty replay schedules.</summary>
-    /// <param name="cancellationToken">The cancellation token for the current test.</param>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Test]
-    public async Task WorkerNoProbesCompletesEmptySchedule(CancellationToken cancellationToken)
-    {
-        var options = new RunOptions { Iterations = 1, Seed = 23, Schedule = ReplaySchedule.Replay() };
-        await Runner.RunAsync(
-            async context =>
-            {
-                context.Fork(static () => Task.CompletedTask);
-                await context.JoinAsync(cancellationToken);
-            },
-            options,
-            cancellationToken);
-
-        _ = await Assert.That(options.Schedule.Steps).IsEmpty();
     }
 
     /// <summary>Verifies probe-free workers can complete without schedules.</summary>

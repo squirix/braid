@@ -105,6 +105,32 @@ public sealed class BraidApiContractTests : TestBase
         _ = await Assert.That(schedule.Steps[0]).IsEqualTo(new ReplayStep("worker-1", "ready"));
     }
 
+    /// <summary>Verifies a replay schedule cannot be created without steps.</summary>
+    [Test]
+    public async Task ReplayThrowsForNoSteps()
+    {
+        var exception = BraidAssertions.AssertExpects<ArgumentException>(static () => _ = ReplaySchedule.Replay());
+
+        _ = await Assert.That(exception.ParamName).IsEqualTo("steps");
+        _ = await Assert.That(exception.Message).StartsWith("A replay schedule needs at least one step.");
+    }
+
+    /// <summary>Verifies the empty steps of a random run failure are rejected as a schedule instead of replaying nothing.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ReplayThrowsForStepsOfRandomRun(CancellationToken cancellationToken)
+    {
+        var failure = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(static _ => throw new InvalidOperationException("random run failed"), cancellationToken));
+
+        var exception = BraidAssertions.AssertExpects<ArgumentException, IReadOnlyList<ReplayStep>>(failure.Steps, static steps => _ = ReplaySchedule.Replay(steps));
+
+        _ = await Assert.That(failure.Steps).IsEmpty();
+        _ = await Assert.That(failure.SchedulerDiagnostics!.HasReplaySchedule).IsFalse();
+        _ = await Assert.That(exception.ParamName).IsEqualTo("steps");
+    }
+
     /// <summary>Verifies replay validation rejects a null steps array.</summary>
     [Test]
     public void ReplayThrowsForNullStepsArray() => _ = BraidAssertions.AssertExpects<ArgumentNullException>(static () => _ = ReplaySchedule.Replay(NullTestValues.ReplaySteps));

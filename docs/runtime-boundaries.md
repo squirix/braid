@@ -49,9 +49,9 @@ Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`,
 - The run callback must return a non-null `Task`. A null task fails the run with `RunException` (`RunFailureOrigin.UserTest`, inner
   `InvalidOperationException`), in `RunAsync` and `ExploreAsync` alike: it is found inside the run, so the failure carries the seed and the iteration.
 - Probe names cannot be null, empty, or whitespace.
-- Non-empty replay schedules must be fully consumed.
+- A replay schedule has at least one step and must be fully consumed.
 
-The XML documentation of `Runner.RunAsync` and `RunContext` lists the exceptions for each rule.
+The XML documentation of `Runner.RunAsync`, `RunContext` and `ReplaySchedule.Replay` lists the exceptions for each rule.
 
 ---
 

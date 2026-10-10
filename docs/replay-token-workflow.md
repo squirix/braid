@@ -63,8 +63,9 @@ catch (RunException ex)
     }
     else
     {
-        // Schedule present but not text-exportable (e.g. whitespace in worker/probe names).
+        // `error` set: the schedule is not text-exportable (e.g. whitespace in worker/probe names).
         // Use ex.Steps typed steps or fix naming.
+        // `error` null: a random run failed. ex.Steps is empty and is not a schedule.
     }
 }
 ```
@@ -97,7 +98,7 @@ Use these to fix incomplete or mismatched schedules—not to replace a replay to
 | Typed or text schedule configured and exportable | Yes — `TryGetReplayText` or failure report |
 | Random-only run | No automatic full token — build schedule manually |
 | Whitespace in worker id or probe name | Token export may fail; use typed `ReplayStep` list |
-| Empty schedule | No token |
+| No steps, for example `RunException.Steps` of a random run | Not a schedule: `ReplaySchedule.Replay` throws `ArgumentException` |
 
 ---
 
