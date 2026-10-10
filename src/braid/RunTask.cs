@@ -28,14 +28,14 @@ internal sealed class RunTask : IDisposable
 
     /// <summary>
     /// Describes the probe wait that is still parked after the worker's operation returned. Such a wait belongs to a task that the worker
-    /// started and did not wait for: nothing releases it as part of this worker any more.
+    /// started, or to a probe the worker hit itself, and that the worker did not wait for: nothing releases it as part of this worker any more.
     /// </summary>
     /// <returns>The failure message, or <see langword="null" /> when no probe wait of the worker is parked.</returns>
     internal string? DescribeProbeWaitLeftBehind()
     {
         return ProbeWaitInFlight && State is RunTaskState.Waiting or RunTaskState.Held
-            ? $"Worker '{WorkerId}' returned while a task it started was still waiting at probe '{LastProbeName}'. "
-            + "A task that a worker starts may hit a probe only while the worker waits for that task."
+            ? $"Worker '{WorkerId}' returned while probe '{LastProbeName}' was still waiting on it. "
+            + "A worker must wait for every probe that it, or a task it started, has hit before it returns."
             : null;
     }
 

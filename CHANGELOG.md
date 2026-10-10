@@ -64,7 +64,8 @@
 - Consecutive seeds no longer make related choices: with three workers, seeds 1 to 15 all used to release the first worker first, and a hundred
   consecutive seeds used to give 6 of the 20 orders of two workers with two probes each. The seed is mixed before use, so every seed gives
   a different run than before.
-- A worker that returns while a task it started still waits at a probe fails with an error that names the probe. It used to pass and leave the task parked.
+- A worker that returns while a probe hit by it, or by a task it started, still waits fails with an error that names the probe.
+  It used to pass and leave the wait parked.
 - A failed run waits about one second, not two, for a worker that keeps running after braid stopped the run.
 - A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
 
