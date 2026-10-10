@@ -51,7 +51,7 @@ Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`,
 - Probe names cannot be null, empty, or whitespace.
 - A replay schedule has at least one step and must be fully consumed.
 
-The XML documentation of `Runner.RunAsync` and `RunContext` lists the exceptions for each rule.
+The XML documentation of `Runner.RunAsync`, `RunContext` and `ReplaySchedule.Replay` lists the exceptions for each rule.
 
 ---
 

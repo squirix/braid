@@ -117,6 +117,7 @@ public sealed class BraidRunExceptionReportTests : TestBase
         _ = await Assert.That(report).Contains("before-probe failure");
         _ = await Assert.That(report).Contains("worker-1");
         _ = await Assert.That(report).Contains("Trace:");
+        _ = await Assert.That(report).DoesNotContain("Schedule:");
     }
 
     /// <summary>Verifies exception properties are reflected in formatted reports.</summary>

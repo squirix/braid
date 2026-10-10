@@ -127,6 +127,7 @@ public sealed class BraidApiContractTests : TestBase
         var exception = BraidAssertions.AssertExpects<ArgumentException, IReadOnlyList<ReplayStep>>(failure.Steps, static steps => _ = ReplaySchedule.Replay(steps));
 
         _ = await Assert.That(failure.Steps).IsEmpty();
+        _ = await Assert.That(failure.SchedulerDiagnostics!.HasReplaySchedule).IsFalse();
         _ = await Assert.That(exception.ParamName).IsEqualTo("steps");
     }
 

@@ -63,8 +63,9 @@ catch (RunException ex)
     }
     else
     {
-        // Schedule present but not text-exportable (e.g. whitespace in worker/probe names).
+        // `error` set: the schedule is not text-exportable (e.g. whitespace in worker/probe names).
         // Use ex.Steps typed steps or fix naming.
+        // `error` null: a random run failed. ex.Steps is empty and is not a schedule.
     }
 }
 ```

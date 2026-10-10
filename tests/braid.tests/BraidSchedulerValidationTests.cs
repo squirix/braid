@@ -113,7 +113,7 @@ public sealed class BraidSchedulerValidationTests : TestBase
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task RunAsyncFailsNoWorkersNonEmptySchedule(CancellationToken cancellationToken)
+    public async Task RunAsyncFailsNoWorkersWithSchedule(CancellationToken cancellationToken)
     {
         var operation = Runner.RunAsync(
             static _ => Task.CompletedTask,
@@ -130,6 +130,7 @@ public sealed class BraidSchedulerValidationTests : TestBase
         var report = exception.ToString();
         _ = await Assert.That(report).Contains("unused steps", StringComparison.OrdinalIgnoreCase);
         _ = await Assert.That(report).Contains("Schedule:");
+        _ = await Assert.That(exception.SchedulerDiagnostics!.HasReplaySchedule).IsTrue();
     }
 
     /// <summary>Verifies a scripted schedule with steps that no worker can satisfy after the run completes is reported as a failure.</summary>

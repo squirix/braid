@@ -334,7 +334,7 @@ internal sealed class Scheduler : IDisposable
 
     private SchedulerDiagnostics BuildDiagnosticSnapshot()
     {
-        var hasReplay = ScriptSteps?.Count > 0;
+        var hasReplay = ScriptSteps != null;
 
         ReplayStep? lastMatched = null;
         int? lastMatchedOneBased = null;
