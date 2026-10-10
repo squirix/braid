@@ -50,7 +50,9 @@ public sealed class TraceStepsTests : TestBase
             new RunOptions { Iterations = 1, Seed = 1 },
             cancellationToken);
 
-        _ = await Assert.That(captured!.TraceSteps).IsEquivalentTo(afterJoin);
+        _ = await Assert.That(captured).IsNotNull();
+        _ = await Assert.That(string.Join(" | ", captured.TraceSteps)).IsEqualTo(string.Join(" | ", afterJoin));
+        _ = await Assert.That(afterJoin.Count).IsEqualTo(5);
         _ = await Assert.That(captured.TraceSteps).IsSameReferenceAs(captured.TraceSteps);
     }
 

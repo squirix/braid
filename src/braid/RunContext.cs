@@ -16,7 +16,7 @@ public sealed class RunContext
     }
 
     /// <summary>
-    /// Gets the scheduling trace of the run: a snapshot of the steps so far while the run callback is executing, and the whole trace once the run has completed.
+    /// Gets the scheduling trace of the run: a snapshot of the steps so far while the run callback is executing, and the trace as of the end of the run once it has completed.
     /// Each read during the callback copies the trace.
     /// </summary>
     public IReadOnlyList<string> TraceSteps => Volatile.Read(ref _completedTrace) ?? _runScheduler.GetTraceSnapshot();
