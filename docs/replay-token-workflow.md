@@ -111,6 +111,6 @@ Use these to fix incomplete or mismatched schedules—not to replace a replay to
 
 - Only **one** logical probe wait may be in flight per forked worker at a time.
 - A **concurrent** probe hit on the same worker (for example from a flowing child task while the parent waits) fails with a clear error.
-- A probe in a child task **after** the parent’s probe completes is allowed (serialized).
+- A task that a worker starts may hit a probe only while the worker does nothing but wait for that task.
 
 See [runtime-boundaries.md](runtime-boundaries.md) and `tests/braid.tests/BraidProbeConcurrencyBoundaryTests.cs`.

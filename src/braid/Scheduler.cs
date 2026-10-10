@@ -376,12 +376,16 @@ internal sealed class Scheduler : IDisposable
         _ = _stateChanged.Release();
     }
 
-    private void CompleteForkedOperation(RunTask braidTask)
+    private void CompleteForkedOperation(RunTask braidTask, bool returned)
     {
         RunTaskSlot.Current = null;
 
         lock (_gate)
         {
+            // Checked together with the completion: a probe hit on this worker after this point finds it completed and does not park.
+            if (returned && !_shutdownCts.IsCancellationRequested && braidTask.DescribeProbeWaitLeftBehind() is { } leftBehind)
+                braidTask.Exception = CreateException(leftBehind, null);
+
             braidTask.State = RunTaskState.Completed;
             _trace.Add($"{braidTask.WorkerId} completed");
         }
@@ -395,6 +399,7 @@ internal sealed class Scheduler : IDisposable
             throw new InvalidOperationException("Invalid fork state.");
 
         RunTaskSlot.Current = braidTask;
+        var returned = false;
         try
         {
             await braidTask.WaitForReleaseAsync(_shutdownCts.Token).ConfigureAwait(false);
@@ -421,6 +426,10 @@ internal sealed class Scheduler : IDisposable
             {
                 braidTask.Exception = opTask.Exception.GetBaseException();
             }
+            else
+            {
+                returned = true;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -428,7 +437,7 @@ internal sealed class Scheduler : IDisposable
         }
         finally
         {
-            CompleteForkedOperation(braidTask);
+            CompleteForkedOperation(braidTask, returned);
 
             // Removed last: once a worker leaves the running list, it no longer touches anything that Dispose releases.
             lock (_gate)
