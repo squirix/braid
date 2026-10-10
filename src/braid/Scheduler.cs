@@ -421,6 +421,15 @@ internal sealed class Scheduler : IDisposable
             {
                 braidTask.Exception = opTask.Exception.GetBaseException();
             }
+            else
+            {
+                string? leftBehind;
+                lock (_gate)
+                    leftBehind = _shutdownCts.IsCancellationRequested ? null : braidTask.DescribeProbeWaitLeftBehind();
+
+                if (leftBehind != null)
+                    braidTask.Exception = CreateException(leftBehind, null);
+            }
         }
         catch (OperationCanceledException)
         {

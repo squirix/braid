@@ -19,13 +19,21 @@ If a worker calls `HitAsync` while already waiting at another probe, the run fai
 ## Flowing child tasks on the same worker
 
 A forked worker may start work on another thread or task (for example `Task.Run`) that shares the same logical worker id.
+A probe parks the worker, not the task that hit it: braid cannot tell a worker's own code from a task the worker started.
+So a task that a worker starts may hit a probe only while the worker does nothing but wait for that task.
 
 | Pattern | Result |
 | ------- | ------ |
+| Child hits a probe while the parent does nothing but wait for the child (for example `await child`) | **Allowed** — the worker is parked while the child is |
 | Child hits a probe **while** the parent is still waiting at a different probe | **Rejected** — concurrent probe hit on the same worker |
-| Child hits a probe **after** the parent’s probe has completed and released | **Allowed** — serialized probes on one worker |
+| Parent returns while the child still waits at a probe | **Rejected** — the worker fails |
+| Child hits a probe while the parent keeps running | **Not supported and not detected** — braid treats the worker as parked and may release another worker |
 
-Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`, `ProbeInsideFlowingAfterParentSucceeds`.
+In the last pattern two workers run at once, so one seed or replay token no longer gives one run, and braid does not report it.
+To run code concurrently under braid, fork another worker.
+
+Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`, `ProbeInsideFlowingAfterParentSucceeds`,
+`ChildTaskProbeTests`.
 
 ---
 

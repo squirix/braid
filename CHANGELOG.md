@@ -64,12 +64,15 @@
 - Consecutive seeds no longer make related choices: with three workers, seeds 1 to 15 all used to release the first worker first, and a hundred
   consecutive seeds used to give 6 of the 20 orders of two workers with two probes each. The seed is mixed before use, so every seed gives
   a different run than before.
+- A worker that returns while a task it started still waits at a probe fails with an error that names the probe. It used to pass and leave the task parked.
 - A failed run waits about one second, not two, for a worker that keeps running after braid stopped the run.
 - A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
 
 ### Documentation
 
 - The lost-update and user-operation-limiter examples put a probe before the shared read, so the replay token decides the race; a sequential schedule passes.
+- `docs/runtime-boundaries.md` states when a task started by a worker may hit a probe: only while the worker waits for that task.
+  It used to call every probe from such a task allowed; a probe hit while the worker keeps running lets two workers run at once, undetected.
 - `docs/runtime-boundaries.md` states which code the scheduler orders: a worker runs alone between its start and its first probe, and between probes.
 - The README quick start compiles: probe, join and run calls pass a `CancellationToken`; README C# snippets are compiled and checked by tests.
 - `RunAsync` and `ExploreAsync` XML docs: a null callback task surfaces as `RunException` with an inner `InvalidOperationException`.
