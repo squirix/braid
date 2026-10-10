@@ -501,7 +501,15 @@ internal sealed class Scheduler : IDisposable
         {
             runningTasks = _runningWorkers.Snapshot();
             if (runningTasks.Length == 0)
+            {
                 _runningWorkers.ClearAbandoned();
+            }
+            else if (_runningWorkers.AnyAbandoned)
+            {
+                // An earlier shutdown drain already timed out. Waiting again would only delay the failure: drop the workers that have finished since.
+                _runningWorkers.RecordAbandoned(_tasks);
+                return;
+            }
         }
 
         if (runningTasks.Length == 0)

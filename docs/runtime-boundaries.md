@@ -83,7 +83,7 @@ the parked worker holds across a probe) never continues, and the run times out. 
 
 ## Workers that outlive a failed run
 
-When a run fails or times out, braid cancels the probe waits of parked workers and waits about one second, at most two, for every worker to finish.
+When a run fails or times out, braid cancels the probe waits of parked workers and waits about one second for every worker to finish.
 A worker still running after that, for example one awaiting I/O or a delay that ignores cancellation, is abandoned:
 
 - The failure message names the abandoned workers.

@@ -6,6 +6,9 @@ internal sealed class RunningWorkers
     private readonly List<Task> _forkTasks = [];
     private string[] _abandonedWorkerIds = [];
 
+    /// <summary>Gets a value indicating whether the last shutdown drain abandoned a worker.</summary>
+    internal bool AnyAbandoned => _abandonedWorkerIds.Length > 0;
+
     /// <summary>Gets a value indicating whether a fork task has not completed yet.</summary>
     internal bool AnyRunning => _forkTasks.Exists(static task => !task.IsCompleted);
 
