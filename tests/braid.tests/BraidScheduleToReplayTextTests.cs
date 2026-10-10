@@ -16,15 +16,6 @@ public sealed class BraidScheduleToReplayTextTests : TestBase
         _ = await Assert.That(text).DoesNotContain(" \r");
     }
 
-    /// <summary>Verifies an empty typed schedule exports to an empty string.</summary>
-    [Test]
-    public async Task ToReplayTextEmptyStringForEmptySchedule()
-    {
-        var schedule = ReplaySchedule.Replay();
-
-        _ = await Assert.That(schedule.ToReplayText()).IsEqualTo(string.Empty);
-    }
-
     /// <summary>Verifies probe name casing is preserved in export and round-trip.</summary>
     [Test]
     public async Task ToReplayTextPreservesProbeCase()

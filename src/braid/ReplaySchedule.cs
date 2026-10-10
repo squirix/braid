@@ -28,18 +28,22 @@ public sealed class ReplaySchedule
         return TryParseScheduleText(text, out var schedule, out var error) ? schedule : throw new FormatException(error);
     }
 
-    /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
-    /// <param name="steps">The worker replay steps.</param>
+    /// <summary>Creates a replay schedule from the supplied steps. The run must consume every step in order.</summary>
+    /// <param name="steps">The worker replay steps. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="steps" /> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, or a step has no worker id or probe name.</exception>
     public static ReplaySchedule Replay(params ReplayStep[] steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
         return CreateReplaySchedule(steps, steps.Length);
     }
 
-    /// <summary>Creates a replay schedule from the supplied steps. When the list is non-empty, the run must consume every step in order.</summary>
-    /// <param name="steps">The worker replay steps.</param>
+    /// <summary>Creates a replay schedule from the supplied steps. The run must consume every step in order.</summary>
+    /// <param name="steps">The worker replay steps. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="steps" /> is null.</exception>
+    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, or a step has no worker id or probe name.</exception>
     public static ReplaySchedule Replay(IReadOnlyList<ReplayStep> steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
@@ -56,15 +60,12 @@ public sealed class ReplaySchedule
 
     /// <summary>
     /// Returns a canonical line-based replay schedule using lower-case operation names and <see cref="Environment.NewLine" /> between steps.
-    /// The format matches <see cref="Parse(string)" /> for non-empty results. An empty schedule yields <see cref="string.Empty" />, which <see cref="Parse(string)" /> does not accept.
+    /// <see cref="Parse(string)" /> accepts the result.
     /// </summary>
-    /// <returns>Replay text, or <see cref="string.Empty" /> when there are no steps.</returns>
+    /// <returns>The replay text.</returns>
     /// <exception cref="InvalidOperationException">A worker id or probe name contains whitespace and cannot be represented in this format.</exception>
     public string ToReplayText()
     {
-        if (Steps.Count == 0)
-            return string.Empty;
-
         var builder = new StringBuilder();
         for (var index = 0; index < Steps.Count; index++)
         {
@@ -97,6 +98,10 @@ public sealed class ReplaySchedule
 
     private static ReplaySchedule CreateReplaySchedule(IReadOnlyList<ReplayStep> steps, int count)
     {
+        // A schedule with no steps would not replay anything: the first probe would be past its end. A random run has no steps to replay.
+        if (count == 0)
+            throw new ArgumentException("A replay schedule needs at least one step. For a random run, leave the schedule unset.", nameof(steps));
+
         var copy = new ReplayStep[count];
         for (var index = 0; index < count; index++)
         {

@@ -7,7 +7,7 @@ namespace Braid;
 public sealed class SchedulerDiagnostics
 {
     /// <summary>Initializes a new instance of the <see cref="SchedulerDiagnostics" /> class without running workers.</summary>
-    /// <param name="hasReplaySchedule">Whether a non-empty typed replay schedule was configured.</param>
+    /// <param name="hasReplaySchedule">Whether a typed replay schedule was configured.</param>
     /// <param name="lastMatchedReplayStep">The last replay step that was fully consumed, if any.</param>
     /// <param name="lastMatchedReplayStepOneBased">One-based index of <paramref name="lastMatchedReplayStep" /> in the configured schedule.</param>
     /// <param name="waitingWorkers">Workers blocked at probes while waiting to be scheduled.</param>
@@ -25,7 +25,7 @@ public sealed class SchedulerDiagnostics
     }
 
     /// <summary>Initializes a new instance of the <see cref="SchedulerDiagnostics" /> class.</summary>
-    /// <param name="hasReplaySchedule">Whether a non-empty typed replay schedule was configured.</param>
+    /// <param name="hasReplaySchedule">Whether a typed replay schedule was configured.</param>
     /// <param name="lastMatchedReplayStep">The last replay step that was fully consumed, if any.</param>
     /// <param name="lastMatchedReplayStepOneBased">One-based index of <paramref name="lastMatchedReplayStep" /> in the configured schedule.</param>
     /// <param name="waitingWorkers">Workers blocked at probes while waiting to be scheduled.</param>
@@ -50,7 +50,7 @@ public sealed class SchedulerDiagnostics
         RunningWorkers = [.. runningWorkers];
     }
 
-    /// <summary>Gets a value indicating whether a non-empty typed replay schedule was configured.</summary>
+    /// <summary>Gets a value indicating whether a typed replay schedule was configured.</summary>
     public bool HasReplaySchedule { get; }
 
     /// <summary>Gets workers held after an Arrive replay step matched.</summary>

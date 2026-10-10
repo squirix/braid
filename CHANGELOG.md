@@ -22,6 +22,9 @@
   not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
   before the callback starts.
   A caller that blocks the only thread of its synchronization context while waiting for the run no longer hangs it.
+- Breaking: `ReplaySchedule.Replay` rejects an empty step list with `ArgumentException`. A run with an empty schedule used to pass
+  until a worker hit a probe, then fail with "Scripted schedule was exhausted" while its diagnostics said no schedule was configured.
+  Leave `RunOptions.Schedule` unset for a random run.
 - Breaking: `RunOptions.Timeout` and `ExploreOptionsBuilder.WithTimeout` count from the start of the run callback instead of from `JoinAsync`,
   so slow setup before the join now counts toward the timeout.
 

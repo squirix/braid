@@ -40,32 +40,6 @@ public sealed class BraidExceptionAndTraceReportTests : TestBase
         _ = await Assert.That(report).DoesNotContain("Schedule:");
     }
 
-    /// <summary>Verifies empty replay schedule failure does not print schedule entries.</summary>
-    /// <param name="cancellationToken">The cancellation token for the current test.</param>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Test]
-    public async Task EmptyReplayScheduleDoesNotPrintEntries(CancellationToken cancellationToken)
-    {
-        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
-            Runner.RunAsync(
-                async context =>
-                {
-                    context.Fork(static () => Task.FromException(new InvalidOperationException("worker-failed")));
-                    await context.JoinAsync(cancellationToken);
-                },
-                new RunOptions
-                {
-                    Iterations = 1,
-                    Seed = 9015,
-                    Schedule = ReplaySchedule.Replay(),
-                },
-                cancellationToken));
-
-        var report = exception.ToString();
-        _ = await Assert.That(report).DoesNotContain("Schedule:");
-        _ = await Assert.That(report).Contains("worker-failed");
-    }
-
     /// <summary>Verifies long probe names can be reported without crashes.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
