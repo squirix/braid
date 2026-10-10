@@ -5,6 +5,7 @@ namespace Braid.Tests;
 /// <summary>Covers workers that are still running after a failed run stops waiting for them.</summary>
 public sealed class AbandonedWorkerTests : TestBase
 {
+    private const string WorkerFailure = "worker failed";
     private static readonly TimeSpan RunTimeout = TimeSpan.FromMilliseconds(200);
 
     /// <summary>Verifies the failure names the abandoned worker only, and its probe after the run is canceled instead of hitting a disposed scheduler.</summary>
@@ -59,37 +60,70 @@ public sealed class AbandonedWorkerTests : TestBase
         _ = await Assert.That(exception.Message).Contains("abandoned: stuck.");
     }
 
-    /// <summary>Verifies a run that fails while a worker ignores the shutdown waits for that worker once, about one second, not twice.</summary>
+    /// <summary>Verifies a run that fails while a worker ignores the shutdown waits for that worker once: stopping the run after the failed join does not wait again.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
     public async Task FailedRunWaitsOnceForStuckWorker(CancellationToken cancellationToken)
     {
         using var stuck = new StuckWorker();
-        var stopwatch = Stopwatch.StartNew();
+        long joinFailed = 0;
+        long runEnded = 0;
+        var run = Runner.RunAsync(
+            async context =>
+            {
+                context.Fork("stuck", stuck.RunAfterCanceledProbeAsync);
+                context.Fork("failing", () => FailAfterProbeAsync(cancellationToken));
+                try
+                {
+                    await context.JoinAsync(cancellationToken);
+                }
+                catch (RunException)
+                {
+                    // The failed join has already waited one second for the stuck worker.
+                    joinFailed = Stopwatch.GetTimestamp();
+                    throw;
+                }
+            },
+            FailWhileOthersAreParked(),
+            cancellationToken);
+        var timed = run.ContinueWith(_ => runEnded = Stopwatch.GetTimestamp(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(run);
+        _ = await timed;
+        _ = await stuck.ResumeAsync(cancellationToken);
+
+        // A second wait while the run stops would add a full second between the failed join and the end of the run.
+        _ = await Assert.That(Stopwatch.GetElapsedTime(joinFailed, runEnded)).IsLessThan(TimeSpan.FromMilliseconds(500));
+        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo(WorkerFailure);
+        _ = await Assert.That(exception.Message).Contains("abandoned: stuck.");
+    }
+
+    /// <summary>Verifies a worker that finishes after the failed join stopped waiting, but before the run stops, is not named as abandoned.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task WorkerFinishedBeforeStopIsNotReported(CancellationToken cancellationToken)
+    {
+        using var finishing = new StuckWorker();
+        using var stuck = new StuckWorker();
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                context =>
+                async context =>
                 {
+                    context.Fork("finishing", finishing.RunAfterCanceledProbeAsync);
                     context.Fork("stuck", stuck.RunAfterCanceledProbeAsync);
-                    context.Fork(
-                        "failing",
-                        async () =>
-                        {
-                            await Probe.HitAsync("q", cancellationToken);
-                            throw new InvalidOperationException("worker failed");
-                        });
-                    return context.JoinAsync(cancellationToken);
+                    context.Fork("failing", () => FailAfterProbeAsync(cancellationToken));
+                    _ = await BraidAssertions.AssertExpectsAsync<RunException>(context.JoinAsync(cancellationToken));
+                    _ = await finishing.ResumeAsync(cancellationToken);
+                    await WaitForCompletedAsync(context, "finishing", cancellationToken);
                 },
-                new RunOptions { Iterations = 1, Seed = 1, Schedule = ReplaySchedule.Replay(new ReplayStep("failing", "q")) },
+                FailWhileOthersAreParked(),
                 cancellationToken));
-        var elapsed = stopwatch.Elapsed;
 
         _ = await stuck.ResumeAsync(cancellationToken);
 
-        // The failed join waits one second for the stuck worker; a second wait when the run stops would take the run past two seconds.
-        _ = await Assert.That(elapsed).IsLessThan(TimeSpan.FromSeconds(1.8));
-        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo("worker failed");
+        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo(WorkerFailure);
         _ = await Assert.That(exception.Message).Contains("abandoned: stuck.");
     }
 
@@ -129,6 +163,29 @@ public sealed class AbandonedWorkerTests : TestBase
 
         _ = await Assert.That(exception.Message).DoesNotContain("abandoned");
     }
+
+    private static RunOptions FailWhileOthersAreParked() => new() { Iterations = 1, Seed = 1, Schedule = ReplaySchedule.Replay(new ReplayStep("failing", "q")) };
+
+    private static async Task FailAfterProbeAsync(CancellationToken cancellationToken)
+    {
+        await Probe.HitAsync("q", cancellationToken);
+        throw new InvalidOperationException(WorkerFailure);
+    }
+
+    /// <summary>Waits until the trace of the run says the worker completed. A fork after the join is rejected with the current trace, the only view of a running run that the callback has.</summary>
+    /// <param name="context">The run context, after its join.</param>
+    /// <param name="workerId">The worker to wait for.</param>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that completes when the worker is completed.</returns>
+    private static async Task WaitForCompletedAsync(RunContext context, string workerId, CancellationToken cancellationToken)
+    {
+        var completed = workerId + " completed";
+        while (!RejectFork(context).ToString().Contains(completed, StringComparison.Ordinal))
+            await Task.Delay(TimeSpan.FromMilliseconds(5), TimeProvider.System, cancellationToken);
+    }
+
+    private static RunException RejectFork(RunContext context) =>
+        BraidAssertions.AssertExpects<RunException, RunContext>(context, static rejected => rejected.Fork("late", static () => Task.CompletedTask));
 
     /// <summary>A worker that ignores cancellation until the test resumes it after the run, then hits one more probe.</summary>
     private sealed class StuckWorker : IDisposable
