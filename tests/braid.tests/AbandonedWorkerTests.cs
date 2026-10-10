@@ -133,7 +133,7 @@ public sealed class AbandonedWorkerTests : TestBase
     [Test]
     public async Task DrainedWorkersAreNotReported(CancellationToken cancellationToken)
     {
-        // The running worker stops when the shutdown cancels the parked worker's probe.
+        // The running worker stops when the shutdown cancels the parked worker's probe, so the parked worker has to start first.
         using var parkedStopped = new CancellationTokenSource();
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
@@ -158,7 +158,13 @@ public sealed class AbandonedWorkerTests : TestBase
                             .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing));
                     return context.JoinAsync(cancellationToken);
                 },
-                new RunOptions { Iterations = 1, Seed = 1, Timeout = RunTimeout },
+                new RunOptions
+                {
+                    Iterations = 1,
+                    Seed = 1,
+                    Timeout = RunTimeout,
+                    Schedule = ReplaySchedule.Replay(ReplayStep.Start("parked"), ReplayStep.Start("running")),
+                },
                 cancellationToken));
 
         _ = await Assert.That(exception.Message).DoesNotContain("abandoned");

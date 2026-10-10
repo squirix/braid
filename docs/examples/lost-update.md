@@ -7,8 +7,8 @@ Because the read happens after a probe, the schedule decides whether both worker
 The replay schedule below releases both reads before either write, so both write `1` and the final assertion, which expects `2`, fails with a `RunException`.
 A sequential schedule (`worker-1` reads and writes, then `worker-2`) keeps both increments; the example tests that too.
 
-Code before a worker's first probe is not interleaved: braid runs it in fork order before any scheduling decision.
-Put a probe before every shared read or write that the race depends on.
+A worker runs alone between two scheduling points, and its start is one of them: this replay token has no `start` lines,
+so both workers start before its first line, in fork order. Put a probe before every shared read or write that the race needs a switch at.
 
 ## Replay token
 

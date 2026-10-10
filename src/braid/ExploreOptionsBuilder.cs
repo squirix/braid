@@ -30,7 +30,7 @@ public sealed class ExploreOptionsBuilder
         return this;
     }
 
-    /// <summary>Sets the maximum number of hit steps per generated replay schedule.</summary>
+    /// <summary>Sets the maximum number of hit steps per generated replay schedule; start steps do not count.</summary>
     /// <remarks>Only the first steps are explored. Workers still waiting after the last step are released in fork order, so the test can run to completion.</remarks>
     /// <param name="maxStepsPerSchedule">The per-schedule step cap.</param>
     /// <returns>The current builder.</returns>

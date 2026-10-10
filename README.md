@@ -99,6 +99,9 @@ The parsed text is the same format braid emits as a replay token on failure.
 For stricter two-phase interleaving control, use `ReplayStep.Arrive` / `ReplayStep.Release`
 instead of `ReplayStep.Hit`.
 
+A schedule can also say which worker starts first, with `ReplayStep.Start("worker-2")` or the text line `start worker-2`.
+A schedule without start steps starts every worker before its first step, in fork order; a schedule with start steps starts only the workers it names.
+
 ## When to use braid
 
 - cache, CAS, TTL, and state-machine library tests;

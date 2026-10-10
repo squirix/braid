@@ -11,4 +11,7 @@ public enum ReplayStepKind
 
     /// <summary>Release a worker previously held by an <see cref="Arrive" /> step.</summary>
     Release = 2,
+
+    /// <summary>Start a worker that has not started yet: it runs from its beginning up to its first probe.</summary>
+    Start = 3,
 }

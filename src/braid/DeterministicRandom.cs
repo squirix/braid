@@ -6,11 +6,15 @@ internal sealed class DeterministicRandom
 
     internal DeterministicRandom(int seed)
     {
+        Seed = seed;
         _state = uint.CreateTruncating(seed);
 
         if (_state == 0)
             _state = 0x9E3779B9;
     }
+
+    /// <summary>Gets the seed the sequence started from.</summary>
+    internal int Seed { get; }
 
     internal int NextInt32(int exclusiveMax)
     {

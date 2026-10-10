@@ -143,7 +143,7 @@ public sealed class BraidExploreAsyncTests : TestBase
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
         _ = await Assert.That(exception.TryGetReplayText(out _, out var error)).IsTrue().Because(error!);
-        _ = await Assert.That(exception.Steps.Count).IsEqualTo(4);
+        _ = await Assert.That(exception.Steps.Count).IsEqualTo(6);
     }
 
     /// <summary>Verifies an assertion after the join fails under a schedule cut by the step cap, and its replay token reproduces it.</summary>
@@ -152,7 +152,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Test]
     public async Task ExploreFindsOrderFailureAfterStepCap(CancellationToken cancellationToken)
     {
-        // The generated schedule "hit second b1; hit second b2" finishes "second" first; fork order then completes "first".
+        // The generated schedule starts both workers, then "hit second b1; hit second b2" finishes "second" first; fork order then completes "first".
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(2).WithMaxSchedules(10).WithMaxStepsPerSchedule(2),
@@ -162,7 +162,14 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
         _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
         _ = await Assert.That(exception.Steps).IsEquivalentTo(
-            [ReplayStep.Hit("second", "b1"), ReplayStep.Hit("second", "b2"), ReplayStep.Hit("first", "a1"), ReplayStep.Hit("first", "a2")],
+            [
+                ReplayStep.Start("first"),
+                ReplayStep.Start("second"),
+                ReplayStep.Hit("second", "b1"),
+                ReplayStep.Hit("second", "b2"),
+                ReplayStep.Hit("first", "a1"),
+                ReplayStep.Hit("first", "a2"),
+            ],
             CollectionOrdering.Matching);
 
         var replayed = await BraidAssertions.AssertExpectsAsync<RunException>(

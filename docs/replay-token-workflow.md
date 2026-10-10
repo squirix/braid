@@ -3,10 +3,14 @@
 A **replay token** is Braid’s canonical replay text: the same format produced by `ReplaySchedule.ToReplayText()` and accepted by `ReplaySchedule.Parse(...)`. There is no separate syntax.
 
 ```text
+start <worker>
 hit <worker> <probe>
 arrive <worker> <probe>
 release <worker> <probe>
 ```
+
+`start` runs a worker from its beginning up to its first probe. A token without `start` lines starts every worker before its first line,
+in fork order; a token with them starts only the workers it names.
 
 **Product goal:** find the interleaving, copy the token, keep the race fixed forever.
 
@@ -43,6 +47,7 @@ Random-only runs report **seed**, **iteration**, and **trace**. They do **not** 
 2. **Re-run** with the same seed to confirm the failure (`RunOptions.Seed`).
 3. **Add probes** at async boundaries in the code under test (`Probe.HitAsync`).
 4. **Build** a typed or text schedule that matches the interleaving you need (use trace lines as hints).
+   Write a `start` line for each `<worker> released` trace line, in that order: a token without `start` lines starts the workers in fork order.
 5. **Export** canonical text with `ReplaySchedule.ToReplayText()` once the schedule reproduces the bug.
 6. **Regression test** using `ReplaySchedule.Parse(token)` or `ReplaySchedule.Replay(...)`.
 

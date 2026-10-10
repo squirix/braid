@@ -21,7 +21,7 @@ public sealed class RunContext
     /// </summary>
     public IReadOnlyList<string> TraceSteps => Volatile.Read(ref _completedTrace) ?? _runScheduler.GetTraceSnapshot();
 
-    internal Dictionary<string, List<string>> WorkerProbeSequences { get; private set; } = [with(StringComparer.Ordinal)];
+    internal IReadOnlyList<WorkerProbes> WorkerProbeSequences { get; private set; } = [];
 
     /// <summary>Starts a logical concurrent operation controlled by the braid scheduler.</summary>
     /// <param name="operation">The operation to run.</param>

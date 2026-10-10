@@ -32,7 +32,7 @@ public sealed class ReplaySchedule
     /// <param name="steps">The worker replay steps. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="steps" /> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, or a step has no worker id or probe name.</exception>
+    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, a step has no worker id or probe name, or a start step has a probe name.</exception>
     public static ReplaySchedule Replay(params ReplayStep[] steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
@@ -43,7 +43,7 @@ public sealed class ReplaySchedule
     /// <param name="steps">The worker replay steps. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="steps" /> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, or a step has no worker id or probe name.</exception>
+    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, a step has no worker id or probe name, or a start step has a probe name.</exception>
     public static ReplaySchedule Replay(IReadOnlyList<ReplayStep> steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
@@ -81,10 +81,13 @@ public sealed class ReplaySchedule
                 ReplayStepKind.Hit => "hit",
                 ReplayStepKind.Arrive => "arrive",
                 ReplayStepKind.Release => "release",
+                ReplayStepKind.Start => "start",
                 _ => throw new InvalidOperationException($"Braid step kind '{step.Kind}' cannot be exported to replay text."),
             };
 
-            _ = builder.Append(operation).Append(' ').Append(step.WorkerId).Append(' ').Append(step.ProbeName);
+            _ = builder.Append(operation).Append(' ').Append(step.WorkerId);
+            if (step.Kind != ReplayStepKind.Start)
+                _ = builder.Append(' ').Append(step.ProbeName);
         }
 
         return builder.ToString();
@@ -188,6 +191,9 @@ public sealed class ReplaySchedule
             case ReplayStepKind.Release:
                 step = ReplayStep.Release(workerId, probeName);
                 return true;
+            case ReplayStepKind.Start:
+                step = ReplayStep.Start(workerId);
+                return true;
             default:
                 step = default;
                 error = $"Line {lineNumber}: Unknown braid step kind '{kind}'.";
@@ -204,19 +210,13 @@ public sealed class ReplaySchedule
 
         char[]? separators = null;
         var tokens = line.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length > 3)
-        {
-            error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
-            return false;
-        }
-
         if (!TryParseOperation(tokens[0], out var kind))
         {
-            error = $"Line {lineNumber}: Unknown operation '{tokens[0]}'. Expected 'hit', 'arrive', or 'release'.";
+            error = $"Line {lineNumber}: Unknown operation '{tokens[0]}'. Expected 'hit', 'arrive', 'release', or 'start'.";
             return false;
         }
 
-        if (!TryParseWorkerAndProbe(tokens, lineNumber, out var workerId, out var probeName, out error))
+        if (!TryParseWorkerAndProbe(kind, tokens, lineNumber, out var workerId, out var probeName, out error))
             return false;
 
         if (!TryCreateStep(kind, workerId, probeName, lineNumber, out var step, out error))
@@ -246,15 +246,33 @@ public sealed class ReplaySchedule
             return true;
         }
 
+        if (token.Equals("start", StringComparison.OrdinalIgnoreCase))
+        {
+            kind = ReplayStepKind.Start;
+            return true;
+        }
+
         kind = default;
         return false;
     }
 
-    private static bool TryParseWorkerAndProbe(string[] tokens, int lineNumber, out string workerId, out string probeName, [NotNullWhen(false)] out string? error)
+    private static bool TryParseWorkerAndProbe(ReplayStepKind kind, string[] tokens, int lineNumber, out string workerId, out string probeName, [NotNullWhen(false)] out string? error)
     {
         error = null;
         workerId = string.Empty;
         probeName = string.Empty;
+
+        if (kind is ReplayStepKind.Start)
+        {
+            if (tokens.Length != 2)
+            {
+                error = $"Line {lineNumber}: Expected exactly 2 tokens (start, worker id); found {tokens.Length}.";
+                return false;
+            }
+
+            workerId = tokens[1];
+            return true;
+        }
 
         switch (tokens.Length)
         {
