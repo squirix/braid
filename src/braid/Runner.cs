@@ -44,7 +44,7 @@ public static class Runner
     /// </summary>
     /// <remarks>
     /// The callback of every iteration starts on the thread pool, without the synchronization context of the caller,
-    /// so the returned task can be incomplete before the callback starts.
+    /// so the method can return before the callback starts; a token canceled in between cancels the run without invoking the callback.
     /// </remarks>
     /// <param name="test">The test callback to execute.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -66,7 +66,7 @@ public static class Runner
     /// </summary>
     /// <remarks>
     /// The callback of every iteration starts on the thread pool, without the synchronization context of the caller,
-    /// so the returned task can be incomplete before the callback starts.
+    /// so the method can return before the callback starts; a token canceled in between cancels the run without invoking the callback.
     /// </remarks>
     /// <param name="test">The test callback to execute.</param>
     /// <param name="options">The run options.</param>
