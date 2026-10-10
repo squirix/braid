@@ -6,7 +6,7 @@ namespace Braid.Tests;
 public sealed class ExplorePathChangeTests : TestBase
 {
     private const string RetryBug = "bug on the retry path";
-    private static readonly TimeSpan HangTimeout = TimeSpan.FromMilliseconds(300);
+    private static readonly TimeSpan HangTimeout = TimeSpan.FromSeconds(1);
 
     /// <summary>Verifies exploration finds a failure on the retry path of a compare-and-swap loop for every seed, with a token that reproduces it.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
@@ -48,6 +48,7 @@ public sealed class ExplorePathChangeTests : TestBase
     [Test]
     public async Task ExploreRunsBothSidesOfABranch(CancellationToken cancellationToken)
     {
+        var runs = 0;
         var w1PassedSecond = false;
         var w2PassedSecond = false;
 
@@ -56,6 +57,7 @@ public sealed class ExplorePathChangeTests : TestBase
             static options => options.WithSeed(1),
             async braid =>
             {
+                runs++;
                 var w1Done = false;
                 var w2Done = false;
                 await braid.WorkerAsync(
@@ -90,6 +92,81 @@ public sealed class ExplorePathChangeTests : TestBase
 
         _ = await Assert.That(w1PassedSecond).IsTrue();
         _ = await Assert.That(w2PassedSecond).IsTrue();
+
+        // The six orders of the two starts and the two first probes. Each has one order left after them:
+        // the worker that passes its first probe last hits its second one.
+        _ = await Assert.That(runs).IsEqualTo(6);
+    }
+
+    /// <summary>Verifies exploration completes a test in which a worker hits a probe again and again until another worker has run.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ExploreCompletesWhenAWorkerPollsAtAProbe(CancellationToken cancellationToken)
+    {
+        var runs = 0;
+
+        // A run that always released the same waiting worker would release only "poller" and never end.
+        await Runner.ExploreAsync(
+            static options => options.WithSeed(1).WithMaxSchedules(50),
+            async braid =>
+            {
+                runs++;
+                var ready = false;
+                await braid.WorkerAsync(
+                    "poller",
+                    async () =>
+                    {
+                        while (!ready)
+                            await Probe.HitAsync("poll", cancellationToken);
+                    });
+                await braid.WorkerAsync(
+                    "setter",
+                    async () =>
+                    {
+                        await Probe.HitAsync("set", cancellationToken);
+                        ready = true;
+                    });
+                await braid.JoinAsync(cancellationToken);
+            },
+            cancellationToken);
+
+        // The poller can poll any number of times before the setter runs, so the schedules end only at MaxSchedules.
+        _ = await Assert.That(runs).IsEqualTo(50);
+    }
+
+    /// <summary>Verifies exploration completes a test in which each worker retries at a probe until the other one leaves a critical section.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task ExploreCompletesWhenWorkersRetryForALock(CancellationToken cancellationToken)
+    {
+        var maxInside = 0;
+
+        await Runner.ExploreAsync(
+            static options => options.WithSeed(1).WithMaxSchedules(200),
+            async braid =>
+            {
+                var locked = 0;
+                var inside = 0;
+                await braid.WorkerAsync("w1", EnterAsync);
+                await braid.WorkerAsync("w2", EnterAsync);
+                await braid.JoinAsync(cancellationToken);
+
+                async Task EnterAsync()
+                {
+                    while (Interlocked.CompareExchange(ref locked, 1, 0) != 0)
+                        await Probe.HitAsync("retry", cancellationToken);
+
+                    maxInside = Math.Max(maxInside, ++inside);
+                    await Probe.HitAsync("inside", cancellationToken);
+                    inside--;
+                    Volatile.Write(ref locked, 0);
+                }
+            },
+            cancellationToken);
+
+        _ = await Assert.That(maxInside).IsEqualTo(1);
     }
 
     /// <summary>Verifies exploration fails, instead of skipping schedules, when the test does not take the same steps under the same schedule.</summary>
@@ -118,6 +195,58 @@ public sealed class ExplorePathChangeTests : TestBase
         _ = await Assert.That(exception.InnerException).IsTypeOf<RunException>();
         _ = await Assert.That(exception.InnerException!.Message).Contains("could not be satisfied: hit w1 at a; actual probe is z.");
         _ = await Assert.That(exception.Steps).IsEquivalentTo([ReplayStep.Start("w1"), ReplayStep.Hit("w1", "a")], CollectionOrdering.Matching);
+    }
+
+    /// <summary>Verifies exploration fails when a run hangs before it has taken every step that an earlier run took: the test did not repeat.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task HangWhileRepeatingStepsFailsExploration(CancellationToken cancellationToken)
+    {
+        var runs = 0;
+
+        // From the second run on, w1 waits before its first probe for w2 to start, so the run hangs at "start w1" with the rest of its steps unused.
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.ExploreAsync(
+                static options => options.WithSeed(1).WithTimeout(HangTimeout),
+                async braid =>
+                {
+                    var waits = ++runs > 1;
+                    using var release = new CancellationTokenSource();
+                    var releaseToken = release.Token;
+                    var w2Started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    await braid.WorkerAsync(
+                        "w1",
+                        async () =>
+                        {
+                            if (waits)
+                                await w2Started.Task.WaitAsync(releaseToken).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+
+                            await Probe.HitAsync("a", cancellationToken);
+                        });
+                    await braid.WorkerAsync(
+                        "w2",
+                        async () =>
+                        {
+                            w2Started.SetResult();
+                            await Probe.HitAsync("b", cancellationToken);
+                        });
+                    try
+                    {
+                        await braid.JoinAsync(cancellationToken);
+                    }
+                    finally
+                    {
+                        // Lets the hung worker end, so the failed run does not wait for it.
+                        await release.CancelAsync();
+                    }
+                },
+                cancellationToken));
+
+        _ = await Assert.That(exception.Message).StartsWith("The test did not repeat under the same schedule");
+        _ = await Assert.That(exception.InnerException).IsTypeOf<RunException>();
+        _ = await Assert.That(exception.InnerException!.Message).Contains("A running worker did not reach a probe while other workers were parked");
+        _ = await Assert.That(runs).IsEqualTo(2);
     }
 
     /// <summary>Verifies exploration fails with the timeout when every schedule hangs on a worker that waits for a parked one, so nothing was checked.</summary>

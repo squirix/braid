@@ -129,7 +129,7 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(explored).IsTrue();
     }
 
-    /// <summary>Verifies a step cap below the schedule length still runs each generated schedule to completion.</summary>
+    /// <summary>Verifies a step cap below the schedule length still runs each schedule to completion.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
@@ -152,7 +152,8 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Test]
     public async Task ExploreFindsOrderFailureAfterStepCap(CancellationToken cancellationToken)
     {
-        // The generated schedule starts both workers, then "hit second b1; hit second b2" finishes "second" first; fork order then completes "first".
+        // The schedule starts both workers and explores "hit second b1; hit first a1"; the run then releases the workers in turn itself,
+        // "second" first, so "second" finishes first.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(2).WithMaxSchedules(10).WithMaxStepsPerSchedule(2),
@@ -166,8 +167,8 @@ public sealed class BraidExploreAsyncTests : TestBase
                 ReplayStep.Start("first"),
                 ReplayStep.Start("second"),
                 ReplayStep.Hit("second", "b1"),
-                ReplayStep.Hit("second", "b2"),
                 ReplayStep.Hit("first", "a1"),
+                ReplayStep.Hit("second", "b2"),
                 ReplayStep.Hit("first", "a2"),
             ],
             CollectionOrdering.Matching);

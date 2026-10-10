@@ -3,7 +3,9 @@ namespace Braid;
 /// <summary>Holds the scripted steps of a replay run and, for a run of an exploration, the choices the run makes after those steps.</summary>
 internal sealed class ReplayScript
 {
-    private static readonly Comparer<ReplayStep> ByWorkerId = Comparer<ReplayStep>.Create(static (left, right) => string.CompareOrdinal(left.WorkerId, right.WorkerId));
+    private static readonly Comparer<RunTask> ByLongestWait = Comparer<RunTask>.Create(
+        static (left, right) => left.ReleaseOrder == right.ReleaseOrder ? left.Id.CompareTo(right.Id) : left.ReleaseOrder.CompareTo(right.ReleaseOrder));
+
     private readonly List<ReplayStep[]> _choices = [];
     private readonly List<ReplayStep> _steps;
 
@@ -32,29 +34,24 @@ internal sealed class ReplayScript
     internal IReadOnlyList<ReplayStep> Steps => _steps;
 
     /// <summary>
-    /// Chooses the next step among the waiting workers and appends it, so the reported schedule reproduces the whole run. Workers that have not
-    /// started come first, in fork order, so the first schedule starts every worker before any probe is passed; started workers follow by worker id.
-    /// The order depends only on which workers wait, so a run that replays the same steps makes the same choices.
+    /// Chooses the next step among the waiting workers and appends it, so the reported schedule reproduces the whole run. The worker that has
+    /// waited longest comes first: workers that have not started, in fork order, so the first schedule starts every worker before any probe is
+    /// passed, then started workers by their last release. A worker that hits a probe again while it waits for another worker therefore
+    /// does not keep that worker from running. The order depends only on the releases so far, so a run that replays the same steps makes the same choices.
     /// </summary>
-    /// <param name="waitingTasks">The waiting workers, in fork order; at least one.</param>
+    /// <param name="waitingTasks">The waiting workers; at least one.</param>
     internal void AppendChoice(RunTask[] waitingTasks)
     {
-        var steps = new ReplayStep[waitingTasks.Length];
-        var count = 0;
-        for (var index = 0; index < waitingTasks.Length; index++)
+        RunTask[] byLongestWait = [.. waitingTasks];
+        Array.Sort(byLongestWait, ByLongestWait);
+
+        var steps = new ReplayStep[byLongestWait.Length];
+        for (var index = 0; index < steps.Length; index++)
         {
-            if (waitingTasks[index].LastProbeName == null)
-                steps[count++] = ReplayStep.Start(waitingTasks[index].WorkerId);
+            var task = byLongestWait[index];
+            steps[index] = task.LastProbeName == null ? ReplayStep.Start(task.WorkerId) : ReplayStep.Hit(task.WorkerId, task.LastProbeName);
         }
 
-        var started = count;
-        for (var index = 0; index < waitingTasks.Length; index++)
-        {
-            if (waitingTasks[index].LastProbeName is { } probeName)
-                steps[count++] = ReplayStep.Hit(waitingTasks[index].WorkerId, probeName);
-        }
-
-        Array.Sort(steps, started, count - started, ByWorkerId);
         _choices.Add(steps);
         _steps.Add(steps[0]);
     }

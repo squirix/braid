@@ -77,8 +77,8 @@ up to its first probe, and the scheduler chooses when.
   The schedules that start every worker before any hit come first, so other start orders need a `MaxSchedules` above the number of hit orders:
   two workers with five probes each have 252 hit orders and 924 schedules in all.
 - `ExploreAsync` builds each schedule from the steps of the runs before it, so the test must take the same steps whenever its workers are
-  released in the same order. A test that does not, for example because of state kept between runs, fails exploration with
-  "The test did not repeat under the same schedule".
+  released in the same order. When a step that an earlier run took cannot be taken again, for example because of state kept between runs,
+  exploration fails with "The test did not repeat under the same schedule".
 - A worker that waits, before its first probe, for something another worker does before its own first probe hangs when it starts first.
   A random run then times out for the seeds that start it first; `ExploreAsync` skips those schedules after the first one that hangs.
 - Between two scheduling points a worker runs alone. Code between a worker's start and its first probe is one such stretch:

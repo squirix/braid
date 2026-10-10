@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Braid;
 
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
@@ -14,7 +16,7 @@ public static class Runner
     /// <summary>
     /// Explores the schedules of the supplied workers and probe points within the configured bounds, stopping at the first test failure.
     /// The search is depth-first over the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another
-    /// waiting worker there, and chooses in a fixed order from then on. A schedule therefore fits the test also when the order of the workers
+    /// waiting worker there, and from then on releases the worker that has waited longest. A schedule therefore fits the test also when the order of the workers
     /// changes which probes a worker hits. The callback must not return null.
     /// </summary>
     /// <remarks>
@@ -136,8 +138,8 @@ public static class Runner
             }
             catch (RunException ex) when (ex.SkippedByExploration)
             {
-                // A prefix repeats steps that an earlier run took, so it fits the test unless the test changed between the runs.
-                if (!IsHang(ex))
+                // A prefix repeats steps that an earlier run took, so the run takes all of them unless the test changed between the runs.
+                if (!IsHang(ex) || ex.SchedulerDiagnostics is { UnusedReplaySteps.Count: > 0 })
                     throw new RunException(NotRepeatableMessage, ex.Context, ex);
 
                 // The run hung on a worker that waits for a parked one. Its choices end at the hang, so the search moves on from there
@@ -151,7 +153,7 @@ public static class Runner
 
         // No schedule ran to its end, so nothing was checked: passing would hide that.
         if (!anyRunCompleted && firstHang != null)
-            throw firstHang;
+            ExceptionDispatchInfo.Throw(firstHang);
     }
 
     private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)

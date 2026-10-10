@@ -31,7 +31,7 @@ public sealed class ExploreOptionsBuilder
     }
 
     /// <summary>Sets the number of hit steps of a schedule whose order is explored; start steps do not count.</summary>
-    /// <remarks>Only the first steps are explored. After them a run releases waiting workers in a fixed order, so the test can run to completion.</remarks>
+    /// <remarks>Only the first steps are explored. After them a run releases the worker that has waited longest, so the test can run to completion.</remarks>
     /// <param name="maxStepsPerSchedule">The per-schedule step cap.</param>
     /// <returns>The current builder.</returns>
     public ExploreOptionsBuilder WithMaxStepsPerSchedule(int maxStepsPerSchedule)

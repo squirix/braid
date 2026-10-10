@@ -21,9 +21,9 @@
 - Breaking: `JoinAsync` called from a forked worker throws `InvalidOperationException` at once; uncaught, `RunAsync` and `ExploreAsync`
   report it as `RunException` with `RunFailureOrigin.UserTest` and that inner exception. It used to hang until the run timed out.
 - Breaking: `ExploreAsync` no longer generates its schedules from the probes that one random discovery run hit. It searches depth-first over
-  the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another waiting worker there, and chooses
-  in a fixed order from then on. The seed no longer changes the order of the schedules, and the callback runs one time less.
-  A test that does not take the same steps under the same schedule fails with "The test did not repeat under the same schedule".
+  the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another waiting worker there, and
+  from then on releases the worker that has waited longest. The seed no longer changes the order of the schedules, and the callback runs
+  one time less. When a step that an earlier run took cannot be taken again, exploration fails with "The test did not repeat under the same schedule".
 - Breaking: `ExploreAsync` fails with the timeout when every schedule it ran hung on a worker waiting for a parked one. It used to pass.
 - Breaking: the run callback of the first iteration, and of the first `ExploreAsync` run, starts on the thread pool like every later one:
   not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
@@ -53,7 +53,7 @@
 - `ExploreAsync` explores schedules that change which probes a worker hits, for example a retry after a conflict. Schedules generated from
   the probes of the discovery run did not fit such runs and were skipped, so the test passed unless the discovery run itself took the failing path.
 - `ExploreAsync` no longer skips schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
-  after the last explored step, a run releases waiting workers in a fixed order, so the test can run to completion, and the replay token includes those steps.
+  after the last explored step, a run releases the worker that has waited longest, so the test can run to completion, and the replay token includes those steps.
 - A worker still running after a failed run stopped waiting for it no longer gets `ObjectDisposedException` from its next probe:
   the probe throws `OperationCanceledException`, and the failure message names the abandoned workers.
 - A callback that waits before `JoinAsync`, for example for a forked worker (workers start only when the run joins), no longer hangs:

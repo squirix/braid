@@ -93,8 +93,8 @@ public sealed class RunException : Exception
     public override string Message => _abandonedWorkers == null ? base.Message : base.Message + Environment.NewLine + _abandonedWorkers;
 
     /// <summary>
-    /// Gets a value indicating whether exploration skips this failure: the schedule did not fit the run,
-    /// or the run hung only because braid kept a worker parked.
+    /// Gets a value indicating whether the failure comes from the schedule rather than from the test: the schedule did not fit the run,
+    /// or the run hung only because braid kept a worker parked. Exploration skips such a hang and reports a schedule that did not fit as a test that did not repeat.
     /// </summary>
     internal bool SkippedByExploration { get; private set; }
 
@@ -145,7 +145,7 @@ public sealed class RunException : Exception
         }
     }
 
-    /// <summary>Marks the failure as one that exploration skips, because it comes from the schedule rather than from the test.</summary>
+    /// <summary>Marks the failure as one that comes from the schedule rather than from the test.</summary>
     /// <returns>This failure.</returns>
     internal RunException SkipInExploration()
     {

@@ -29,7 +29,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
         _ = await Assert.That(exception.SchedulerDiagnostics!.RunningWorkers).Contains(new ProbeWaitDiagnostic("w", ProbeWaitDiagnostic.StartProbeName));
     }
 
-    /// <summary>Verifies a hang of the last worker under a generated schedule fails exploration with a replay token that reproduces it.</summary>
+    /// <summary>Verifies a hang of the last worker fails exploration with a replay token that reproduces it.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]

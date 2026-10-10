@@ -35,27 +35,37 @@ public sealed class ExploreStartOrderTests : TestBase
         _ = await Assert.That(replayed.InnerException!.Message).IsEqualTo(LateStart);
     }
 
-    /// <summary>Verifies the first schedule starts the workers in fork order and then hits them in worker id order, as schedules did before start steps existed.</summary>
+    /// <summary>Verifies the first schedule starts the workers in fork order and then releases them in turn, the one that has waited longest first.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task FirstScheduleHitsWorkersInIdOrder(CancellationToken cancellationToken)
+    public async Task FirstScheduleReleasesWorkersInTurn(CancellationToken cancellationToken)
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(1),
                 async braid =>
                 {
-                    await braid.WorkerAsync("z", async () => await Probe.HitAsync("pz", cancellationToken));
-                    await braid.WorkerAsync("a", async () => await Probe.HitAsync("pa", cancellationToken));
+                    await braid.WorkerAsync("z", () => HitTwiceAsync("z1", "z2"));
+                    await braid.WorkerAsync("a", () => HitTwiceAsync("a1", "a2"));
                     await braid.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fails under every schedule");
                 },
                 cancellationToken));
 
         _ = await Assert.That(exception.Steps).IsEquivalentTo(
-            [ReplayStep.Start("z"), ReplayStep.Start("a"), ReplayStep.Hit("a", "pa"), ReplayStep.Hit("z", "pz")],
+            [
+                ReplayStep.Start("z"), ReplayStep.Start("a"),
+                ReplayStep.Hit("z", "z1"), ReplayStep.Hit("a", "a1"),
+                ReplayStep.Hit("z", "z2"), ReplayStep.Hit("a", "a2"),
+            ],
             CollectionOrdering.Matching);
+
+        async Task HitTwiceAsync(string first, string second)
+        {
+            await Probe.HitAsync(first, cancellationToken);
+            await Probe.HitAsync(second, cancellationToken);
+        }
     }
 
     /// <summary>Verifies exploration runs one schedule, not all of them, from the group that begins with a start order that hangs.</summary>

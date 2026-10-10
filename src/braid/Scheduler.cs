@@ -23,6 +23,7 @@ internal sealed class Scheduler : IDisposable
     private readonly List<string> _trace = [];
     private bool _joined;
     private int _nextScheduleStep;
+    private int _releases;
 
     internal Scheduler(int seed, int iteration, RunOptions options)
     {
@@ -248,7 +249,7 @@ internal sealed class Scheduler : IDisposable
     }
 
     /// <summary>
-    /// Rejects a second worker with the same id: replay steps and explored probe sequences address workers by id,
+    /// Rejects a second worker with the same id: replay steps address workers by id,
     /// so two workers with one id could not be scheduled or replayed separately.
     /// </summary>
     /// <param name="workerId">The id of the worker being forked, explicit or generated.</param>
@@ -483,6 +484,7 @@ internal sealed class Scheduler : IDisposable
                 if (nextTask != null)
                 {
                     nextTask.State = RunTaskState.Running;
+                    nextTask.ReleaseOrder = ++_releases;
                     _trace.Add(nextTask.LastProbeName == null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
                 }
             }

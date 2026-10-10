@@ -48,15 +48,16 @@ await Runner.ExploreAsync(
 Exploration is a depth-first search over the choices of real runs. A choice is a point where no worker runs and at least one waits,
 before its start or at a probe.
 
-1. **First run** — at every choice the run releases the first waiting worker in a fixed order: workers that have not started, in fork order,
-   then started workers by worker id. So the first schedule starts every worker before any probe is passed.
+1. **First run** — at every choice the run releases the worker that has waited longest: workers that have not started, in fork order,
+   then started workers by their last release. So the first schedule starts every worker before any probe is passed and then releases
+   the workers in turn, and a worker that hits a probe again while it waits for another worker does not keep that worker from running.
    The run records which steps it could take at every choice.
 2. **Next runs** — each run replays the steps of the path so far up to the last choice that still has an untried step, takes that step,
-   and chooses in the fixed order from then on, recording its choices again.
+   and from then on releases the worker that has waited longest, recording its choices again.
    Every replayed step was taken by an earlier run, so a schedule fits the test also when the order of the workers changes which probes
    a worker hits: a retry loop, a conflict branch, an early exit.
 3. **Bounds** — `MaxSchedules` limits the number of runs. Only the choices up to the first `MaxStepsPerSchedule` hit steps of a run are explored;
-   start steps do not count. A run makes its later choices in the fixed order, so the test runs to completion, and the reported replay token
+   start steps do not count. A run makes its later choices itself, so the test runs to completion, and the reported replay token
    includes those steps.
    A test whose probes do not depend on the order has `(n(p + 1))! / ((p + 1)!)^n` schedules for `n` workers with `p` probes each,
    of which the first `(np)! / (p!)^n` start every worker first.

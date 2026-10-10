@@ -26,7 +26,7 @@ internal sealed class ExploreSearch
     /// <returns><see langword="true" /> if a prefix is left to run; <see langword="false" /> when every choice has been tried.</returns>
     internal bool MoveNext(IReadOnlyList<ReplayStep[]> choices)
     {
-        // Only the choices up to the hit limit are explored. A run makes the later ones in its fixed order, and no prefix changes them.
+        // Only the choices up to the hit limit are explored. A run makes the later ones itself, and no prefix changes them.
         var hits = CountHits();
         for (var index = 0; index < choices.Count && hits < _maxHits; index++)
         {
