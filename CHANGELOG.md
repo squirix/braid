@@ -18,8 +18,9 @@
   Duplicate ids used to be accepted, and exploration merged their probe sequences and missed interleavings.
 - Breaking: `JoinAsync` called from a forked worker throws `InvalidOperationException` at once; uncaught, `RunAsync` and `ExploreAsync`
   report it as `RunException` with `RunFailureOrigin.UserTest` and that inner exception. It used to hang until the run timed out.
-- Breaking: the run callback of the first iteration, and of the `ExploreAsync` discovery run, starts on the thread pool like every later one,
-  not on the calling thread with its synchronization context. `RunAsync` and `ExploreAsync` can return before the callback starts.
+- Breaking: the run callback of the first iteration, and of the `ExploreAsync` discovery run, starts on the thread pool like every later one:
+  not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
+  before the callback starts.
   A caller that blocks the only thread of its synchronization context while waiting for the run no longer hangs it.
 - Breaking: `RunOptions.Timeout` and `ExploreOptionsBuilder.WithTimeout` count from the start of the run callback instead of from `JoinAsync`,
   so slow setup before the join now counts toward the timeout.

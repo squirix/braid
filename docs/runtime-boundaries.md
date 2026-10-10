@@ -39,8 +39,8 @@ Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`,
 
 - Nested `Runner.RunAsync` calls are not supported.
 - `RunContext` is valid only during the active run callback.
-- The run callback starts on the thread pool, without the caller's thread or synchronization context, in every iteration and every explored
-  schedule. Forked workers start there too.
+- The run callback starts on the thread pool, not inline in the caller and without the caller's synchronization context or task scheduler,
+  in every iteration and every explored schedule. Forked workers start there too.
 - `JoinAsync` cannot be called from a forked worker: the join would wait for the worker itself.
 - A failed `JoinAsync` is final: a later join in the same run, including the one the run performs after the callback, throws the same exception.
   A callback that catches the failure of its join does not make the run pass. Only canceling the run token changes the outcome:
