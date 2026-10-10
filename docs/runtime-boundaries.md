@@ -80,6 +80,10 @@ the parked worker holds across a probe) never continues, and the run times out. 
 - A timeout with no running worker blocked on a parked one is reported with `RunFailureOrigin.Timeout` and fails `ExploreAsync`.
 - A deadlock between two or more workers looks the same as such a hang, so `ExploreAsync` does not report it yet.
 - Do not hold a lock that another worker waits for across a probe.
+- Canceling the token passed to `Probe.HitAsync` does not wake a parked worker. The worker observes the cancellation when the scheduler
+  releases it: the probe then throws `OperationCanceledException`. A worker that cancels the token and then waits for the parked worker
+  to react, before its own next probe, hangs the same way. A probe hit with an already canceled token is still a scheduling point.
+  To stop a run, cancel the token passed to `RunAsync` / `JoinAsync`; a probe token alone does not stop it.
 
 ---
 

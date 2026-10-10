@@ -22,6 +22,10 @@
   not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
   before the callback starts.
   A caller that blocks the only thread of its synchronization context while waiting for the run no longer hangs it.
+- Breaking: canceling the token passed to `Probe.HitAsync` no longer wakes a worker parked at the probe. The worker observes the cancellation
+  when the scheduler releases it, and the probe then throws `OperationCanceledException`. A canceled wait used to let the worker run at the same
+  time as the released one, so one seed or replay token gave different runs, and a retry with a canceled token could fail the run with
+  `SemaphoreFullException`. A worker that cancels the token and waits for the parked worker before its own next probe now times out.
 - Breaking: `ReplaySchedule.Replay` rejects an empty step list with `ArgumentException`. A run with an empty schedule used to pass
   until a worker hit a probe, then fail with "Scripted schedule was exhausted" while its diagnostics said no schedule was configured.
   Leave `RunOptions.Schedule` unset for a random run.
