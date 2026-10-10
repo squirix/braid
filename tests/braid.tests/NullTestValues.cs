@@ -10,11 +10,11 @@ internal static class NullTestValues
     /// <summary>Gets a null fork operation.</summary>
     internal static Func<Task> ForkOperation => null;
 
-    /// <summary>Gets a fork operation that returns null.</summary>
-    internal static Func<Task> NullReturningFork => static () => NullTaskHolder[0];
-
     /// <summary>Gets an exploration callback that returns null.</summary>
     internal static Func<ExploreContext, Task> NullReturningExploreCallback => static _ => NullTaskHolder[0];
+
+    /// <summary>Gets a fork operation that returns null.</summary>
+    internal static Func<Task> NullReturningFork => static () => NullTaskHolder[0];
 
     /// <summary>Gets a run callback that returns null.</summary>
     internal static Func<RunContext, Task> NullReturningRunCallback => static _ => NullTaskHolder[0];

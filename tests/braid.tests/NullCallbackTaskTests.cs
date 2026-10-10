@@ -20,6 +20,8 @@ public sealed class NullCallbackTaskTests : TestBase
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
         _ = await Assert.That(exception.InnerException).IsTypeOf<InvalidOperationException>();
         _ = await Assert.That(exception.InnerException!.Message).IsEqualTo(NullTaskMessage);
+        _ = await Assert.That(exception.ToString()).Contains(NullTaskMessage);
+        _ = await Assert.That(exception.ToString()).DoesNotContain(nameof(NullReferenceException));
     }
 
     /// <summary>Verifies the failure names the iteration and the seed in which the callback returned null.</summary>
