@@ -1,6 +1,6 @@
 # Runtime boundaries
 
-Braid controls scheduling only at explicit `Probe.HitAsync` calls. These rules keep behavior deterministic and failures understandable.
+Braid switches between workers only at the start of each worker and at explicit `Probe.HitAsync` calls. These rules keep behavior deterministic and failures understandable.
 
 See also: [replay-token-workflow.md](replay-token-workflow.md), [README.md](../README.md).
 
@@ -65,7 +65,11 @@ up to its first probe, and the scheduler chooses when.
   starts every worker before its first step, in fork order, as schedules did before start steps existed. A schedule with start steps starts
   only the workers it names.
 - `ExploreAsync` tries the orders of the starts together with the orders at probes, also for workers that hit no probe. Its discovery run
-  starts every worker first, in fork order, to learn the probes of each.
+  starts every worker first, in fork order, to learn the probes of each. The schedules that start every worker before any hit come first,
+  so other start orders need a `MaxSchedules` above the number of hit orders: two workers with five probes each have 252 hit orders
+  and 924 schedules in all.
+- A worker that waits, before its first probe, for something another worker does before its own first probe hangs when it starts first.
+  A random run then times out for the seeds that start it first; `ExploreAsync` skips those schedules after the first one that hangs.
 - Between two scheduling points a worker runs alone. Code between a worker's start and its first probe is one such stretch:
   another worker runs before it or after it, never in the middle. Put a probe inside it where the race needs a switch,
   as in `examples/single-file/lost-update`.

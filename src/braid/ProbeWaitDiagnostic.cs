@@ -11,6 +11,6 @@ public readonly record struct ProbeWaitDiagnostic(string WorkerId, string ProbeN
     /// <summary>The probe name reported for a waiting worker that has not started yet.</summary>
     public const string NotStartedProbeName = "(not started)";
 
-    /// <summary>The probe name reported for a running worker that has not reached its first probe.</summary>
+    /// <summary>The probe name reported for a running worker that has not reached its first probe, and the placeholder probe name of a start step.</summary>
     public const string StartProbeName = "(start)";
 }

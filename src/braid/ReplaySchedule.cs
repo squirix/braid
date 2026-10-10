@@ -32,7 +32,7 @@ public sealed class ReplaySchedule
     /// <param name="steps">The worker replay steps. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="steps" /> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, or a step has no worker id or probe name.</exception>
+    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, a step has no worker id or probe name, or a start step has a probe name.</exception>
     public static ReplaySchedule Replay(params ReplayStep[] steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
@@ -43,7 +43,7 @@ public sealed class ReplaySchedule
     /// <param name="steps">The worker replay steps. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="steps" /> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, or a step has no worker id or probe name.</exception>
+    /// <exception cref="ArgumentException"><paramref name="steps" /> is empty, a step has no worker id or probe name, or a start step has a probe name.</exception>
     public static ReplaySchedule Replay(IReadOnlyList<ReplayStep> steps)
     {
         ArgumentNullException.ThrowIfNull(steps);
@@ -210,12 +210,6 @@ public sealed class ReplaySchedule
 
         char[]? separators = null;
         var tokens = line.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length > 3)
-        {
-            error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
-            return false;
-        }
-
         if (!TryParseOperation(tokens[0], out var kind))
         {
             error = $"Line {lineNumber}: Unknown operation '{tokens[0]}'. Expected 'hit', 'arrive', 'release', or 'start'.";

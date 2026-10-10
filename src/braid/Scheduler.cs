@@ -11,6 +11,7 @@ internal sealed class Scheduler : IDisposable
     private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(1);
     private readonly Lock _gate = new();
     private readonly int _iteration;
+    private readonly List<ReplayStep>? _discoverySteps;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
     private readonly JoinFailure _joinFailure = new();
     private readonly DeterministicRandom _random;
@@ -18,7 +19,6 @@ internal sealed class Scheduler : IDisposable
     private readonly ReplayScript? _script;
     private readonly CancellationTokenSource _shutdownCts = new();
     private readonly SemaphoreSlim _stateChanged = new(0);
-    private readonly bool _startsInForkOrder;
     private readonly List<RunTask> _tasks = [];
     private readonly CancellationTokenSource _timeoutCts = new();
     private readonly List<string> _trace = [];
@@ -30,7 +30,7 @@ internal sealed class Scheduler : IDisposable
         _iteration = iteration;
         _timeoutCts.CancelAfter(options.Timeout);
         _script = options.Schedule == null ? null : new ReplayScript(options.Schedule.Steps, options.CompletesScheduleInForkOrder);
-        _startsInForkOrder = options.StartsWorkersInForkOrder;
+        _discoverySteps = options.IsDiscoveryRun ? [] : null;
         _random = new DeterministicRandom(seed);
     }
 
@@ -87,7 +87,7 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             traceSnapshot = [.. _trace];
-            scheduleSnapshot = ScriptSteps == null ? [] : [.. ScriptSteps];
+            scheduleSnapshot = [.. ScriptSteps ?? _discoverySteps ?? []];
             resolvedMessage = AppendReplayState(message);
             diagnostics = BuildDiagnosticSnapshot();
         }
@@ -443,7 +443,7 @@ internal sealed class Scheduler : IDisposable
             Tasks = _tasks,
             NextScheduleStep = _nextScheduleStep,
             Script = _script,
-            StartsInForkOrder = _startsInForkOrder,
+            StartsInForkOrder = _discoverySteps != null,
             Random = _random,
             Trace = _trace,
             CreateException = CreateException,
@@ -480,6 +480,7 @@ internal sealed class Scheduler : IDisposable
                 {
                     nextTask.State = RunTaskState.Running;
                     _trace.Add(nextTask.LastProbeName == null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
+                    _discoverySteps?.Add(nextTask.LastProbeName == null ? ReplayStep.Start(nextTask.WorkerId) : ReplayStep.Hit(nextTask.WorkerId, nextTask.LastProbeName));
                 }
             }
 
@@ -645,7 +646,7 @@ internal sealed class Scheduler : IDisposable
             {
                 var task = tasks[index];
                 var equals = string.Equals(task.WorkerId, workerId, StringComparison.Ordinal);
-                if (equals && (task.State == RunTaskState.Waiting || task.State == RunTaskState.Held) && task.LastProbeName != null)
+                if (equals && (task.State == RunTaskState.Waiting || task.State == RunTaskState.Held))
                     return task;
             }
 
@@ -666,10 +667,13 @@ internal sealed class Scheduler : IDisposable
 
         private static string BuildStepMismatchMessage(int stepIndex, string action, in ReplayStep expectedStep, RunTask? sameWorkerBlockedTask)
         {
-            var oneBasedIndex = stepIndex + 1;
-            return sameWorkerBlockedTask?.LastProbeName == null
-                ? $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}."
-                : $"Scripted schedule step {oneBasedIndex} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}; actual probe is {sameWorkerBlockedTask.LastProbeName}.";
+            var mismatch = $"Scripted schedule step {stepIndex + 1} could not be satisfied: {action} {expectedStep.WorkerId} at {expectedStep.ProbeName}";
+            return sameWorkerBlockedTask switch
+            {
+                null => mismatch + ".",
+                { LastProbeName: null } => mismatch + "; the worker has not started. A schedule with start steps starts only the workers it names.",
+                _ => mismatch + $"; actual probe is {sameWorkerBlockedTask.LastProbeName}.",
+            };
         }
 
         private static RunTask? SelectNotStartedTask(RunTask[] waitingTasks)

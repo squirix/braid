@@ -49,7 +49,9 @@ await Runner.ExploreAsync(
    It starts every worker first, in fork order, so it learns the probes of every worker even when it stops early.
 2. **Enumeration** — bounded depth-first generation of schedules: a start step per worker, then its hit steps in probe order, interleaved across workers.
    The first schedules start every worker before any hit, in fork order; later ones move the starts between the hits.
+   With `p` probes per worker and `n` workers there are `(n(p + 1))! / ((p + 1)!)^n` schedules, of which the first `(np)! / (p!)^n` keep the fork-order start.
    A schedule with more hit steps than `MaxStepsPerSchedule` is cut there; start steps do not count.
+   A schedule that begins like one that hung on a worker waiting for a parked one is not run: it would hang the same way.
 3. **Replay attempts** — each generated schedule runs under `RunAsync` with `Iterations = 1`.
    After its last step, waiting workers are released in fork order, so the test runs to completion; the reported replay token includes those completion steps.
 4. **Stop** — return when bounds are exhausted without failure; throw the first `RunException` caused by a test assertion, a timeout or an API misuse error (or a discovery random failure).
@@ -65,9 +67,8 @@ Same seed, bounds, and test callback produce the same discovery trace and the sa
 ## Failure artifacts
 
 When exploration fails under a replay schedule, use `RunException.TryGetReplayText` exactly as with `RunAsync`.
-Random-only discovery failures may not export replay text until a replay schedule reproduces the assertion.
-A failure or timeout in a discovery run that hit no probe has no replay text: there is no scheduling choice to record,
-so rerunning the test with the same seed reproduces it.
+The discovery run records each release as a step, so a discovery failure that no generated schedule reproduces carries replay text too.
+Its seed alone does not reproduce it through `RunAsync`: the discovery run starts every worker first, in fork order, and a random run does not.
 
 ## Seed corpus (docs convention)
 

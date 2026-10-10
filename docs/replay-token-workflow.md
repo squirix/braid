@@ -47,6 +47,7 @@ Random-only runs report **seed**, **iteration**, and **trace**. They do **not** 
 2. **Re-run** with the same seed to confirm the failure (`RunOptions.Seed`).
 3. **Add probes** at async boundaries in the code under test (`Probe.HitAsync`).
 4. **Build** a typed or text schedule that matches the interleaving you need (use trace lines as hints).
+   Write a `start` line for each `<worker> released` trace line, in that order: a token without `start` lines starts the workers in fork order.
 5. **Export** canonical text with `ReplaySchedule.ToReplayText()` once the schedule reproduces the bug.
 6. **Regression test** using `ReplaySchedule.Parse(token)` or `ReplaySchedule.Replay(...)`.
 

@@ -1,6 +1,6 @@
 namespace Braid;
 
-/// <summary>Provides explicit scheduling points for braid-controlled tests; braid only controls code that reaches these probes.</summary>
+/// <summary>Provides explicit scheduling points for braid-controlled tests; braid switches between workers only at their starts and at these probes.</summary>
 public static class Probe
 {
     /// <summary>Hits a named scheduling point. Outside a braid run this method completes immediately.</summary>

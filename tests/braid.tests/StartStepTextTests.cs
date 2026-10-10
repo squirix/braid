@@ -35,6 +35,15 @@ public sealed class StartStepTextTests : TestBase
         _ = await Assert.That(exception.Message).IsEqualTo("Line 1: Expected exactly 2 tokens (start, worker id); found 3.");
     }
 
+    /// <summary>Verifies a start line with more tokens still reports what a start line takes.</summary>
+    [Test]
+    public async Task ParseRejectsStartWithManyTokens()
+    {
+        var exception = BraidAssertions.AssertExpects<FormatException>(static () => ReplaySchedule.Parse("start w2 a b"));
+
+        _ = await Assert.That(exception.Message).IsEqualTo("Line 1: Expected exactly 2 tokens (start, worker id); found 4.");
+    }
+
     /// <summary>Verifies a start line without a worker id is rejected.</summary>
     [Test]
     public async Task ParseRejectsStartWithoutWorker()

@@ -4,7 +4,7 @@ namespace Braid;
 
 /// <summary>Defines replay step semantics at a named probe for a logical worker.</summary>
 /// <param name="WorkerId">The stable worker id, such as worker-1.</param>
-/// <param name="ProbeName">The probe name that must be waiting before the worker is released. A start step has no probe; create it with <see cref="Start" />.</param>
+/// <param name="ProbeName">The probe name that must be waiting before the worker is released. A start step has no probe: <see cref="Start" /> sets the placeholder <see cref="ProbeWaitDiagnostic.StartProbeName" />.</param>
 /// <param name="Kind">The step kind.</param>
 [Immutable]
 public readonly record struct ReplayStep(string WorkerId, string ProbeName, ReplayStepKind Kind = ReplayStepKind.Hit)

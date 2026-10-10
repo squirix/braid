@@ -228,6 +228,19 @@ public sealed class WorkerStartTests : TestBase
         _ = await Assert.That(exception.Traces).DoesNotContain("w2 released");
     }
 
+    /// <summary>Verifies a hit step for a worker that the schedule has not started says so.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task HitForUnstartedWorkerNamesTheCause(CancellationToken cancellationToken)
+    {
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            RunTwoWorkersAsync(ReplaySchedule.Replay(ReplayStep.Start("w2"), ReplayStep.Hit("w1", "a")), cancellationToken));
+
+        _ = await Assert.That(exception.Message).StartsWith(
+            "Scripted schedule step 2 could not be satisfied: hit w1 at a; the worker has not started. A schedule with start steps starts only the workers it names.");
+    }
+
     private static Task RunTwoWorkersAsync(ReplaySchedule schedule, CancellationToken cancellationToken)
     {
         return Runner.RunAsync(

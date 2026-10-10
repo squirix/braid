@@ -110,7 +110,7 @@ public static class Runner
             Iterations = 1,
             Seed = options.Seed,
             Timeout = options.Timeout,
-            StartsWorkersInForkOrder = true,
+            IsDiscoveryRun = true,
         };
 
         RunException? discoveryFailure = null;
@@ -219,10 +219,18 @@ public static class Runner
         IReadOnlyList<WorkerProbes> workerProbeSequences,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<ReplayStep> hungSchedule = [];
+        var hungPrefixLength = 0;
+
         foreach (var steps in ExploreScheduleEnumerator.EnumerateSchedules(workerProbeSequences, options.MaxSchedules, options.MaxStepsPerSchedule))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // A schedule that begins like one that hung hangs the same way; running it would only wait for the run timeout again.
+            if (StartsWithPrefix(steps, hungSchedule, hungPrefixLength))
+                continue;
+
+            hungPrefixLength = 0;
             var schedule = ReplaySchedule.Replay(steps);
             try
             {
@@ -235,8 +243,34 @@ public static class Runner
             catch (RunException ex)
             {
                 System.Diagnostics.Trace.TraceInformation($"Braid: skipping non-target schedule ({ex}).");
+                hungSchedule = steps;
+                hungPrefixLength = GetHungPrefixLength(ex, steps.Count);
             }
         }
+    }
+
+    /// <summary>
+    /// Gets the number of leading steps after which a skipped schedule hung on a worker that waits for a parked one.
+    /// Among the failures that exploration skips, only that timeout carries the cancellation of the run timeout.
+    /// </summary>
+    /// <param name="ex">The failure that exploration skipped.</param>
+    /// <param name="stepCount">The number of steps of the generated schedule.</param>
+    /// <returns>The length of the prefix that leads to the hang, or zero when the schedule was skipped for another reason.</returns>
+    private static int GetHungPrefixLength(RunException ex, int stepCount) =>
+        ex.InnerException is OperationCanceledException ? Math.Min(ex.SchedulerDiagnostics?.LastMatchedReplayStepOneBased ?? 0, stepCount) : 0;
+
+    private static bool StartsWithPrefix(IReadOnlyList<ReplayStep> steps, IReadOnlyList<ReplayStep> prefixSource, int prefixLength)
+    {
+        if (prefixLength == 0 || steps.Count < prefixLength)
+            return false;
+
+        for (var index = 0; index < prefixLength; index++)
+        {
+            if (steps[index] != prefixSource[index])
+                return false;
+        }
+
+        return true;
     }
 
     /// <summary>

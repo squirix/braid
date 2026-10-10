@@ -28,10 +28,11 @@ public sealed class RunOptions
     internal bool CompletesScheduleInForkOrder { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether a random run starts every worker before any other choice, in fork order.
-    /// The discovery run of an exploration does, so it learns the probes of every worker even when it stops early.
+    /// Gets a value indicating whether the run is the discovery run of an exploration. It is a random run that starts every worker before any
+    /// other choice, in fork order, so it learns the probes of every worker even when it stops early, and that records each release as a step,
+    /// so its failure carries a replay token.
     /// </summary>
-    internal bool StartsWorkersInForkOrder { get; init; }
+    internal bool IsDiscoveryRun { get; init; }
 
     /// <summary>Throws when <paramref name="value" /> is not a positive timeout of at most <see cref="MaxTimeout" />.</summary>
     /// <param name="value">The timeout to check.</param>
