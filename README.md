@@ -57,7 +57,6 @@ Don't know the failing interleaving yet? Try bounded exploration:
 ```csharp
 await Runner.ExploreAsync(
     static options => options
-        .WithSeed(123)
         .WithMaxSchedules(1_000)
         .WithMaxStepsPerSchedule(100),
     async braid =>

@@ -22,8 +22,10 @@
   report it as `RunException` with `RunFailureOrigin.UserTest` and that inner exception. It used to hang until the run timed out.
 - Breaking: `ExploreAsync` no longer generates its schedules from the probes that one random discovery run hit. It searches depth-first over
   the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another waiting worker there, and
-  from then on releases the worker that has waited longest. The seed no longer changes the order of the schedules, and the callback runs
-  one time less. When a step that an earlier run took cannot be taken again, exploration fails with "The test did not repeat under the same schedule".
+  from then on releases the worker that has waited longest. The callback runs one time less.
+  When a step that an earlier run took cannot be taken again, exploration fails with "The test did not repeat under the same schedule".
+- Breaking: `ExploreOptions.Seed` and `ExploreOptionsBuilder.WithSeed` are removed. Exploration makes no random choice, so the same bounds
+  and test give the same schedules in the same order. A failure found by `ExploreAsync` reports seed 0; reproduce it with its replay token.
 - Breaking: `ExploreAsync` fails with the timeout when every schedule it ran hung on a worker waiting for a parked one. It used to pass.
 - Breaking: the run callback of the first iteration, and of the first `ExploreAsync` run, starts on the thread pool like every later one:
   not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return

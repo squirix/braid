@@ -94,7 +94,7 @@ public sealed class WorkerStartTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     var shared = 0;
@@ -136,7 +136,7 @@ public sealed class WorkerStartTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     var shared = 0;
@@ -174,7 +174,7 @@ public sealed class WorkerStartTests : TestBase
         var runs = 0;
 
         await Runner.ExploreAsync(
-            static options => options.WithSeed(1),
+            static _ => { },
             async braid =>
             {
                 runs++;

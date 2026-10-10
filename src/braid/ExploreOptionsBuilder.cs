@@ -4,22 +4,12 @@ namespace Braid;
 public sealed class ExploreOptionsBuilder
 {
     private TimeSpan _timeout = TimeSpan.FromSeconds(10);
-    private int _seed = Environment.TickCount;
     private int _maxSchedules = 1_000;
     private int _maxStepsPerSchedule = 100;
 
     /// <summary>Builds the configured options.</summary>
     /// <returns>The configured exploration options.</returns>
-    public ExploreOptions Build() => new(_seed, _maxSchedules, _maxStepsPerSchedule, _timeout);
-
-    /// <summary>Sets the seed reported with a failure. Schedules run in a fixed order, so the seed does not change them.</summary>
-    /// <param name="seed">The seed value.</param>
-    /// <returns>The current builder.</returns>
-    public ExploreOptionsBuilder WithSeed(int seed)
-    {
-        _seed = seed;
-        return this;
-    }
+    public ExploreOptions Build() => new(_maxSchedules, _maxStepsPerSchedule, _timeout);
 
     /// <summary>Sets the maximum number of schedules to run.</summary>
     /// <param name="maxSchedules">The schedule cap.</param>

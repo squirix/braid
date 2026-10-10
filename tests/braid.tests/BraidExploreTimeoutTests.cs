@@ -16,7 +16,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
         await using var hang = new HungWorker();
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithTimeout(RunTimeout),
+                static options => options.WithTimeout(RunTimeout),
                 async braid =>
                 {
                     await braid.WorkerAsync("w", hang.HangAsync);
@@ -38,7 +38,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
         await using var hang = new HungWorker();
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithMaxSchedules(10).WithTimeout(RunTimeout),
+                static options => options.WithMaxSchedules(10).WithTimeout(RunTimeout),
                 async braid =>
                 {
                     await braid.WorkerAsync("first", async () => await Probe.HitAsync("a", cancellationToken));
@@ -88,7 +88,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
     {
         await using var hang = new HungWorker();
         _ = await Assert.That(() => Runner.ExploreAsync(
-            static options => options.WithSeed(1).WithMaxSchedules(10).WithTimeout(RunTimeout),
+            static options => options.WithMaxSchedules(10).WithTimeout(RunTimeout),
             async braid =>
             {
                 var firstDone = false;

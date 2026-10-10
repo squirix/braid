@@ -53,7 +53,7 @@ public sealed class CallbackBeforeJoinTests : TestBase
         using var workerDone = new CancellationTokenSource();
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithTimeout(RunTimeout),
+                static options => options.WithTimeout(RunTimeout),
                 async braid =>
                 {
                     await braid.WorkerAsync("w", () => SignalAsync(workerDone, cancellationToken));

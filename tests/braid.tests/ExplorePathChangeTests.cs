@@ -8,35 +8,35 @@ public sealed class ExplorePathChangeTests : TestBase
     private const string RetryBug = "bug on the retry path";
     private static readonly TimeSpan HangTimeout = TimeSpan.FromSeconds(1);
 
-    /// <summary>Verifies exploration finds a failure on the retry path of a compare-and-swap loop for every seed, with a token that reproduces it.</summary>
+    /// <summary>Verifies exploration finds a failure on the retry path of a compare-and-swap loop within the default bounds, with a token that reproduces it.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
     public async Task ExploreFindsFailureOnRetryPath(CancellationToken cancellationToken)
     {
-        IReadOnlyList<ReplayStep> firstSteps = [];
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.ExploreAsync(
+                static _ => { },
+                braid => RunRetryLoopAsync(braid.WorkerAsync, braid.JoinAsync, cancellationToken),
+                cancellationToken));
 
-        for (var seed = 0; seed < 10; seed++)
-        {
-            var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
-                Runner.ExploreAsync(
-                    new ExploreOptionsBuilder().WithSeed(seed).Build(),
-                    braid => RunRetryLoopAsync(braid.WorkerAsync, braid.JoinAsync, cancellationToken),
-                    cancellationToken));
+        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo(RetryBug);
 
-            _ = await Assert.That(exception.InnerException!.Message).IsEqualTo(RetryBug);
-
-            // The seed does not change the order of the schedules, so every seed stops at the same one.
-            if (seed == 0)
-                firstSteps = exception.Steps;
-            else
-                _ = await Assert.That(exception.Steps).IsEquivalentTo(firstSteps, CollectionOrdering.Matching);
-        }
+        // The workers run in turn, so both read the value before either swaps it: the swap of w2 fails, and w2 goes around the loop again.
+        _ = await Assert.That(exception.Steps).IsEquivalentTo(
+            [
+                ReplayStep.Start("w1"), ReplayStep.Start("w2"),
+                ReplayStep.Hit("w1", "start"), ReplayStep.Hit("w2", "start"),
+                ReplayStep.Hit("w1", "swap"), ReplayStep.Hit("w2", "swap"),
+                ReplayStep.Hit("w1", "done"),
+                ReplayStep.Hit("w2", "start"), ReplayStep.Hit("w2", "swap"), ReplayStep.Hit("w2", "done"),
+            ],
+            CollectionOrdering.Matching);
 
         var replayed = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
                 context => RunRetryLoopAsync(ForkWith(context), context.JoinAsync, cancellationToken),
-                new RunOptions { Iterations = 1, Seed = 0, Schedule = ReplaySchedule.Replay(firstSteps) },
+                new RunOptions { Iterations = 1, Seed = 0, Schedule = ReplaySchedule.Replay(exception.Steps) },
                 cancellationToken));
 
         _ = await Assert.That(replayed.InnerException!.Message).IsEqualTo(RetryBug);
@@ -54,7 +54,7 @@ public sealed class ExplorePathChangeTests : TestBase
 
         // Each worker hits its second probe only if the other worker has finished, so no single run shows the probes of every schedule.
         await Runner.ExploreAsync(
-            static options => options.WithSeed(1),
+            static _ => { },
             async braid =>
             {
                 runs++;
@@ -108,7 +108,7 @@ public sealed class ExplorePathChangeTests : TestBase
 
         // A run that always released the same waiting worker would release only "poller" and never end.
         await Runner.ExploreAsync(
-            static options => options.WithSeed(1).WithMaxSchedules(50),
+            static options => options.WithMaxSchedules(50),
             async braid =>
             {
                 runs++;
@@ -144,7 +144,7 @@ public sealed class ExplorePathChangeTests : TestBase
         var maxInside = 0;
 
         await Runner.ExploreAsync(
-            static options => options.WithSeed(1).WithMaxSchedules(200),
+            static options => options.WithMaxSchedules(200),
             async braid =>
             {
                 var locked = 0;
@@ -180,7 +180,7 @@ public sealed class ExplorePathChangeTests : TestBase
         // w1 hits probe "a" in the first run only, so a later run cannot repeat the step "hit w1 a" that the first run took.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     var probe = ++runs == 1 ? "a" : "z";
@@ -208,7 +208,7 @@ public sealed class ExplorePathChangeTests : TestBase
         // From the second run on, w1 waits before its first probe for w2 to start, so the run hangs at "start w1" with the rest of its steps unused.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithTimeout(HangTimeout),
+                static options => options.WithTimeout(HangTimeout),
                 async braid =>
                 {
                     var waits = ++runs > 1;
@@ -260,7 +260,7 @@ public sealed class ExplorePathChangeTests : TestBase
         // Each worker waits, before its first probe, for the other one to start, so whichever starts first hangs.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithTimeout(HangTimeout),
+                static options => options.WithTimeout(HangTimeout),
                 async braid =>
                 {
                     runs++;

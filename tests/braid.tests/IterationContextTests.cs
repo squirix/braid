@@ -65,7 +65,7 @@ public sealed class IterationContextTests : TestBase
         await StartOnContextAsync(
             new PostingContext(),
             () => Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithMaxSchedules(10),
+                static options => options.WithMaxSchedules(10),
                 async braid =>
                 {
                     starts.Add(DescribeStart());

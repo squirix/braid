@@ -15,7 +15,6 @@ The final assertion expects `2`, but a classic lost update leaves `1` when both 
 ```csharp
 await Runner.ExploreAsync(
     options => options
-        .WithSeed(12_345)
         .WithMaxSchedules(100)
         .WithMaxStepsPerSchedule(10),
     async braid =>

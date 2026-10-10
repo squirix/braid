@@ -53,7 +53,7 @@ public sealed class WorkerIdTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithMaxSchedules(10),
+                static options => options.WithMaxSchedules(10),
                 async braid =>
                 {
                     await braid.WorkerAsync("w", async () => await Probe.HitAsync("x", cancellationToken));

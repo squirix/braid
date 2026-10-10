@@ -11,7 +11,7 @@ public sealed class ExploreMisuseTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     await braid.WorkerAsync("w", async () => await Probe.HitAsync("a", cancellationToken));
@@ -31,7 +31,7 @@ public sealed class ExploreMisuseTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     await braid.WorkerAsync(
