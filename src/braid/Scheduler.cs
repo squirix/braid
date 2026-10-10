@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -197,8 +199,7 @@ internal sealed class Scheduler : IDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
         {
-            _joinFailure.ThrowIfRecorded();
-            throw _joinFailure.Record(CreateTimeoutException(ex));
+            _joinFailure.Throw(CreateTimeoutException(ex));
         }
 
         try
@@ -220,13 +221,16 @@ internal sealed class Scheduler : IDisposable
             }
             catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
             {
-                throw _joinFailure.Record(CreateTimeoutException(ex));
+                _joinFailure.Throw(CreateTimeoutException(ex));
             }
             catch (Exception ex)
             {
-                _ = _joinFailure.Record(ex);
+                var remembered = _joinFailure.Record(ex);
                 await CancelBlockedTasksAsync().ConfigureAwait(false);
                 await WaitForRunningTasksAsync().ConfigureAwait(false);
+                if (!ReferenceEquals(remembered, ex))
+                    ExceptionDispatchInfo.Throw(remembered);
+
                 throw;
             }
         }

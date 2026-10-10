@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.ExceptionServices;
 
 namespace Braid;
@@ -11,14 +12,20 @@ internal sealed class JoinFailure
     private Exception? _failure;
 
     /// <summary>Remembers the failure of a join unless an earlier one is remembered already.</summary>
-    /// <typeparam name="TException">The type of the failure.</typeparam>
     /// <param name="exception">The failure of the current join.</param>
-    /// <returns><paramref name="exception" />.</returns>
-    internal TException Record<TException>(TException exception)
-        where TException : Exception
+    /// <returns>The remembered failure: the earlier one, or <paramref name="exception" />.</returns>
+    internal Exception Record(Exception exception) => Interlocked.CompareExchange(ref _failure, exception, null) ?? exception;
+
+    /// <summary>Remembers a new failure of a join unless an earlier one is remembered already, then throws the remembered failure.</summary>
+    /// <param name="exception">The failure of the current join, not thrown yet.</param>
+    [DoesNotReturn]
+    internal void Throw(Exception exception)
     {
-        _ = Interlocked.CompareExchange(ref _failure, exception, null);
-        return exception;
+        var remembered = Record(exception);
+        if (!ReferenceEquals(remembered, exception))
+            ExceptionDispatchInfo.Throw(remembered);
+
+        throw exception;
     }
 
     /// <summary>Throws the remembered failure, if any, with its original stack trace.</summary>
