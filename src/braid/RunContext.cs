@@ -40,6 +40,7 @@ public sealed class RunContext
     }
 
     /// <summary>Runs all forked operations until they complete or the scheduler detects a failure.</summary>
+    /// <remarks>A failed join is final: a later join in the same run throws the same exception.</remarks>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all forked operations complete.</returns>
     /// <exception cref="InvalidOperationException">The run callback has completed, or the call comes from a forked worker.</exception>

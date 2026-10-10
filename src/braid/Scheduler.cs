@@ -1,5 +1,3 @@
-using System.Runtime.ExceptionServices;
-
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -12,6 +10,7 @@ internal sealed class Scheduler : IDisposable
     private readonly Lock _gate = new();
     private readonly int _iteration;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
+    private readonly JoinFailure _joinFailure = new();
     private readonly DeterministicRandom _random;
     private readonly RunningWorkers _runningWorkers = new();
     private readonly ReplayScript? _script;
@@ -21,7 +20,6 @@ internal sealed class Scheduler : IDisposable
     private readonly List<RunTask> _tasks = [];
     private readonly CancellationTokenSource _timeoutCts = new();
     private readonly List<string> _trace = [];
-    private Exception? _joinFailure;
     private bool _joined;
     private int _nextScheduleStep;
 
@@ -199,44 +197,38 @@ internal sealed class Scheduler : IDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
         {
-            throw CreateTimeoutException(ex);
+            _joinFailure.ThrowIfRecorded();
+            throw _joinFailure.Record(CreateTimeoutException(ex));
         }
 
         try
         {
-            Exception? joinFailure;
             lock (_gate)
-            {
                 _joined = true;
-                joinFailure = _joinFailure;
+
+            _joinFailure.ThrowIfRecorded();
+            try
+            {
+                await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
+                await WaitForRunningTasksAsync().ConfigureAwait(false);
+
+                Exception? failure;
+                lock (_gate)
+                    failure = SchedulerSearch.FindFirstFailedException(_tasks);
+                if (failure != null)
+                    throw CreateException("A forked operation failed.", failure, RunFailureOrigin.UserTest);
             }
-
-            // A failed join stopped the run and canceled the parked workers. A later join reports that failure again,
-            // not what the workers threw while they were stopping.
-            if (joinFailure != null)
-                ExceptionDispatchInfo.Throw(joinFailure);
-
-            await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
-            await WaitForRunningTasksAsync().ConfigureAwait(false);
-
-            Exception? failure;
-            lock (_gate)
-                failure = SchedulerSearch.FindFirstFailedException(_tasks);
-            if (failure != null)
-                throw CreateException("A forked operation failed.", failure, RunFailureOrigin.UserTest);
-        }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
-        {
-            throw CreateTimeoutException(ex);
-        }
-        catch (Exception ex)
-        {
-            lock (_gate)
-                _joinFailure ??= ex;
-
-            await CancelBlockedTasksAsync().ConfigureAwait(false);
-            await WaitForRunningTasksAsync().ConfigureAwait(false);
-            throw;
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
+            {
+                throw _joinFailure.Record(CreateTimeoutException(ex));
+            }
+            catch (Exception ex)
+            {
+                _ = _joinFailure.Record(ex);
+                await CancelBlockedTasksAsync().ConfigureAwait(false);
+                await WaitForRunningTasksAsync().ConfigureAwait(false);
+                throw;
+            }
         }
         finally
         {

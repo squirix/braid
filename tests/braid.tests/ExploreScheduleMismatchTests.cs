@@ -11,7 +11,19 @@ public sealed class ExploreScheduleMismatchTests : TestBase
     [Arguments(1)]
     [Arguments(2)]
     [Arguments(3)]
-    public async Task MismatchedScheduleIsSkipped(int seed, CancellationToken cancellationToken)
+    public Task MismatchedScheduleIsSkipped(int seed, CancellationToken cancellationToken) => ExploreMismatchAsync(seed, false, cancellationToken);
+
+    /// <summary>Verifies a mismatched schedule stays skipped when the callback catches the failure of its join.</summary>
+    /// <param name="seed">The exploration seed, which decides the order the discovery run takes.</param>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    [Arguments(1)]
+    [Arguments(2)]
+    [Arguments(3)]
+    public Task HandledMismatchIsSkipped(int seed, CancellationToken cancellationToken) => ExploreMismatchAsync(seed, true, cancellationToken);
+
+    private static async Task ExploreMismatchAsync(int seed, bool catchesJoinFailure, CancellationToken cancellationToken)
     {
         // Each worker hits its second probe only if the other worker has finished. Discovery runs one worker after the other, so the second one
         // hits its second probe; a generated schedule that runs that worker first expects a probe the worker then skips.
@@ -23,7 +35,14 @@ public sealed class ExploreScheduleMismatchTests : TestBase
                 var w2Done = 0;
                 await braid.WorkerAsync("w1", () => RunWorkerAsync("a", "b", () => Volatile.Read(ref w2Done) != 0, () => Volatile.Write(ref w1Done, 1)));
                 await braid.WorkerAsync("w2", () => RunWorkerAsync("x", "y", () => Volatile.Read(ref w1Done) != 0, () => Volatile.Write(ref w2Done, 1)));
-                await braid.JoinAsync(cancellationToken);
+                try
+                {
+                    await braid.JoinAsync(cancellationToken);
+                }
+                catch (RunException) when (catchesJoinFailure)
+                {
+                    // The callback handles the failure; exploration still sees it through the join the run performs after the callback.
+                }
             },
             cancellationToken);
 

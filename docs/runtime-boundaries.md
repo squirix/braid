@@ -40,6 +40,9 @@ Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`,
 - Nested `Runner.RunAsync` calls are not supported.
 - `RunContext` is valid only during the active run callback.
 - `JoinAsync` cannot be called from a forked worker: the join would wait for the worker itself.
+- A failed `JoinAsync` is final: a later join in the same run, including the one the run performs after the callback, throws the same exception.
+  A callback that catches the failure of its join does not make the run pass. Only canceling the run token changes the outcome:
+  the run then ends with `OperationCanceledException`.
 - Fork delegates must return a non-null `Task`.
 - Probe names cannot be null, empty, or whitespace.
 - Non-empty replay schedules must be fully consumed.
@@ -85,9 +88,6 @@ A worker still running after that, for example one awaiting I/O or a delay that 
 - Their next probe throws `OperationCanceledException`.
 - Until then they keep running and can change shared state, also while `ExploreAsync` runs later schedules.
 - A run canceled through its `CancellationToken` throws `OperationCanceledException` and does not list abandoned workers.
-
-A failed `JoinAsync` is final. The cancellations braid raises in parked workers while stopping the run are not reported as worker failures:
-when the callback catches the failure of its join, the run still fails with that same failure.
 
 ---
 
