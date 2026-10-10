@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -19,9 +21,9 @@ internal sealed class Scheduler : IDisposable
     private readonly List<RunTask> _tasks = [];
     private readonly CancellationTokenSource _timeoutCts = new();
     private readonly List<string> _trace = [];
+    private Exception? _joinFailure;
     private bool _joined;
     private int _nextScheduleStep;
-    private int _nextTaskId;
 
     internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? steps, bool completesInForkOrder)
     {
@@ -104,9 +106,8 @@ internal sealed class Scheduler : IDisposable
             if (_joined)
                 throw CreateException("Cannot fork after JoinAsync has started.", null);
 
-            braidTask = new RunTask(_nextTaskId + 1, workerId);
+            braidTask = new RunTask(_tasks.Count + 1, workerId);
             ThrowIfWorkerIdInUse(braidTask.WorkerId);
-            _nextTaskId++;
             _tasks.Add(braidTask);
             _trace.Add($"{braidTask.WorkerId} forked");
         }
@@ -203,8 +204,17 @@ internal sealed class Scheduler : IDisposable
 
         try
         {
+            Exception? joinFailure;
             lock (_gate)
+            {
                 _joined = true;
+                joinFailure = _joinFailure;
+            }
+
+            // A failed join stopped the run and canceled the parked workers. A later join reports that failure again,
+            // not what the workers threw while they were stopping.
+            if (joinFailure != null)
+                ExceptionDispatchInfo.Throw(joinFailure);
 
             await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
             await WaitForRunningTasksAsync().ConfigureAwait(false);
@@ -219,8 +229,11 @@ internal sealed class Scheduler : IDisposable
         {
             throw CreateTimeoutException(ex);
         }
-        catch
+        catch (Exception ex)
         {
+            lock (_gate)
+                _joinFailure ??= ex;
+
             await CancelBlockedTasksAsync().ConfigureAwait(false);
             await WaitForRunningTasksAsync().ConfigureAwait(false);
             throw;

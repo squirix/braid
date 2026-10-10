@@ -86,6 +86,9 @@ A worker still running after that, for example one awaiting I/O or a delay that 
 - Until then they keep running and can change shared state, also while `ExploreAsync` runs later schedules.
 - A run canceled through its `CancellationToken` throws `OperationCanceledException` and does not list abandoned workers.
 
+A failed `JoinAsync` is final. The cancellations braid raises in parked workers while stopping the run are not reported as worker failures:
+when the callback catches the failure of its join, the run still fails with that same failure.
+
 ---
 
 ## What this is not
