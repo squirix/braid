@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace Braid;
 
 internal sealed class Scheduler : IDisposable
@@ -10,6 +12,7 @@ internal sealed class Scheduler : IDisposable
     private readonly Lock _gate = new();
     private readonly int _iteration;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
+    private readonly JoinFailure _joinFailure = new();
     private readonly DeterministicRandom _random;
     private readonly RunningWorkers _runningWorkers = new();
     private readonly ReplayScript? _script;
@@ -21,7 +24,6 @@ internal sealed class Scheduler : IDisposable
     private readonly List<string> _trace = [];
     private bool _joined;
     private int _nextScheduleStep;
-    private int _nextTaskId;
 
     internal Scheduler(int seed, int iteration, TimeSpan timeout, IReadOnlyList<ReplayStep>? steps, bool completesInForkOrder)
     {
@@ -104,9 +106,8 @@ internal sealed class Scheduler : IDisposable
             if (_joined)
                 throw CreateException("Cannot fork after JoinAsync has started.", null);
 
-            braidTask = new RunTask(_nextTaskId + 1, workerId);
+            braidTask = new RunTask(_tasks.Count + 1, workerId);
             ThrowIfWorkerIdInUse(braidTask.WorkerId);
-            _nextTaskId++;
             _tasks.Add(braidTask);
             _trace.Add($"{braidTask.WorkerId} forked");
         }
@@ -198,7 +199,7 @@ internal sealed class Scheduler : IDisposable
         }
         catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
         {
-            throw CreateTimeoutException(ex);
+            _joinFailure.Throw(CreateTimeoutException(ex));
         }
 
         try
@@ -206,24 +207,32 @@ internal sealed class Scheduler : IDisposable
             lock (_gate)
                 _joined = true;
 
-            await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
-            await WaitForRunningTasksAsync().ConfigureAwait(false);
+            _joinFailure.ThrowIfRecorded();
+            try
+            {
+                await RunJoinSchedulerLoopAsync(cancellationToken, linkedCts.Token).ConfigureAwait(false);
+                await WaitForRunningTasksAsync().ConfigureAwait(false);
 
-            Exception? failure;
-            lock (_gate)
-                failure = SchedulerSearch.FindFirstFailedException(_tasks);
-            if (failure != null)
-                throw CreateException("A forked operation failed.", failure, RunFailureOrigin.UserTest);
-        }
-        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
-        {
-            throw CreateTimeoutException(ex);
-        }
-        catch
-        {
-            await CancelBlockedTasksAsync().ConfigureAwait(false);
-            await WaitForRunningTasksAsync().ConfigureAwait(false);
-            throw;
+                Exception? failure;
+                lock (_gate)
+                    failure = SchedulerSearch.FindFirstFailedException(_tasks);
+                if (failure != null)
+                    throw CreateException("A forked operation failed.", failure, RunFailureOrigin.UserTest);
+            }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested && _timeoutCts.IsCancellationRequested)
+            {
+                _joinFailure.Throw(CreateTimeoutException(ex));
+            }
+            catch (Exception ex)
+            {
+                var remembered = _joinFailure.Record(ex);
+                await CancelBlockedTasksAsync().ConfigureAwait(false);
+                await WaitForRunningTasksAsync().ConfigureAwait(false);
+                if (!ReferenceEquals(remembered, ex))
+                    ExceptionDispatchInfo.Throw(remembered);
+
+                throw;
+            }
         }
         finally
         {

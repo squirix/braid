@@ -37,6 +37,9 @@
 - `ExploreAsync` no longer passes when the test misuses the API, for example forks after `JoinAsync` or hits a second probe on a worker
   whose probe wait is still in flight: it reports the same `RunException` as `RunAsync`. Only failures caused by the schedule are skipped:
   schedule mismatches and parked-worker timeouts. A `RunException` that test code creates and throws now stops exploration too.
+- A failed `JoinAsync` is final: a later join in the same run throws the same exception. When the callback catches the failure of its join,
+  the run reports that failure. It used to report the `OperationCanceledException` that braid itself raised in a parked worker while stopping
+  the run, or a timeout that elapsed afterwards, and it could pass after the callback caught the cancellation of its own join.
 - A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
 
 ### Documentation
