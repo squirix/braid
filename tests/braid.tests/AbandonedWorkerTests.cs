@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Braid.Tests;
 
 /// <summary>Covers workers that are still running after a failed run stops waiting for them.</summary>
@@ -57,6 +59,40 @@ public sealed class AbandonedWorkerTests : TestBase
         _ = await Assert.That(exception.Message).Contains("abandoned: stuck.");
     }
 
+    /// <summary>Verifies a run that fails while a worker ignores the shutdown waits for that worker once, about one second, not twice.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task FailedRunWaitsOnceForStuckWorker(CancellationToken cancellationToken)
+    {
+        using var stuck = new StuckWorker();
+        var stopwatch = Stopwatch.StartNew();
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(
+                context =>
+                {
+                    context.Fork("stuck", stuck.RunAfterCanceledProbeAsync);
+                    context.Fork(
+                        "failing",
+                        async () =>
+                        {
+                            await Probe.HitAsync("q", cancellationToken);
+                            throw new InvalidOperationException("worker failed");
+                        });
+                    return context.JoinAsync(cancellationToken);
+                },
+                new RunOptions { Iterations = 1, Seed = 1, Schedule = ReplaySchedule.Replay(new ReplayStep("failing", "q")) },
+                cancellationToken));
+        var elapsed = stopwatch.Elapsed;
+
+        _ = await stuck.ResumeAsync(cancellationToken);
+
+        // The failed join waits one second for the stuck worker; a second wait when the run stops would take the run past two seconds.
+        _ = await Assert.That(elapsed).IsLessThan(TimeSpan.FromSeconds(1.8));
+        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo("worker failed");
+        _ = await Assert.That(exception.Message).Contains("abandoned: stuck.");
+    }
+
     /// <summary>Verifies a failure whose workers all stop during the shutdown drain does not mention abandoned workers.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -106,6 +142,14 @@ public sealed class AbandonedWorkerTests : TestBase
         {
             await _resume.CancelAsync();
             return await _lateProbe.Task.WaitAsync(TimeSpan.FromSeconds(10), TimeProvider.System, cancellationToken);
+        }
+
+        /// <summary>Parks at a probe, and when the shutdown of the run cancels that probe, ignores it like <see cref="RunAsync" />.</summary>
+        /// <returns>A task that completes after the test resumes the worker.</returns>
+        public async Task RunAfterCanceledProbeAsync()
+        {
+            await Probe.HitAsync("p", CancellationToken.None).AsTask().ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await RunAsync();
         }
 
         public async Task RunAsync()
