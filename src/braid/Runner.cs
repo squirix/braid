@@ -13,6 +13,7 @@ public static class Runner
     /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
     /// Discovery uses one random run to learn per-worker probe sequences, then tries generated hit schedules up to the configured bounds.
     /// </summary>
+    /// <remarks>Every run, discovery or generated, starts its callback on the thread pool, without the synchronization context or task scheduler of the caller.</remarks>
     /// <param name="configure">Configures exploration bounds and seed.</param>
     /// <param name="test">The exploration callback.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -41,6 +42,10 @@ public static class Runner
     /// <see cref="RunContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
     /// The callback must not return null.
     /// </summary>
+    /// <remarks>
+    /// The callback of every iteration starts on the thread pool, without the synchronization context or task scheduler of the caller,
+    /// so the method can return before the callback starts; a token canceled in between can cancel the run before the callback is invoked.
+    /// </remarks>
     /// <param name="test">The test callback to execute.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when all iterations pass.</returns>
@@ -59,6 +64,10 @@ public static class Runner
     /// <see cref="RunContext.JoinAsync(System.Threading.CancellationToken)" /> at the end of the callback is optional.
     /// The callback must not return null.
     /// </summary>
+    /// <remarks>
+    /// The callback of every iteration starts on the thread pool, without the synchronization context or task scheduler of the caller,
+    /// so the method can return before the callback starts; a token canceled in between can cancel the run before the callback is invoked.
+    /// </remarks>
     /// <param name="test">The test callback to execute.</param>
     /// <param name="options">The run options.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -123,6 +132,10 @@ public static class Runner
 
     private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)
     {
+        // Yields to the thread pool once, without the caller's synchronization context or task scheduler,
+        // so the callback of the first iteration starts like the later ones and not inline in the caller.
+        await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
+
         var baseSeed = resolvedOptions.Seed ?? Environment.TickCount;
 
         for (var iteration = 0; iteration < resolvedOptions.Iterations; iteration++)
