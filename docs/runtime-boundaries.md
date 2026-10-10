@@ -73,10 +73,12 @@ up to its first probe, and the scheduler chooses when.
 - A replay schedule starts a worker with a `start` step (`ReplayStep.Start("worker-2")`, text `start worker-2`). A schedule without start steps
   starts every worker before its first step, in fork order, as schedules did before start steps existed. A schedule with start steps starts
   only the workers it names.
-- `ExploreAsync` tries the orders of the starts together with the orders at probes, also for workers that hit no probe. Its discovery run
-  starts every worker first, in fork order, to learn the probes of each. The schedules that start every worker before any hit come first,
-  so other start orders need a `MaxSchedules` above the number of hit orders: two workers with five probes each have 252 hit orders
-  and 924 schedules in all.
+- `ExploreAsync` tries the orders of the starts together with the orders at probes, also for workers that hit no probe.
+  The schedules that start every worker before any hit come first, so other start orders need a `MaxSchedules` above the number of hit orders:
+  two workers with five probes each have 252 hit orders and 924 schedules in all.
+- `ExploreAsync` builds each schedule from the steps of the runs before it, so the test must take the same steps whenever its workers are
+  released in the same order. A test that does not, for example because of state kept between runs, fails exploration with
+  "The test did not repeat under the same schedule".
 - A worker that waits, before its first probe, for something another worker does before its own first probe hangs when it starts first.
   A random run then times out for the seeds that start it first; `ExploreAsync` skips those schedules after the first one that hangs.
 - Between two scheduling points a worker runs alone. Code between a worker's start and its first probe is one such stretch:
@@ -96,7 +98,8 @@ the parked worker holds across a probe) never continues, and the run times out. 
 
 - A timeout while a worker runs and others are parked is reported with `RunFailureOrigin.Scheduler`. The failure report lists the running
   worker under **Running workers** and the parked ones under **Waiting workers**; `(start)` and `(not started)` mark workers before their first probe.
-- `ExploreAsync` skips such schedules, including a discovery run that timed out this way, so exploration can still complete without failure.
+- `ExploreAsync` skips such schedules, so exploration can still complete without failure. When every schedule it ran hung this way,
+  it fails with the first of those timeouts.
 - A timeout with no running worker blocked on a parked one is reported with `RunFailureOrigin.Timeout` and fails `ExploreAsync`.
 - A deadlock between two or more workers looks the same as such a hang, so `ExploreAsync` does not report it yet.
 - Do not hold a lock that another worker waits for across a probe.

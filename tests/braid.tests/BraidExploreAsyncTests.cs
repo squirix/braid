@@ -188,17 +188,21 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(replayed.SchedulerDiagnostics!.UnusedReplaySteps).IsEmpty();
     }
 
-    /// <summary>Verifies a discovery failure is surfaced when no generated schedule within the bounds reproduces it.</summary>
+    /// <summary>Verifies exploration runs only the schedules within MaxSchedules: it passes when the failing one lies beyond, and finds it with a larger bound.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreSurfacesFailureOutsideBounds(CancellationToken cancellationToken)
+    public async Task ExploreStopsAtMaxSchedules(CancellationToken cancellationToken)
     {
-        // Seed 0 makes the random discovery run release "second" first, so it fails.
-        // The only generated schedule within MaxSchedules(1) is "first, second", which passes.
+        // The first schedule releases "first" before "second", which passes; the second schedule fails.
+        await Runner.ExploreAsync(
+            static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
+            braid => RunOrderDependentExploreAsync(braid, cancellationToken),
+            cancellationToken);
+
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
+                static options => options.WithSeed(0).WithMaxSchedules(2).WithMaxStepsPerSchedule(10),
                 braid => RunOrderDependentExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -223,11 +227,11 @@ public sealed class BraidExploreAsyncTests : TestBase
             cancellationToken)).ThrowsNothing();
     }
 
-    /// <summary>Verifies user InvalidOperationException failures are not suppressed during discovery.</summary>
+    /// <summary>Verifies a user InvalidOperationException thrown by the callback of the first run is not suppressed.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreSurfacesUserInvalidOpDiscovery(CancellationToken cancellationToken)
+    public async Task ExploreSurfacesUserInvalidOp(CancellationToken cancellationToken)
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(

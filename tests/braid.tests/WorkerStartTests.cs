@@ -184,8 +184,8 @@ public sealed class WorkerStartTests : TestBase
             },
             cancellationToken);
 
-        // One discovery run, then the interleavings of "start w1, hit w1 a" with "start w2, hit w2 b".
-        _ = await Assert.That(runs).IsEqualTo(7);
+        // The interleavings of "start w1, hit w1 a" with "start w2, hit w2 b".
+        _ = await Assert.That(runs).IsEqualTo(6);
     }
 
     /// <summary>Verifies a start step for a worker that has already started fails the schedule at once.</summary>

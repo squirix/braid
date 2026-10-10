@@ -16,8 +16,6 @@ internal sealed class RunTask : IDisposable
 
     internal string? LastProbeName { get; set; }
 
-    internal List<string> ProbeNames { get; } = [];
-
     internal bool ProbeWaitInFlight { get; set; }
 
     internal RunTaskState State { get; set; } = RunTaskState.Waiting;

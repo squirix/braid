@@ -8,8 +8,6 @@ internal sealed class SchedulerJoinContext
 
     internal required ReplayScript? Script { get; init; }
 
-    internal required bool StartsInForkOrder { get; init; }
-
     internal IReadOnlyList<ReplayStep>? Steps => Script?.Steps;
 
     internal required DeterministicRandom Random { get; init; }

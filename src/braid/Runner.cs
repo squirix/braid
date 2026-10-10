@@ -1,5 +1,3 @@
-using Braid.Attributes;
-
 namespace Braid;
 
 /// <summary>Runs deterministic concurrency tests by controlling logical workers at explicit async probe points.</summary>
@@ -9,12 +7,20 @@ public static class Runner
         "braid run timed out before the callback called JoinAsync. Forked workers start only when the run joins, "
         + "so a callback that waits for a forked worker before JoinAsync never continues. The callback was abandoned and may keep running.";
 
+    private const string NotRepeatableMessage =
+        "The test did not repeat under the same schedule: a step that an earlier run took could not be taken again. "
+        + "Exploration needs a test that takes the same steps whenever its workers are released in the same order.";
+
     /// <summary>
-    /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
-    /// Discovery uses one random run to learn per-worker probe sequences, then tries generated schedules of start and hit steps up to the configured bounds.
-    /// The callback must not return null.
+    /// Explores the schedules of the supplied workers and probe points within the configured bounds, stopping at the first test failure.
+    /// The search is depth-first over the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another
+    /// waiting worker there, and chooses in a fixed order from then on. A schedule therefore fits the test also when the order of the workers
+    /// changes which probes a worker hits. The callback must not return null.
     /// </summary>
-    /// <remarks>Every run, discovery or generated, starts its callback on the thread pool, without the synchronization context or task scheduler of the caller.</remarks>
+    /// <remarks>
+    /// Every run starts its callback on the thread pool, without the synchronization context or task scheduler of the caller.
+    /// The test must take the same steps whenever its workers are released in the same order.
+    /// </remarks>
     /// <param name="configure">Configures exploration bounds and seed.</param>
     /// <param name="test">The exploration callback.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -23,7 +29,8 @@ public static class Runner
     /// <exception cref="ArgumentOutOfRangeException">Configured bounds are invalid.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
     /// <exception cref="RunException">
-    /// A test failure, a timeout or an API misuse error was found under a replay schedule or during discovery, or the callback returned a null task
+    /// A test failure, a timeout or an API misuse error was found under a schedule; the test did not take the same steps under the same schedule;
+    /// every schedule that ran hung on a worker waiting for a parked one; or the callback returned a null task
     /// (reported with <see cref="RunFailureOrigin.UserTest" /> and an inner <see cref="InvalidOperationException" />).
     /// </exception>
     public static Task ExploreAsync(Action<ExploreOptionsBuilder> configure, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
@@ -105,34 +112,46 @@ public static class Runner
         options.Validate();
 
         var callback = new ExploreCallback(test);
-        var discoveryOptions = new RunOptions
-        {
-            Iterations = 1,
-            Seed = options.Seed,
-            Timeout = options.Timeout,
-            IsDiscoveryRun = true,
-        };
+        var search = new ExploreSearch(options.MaxStepsPerSchedule);
+        RunException? firstHang = null;
+        var anyRunCompleted = false;
+        var hasNext = true;
 
-        RunException? discoveryFailure = null;
-
-        try
+        for (var run = 0; hasNext && run < options.MaxSchedules; run++)
         {
-            await RunAsync(callback.RunDiscoveryAsync, discoveryOptions, cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var runOptions = new RunOptions
+            {
+                Iterations = 1,
+                Seed = options.Seed,
+                Timeout = options.Timeout,
+                ExploredPrefix = search.Prefix,
+            };
+
+            try
+            {
+                await RunAsync(callback.InvokeAsync, runOptions, cancellationToken).ConfigureAwait(false);
+                anyRunCompleted = true;
+            }
+            catch (RunException ex) when (ex.SkippedByExploration)
+            {
+                // A prefix repeats steps that an earlier run took, so it fits the test unless the test changed between the runs.
+                if (!IsHang(ex))
+                    throw new RunException(NotRepeatableMessage, ex.Context, ex);
+
+                // The run hung on a worker that waits for a parked one. Its choices end at the hang, so the search moves on from there
+                // and runs no other schedule that begins the same way.
+                System.Diagnostics.Trace.TraceInformation($"Braid: skipping a schedule that hung ({ex}).");
+                firstHang ??= ex;
+            }
+
+            hasNext = search.MoveNext(callback.TakeExploredChoices());
         }
-        catch (RunException ex)
-        {
-            discoveryFailure = ex;
-        }
 
-        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? [];
-
-        // When sequences were discovered, a target failure is deferred: generated schedules may reproduce it with a replay token.
-        // If none does, the discovery failure is surfaced, so exploration never passes after a target failure was observed.
-        if (workerProbeSequences.Count > 0)
-            await ExploreGeneratedSchedulesAsync(options, callback, workerProbeSequences, cancellationToken).ConfigureAwait(false);
-
-        if (discoveryFailure != null && IsExplorationTargetFailure(discoveryFailure))
-            throw discoveryFailure;
+        // No schedule ran to its end, so nothing was checked: passing would hide that.
+        if (!anyRunCompleted && firstHang != null)
+            throw firstHang;
     }
 
     private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)
@@ -213,247 +232,37 @@ public static class Runner
         await callbackTask.ConfigureAwait(false);
     }
 
-    private static async Task ExploreGeneratedSchedulesAsync(
-        ExploreOptions options,
-        ExploreCallback callback,
-        IReadOnlyList<WorkerProbes> workerProbeSequences,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<ReplayStep> hungSchedule = [];
-        var hungPrefixLength = 0;
-
-        foreach (var steps in ExploreScheduleEnumerator.EnumerateSchedules(workerProbeSequences, options.MaxSchedules, options.MaxStepsPerSchedule))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // A schedule that begins like one that hung hangs the same way; running it would only wait for the run timeout again.
-            if (StartsWithPrefix(steps, hungSchedule, hungPrefixLength))
-                continue;
-
-            hungPrefixLength = 0;
-            var schedule = ReplaySchedule.Replay(steps);
-            try
-            {
-                await RunScheduledExploreAttemptAsync(in options, callback, schedule, cancellationToken).ConfigureAwait(false);
-            }
-            catch (RunException ex) when (IsExplorationTargetFailure(ex))
-            {
-                throw;
-            }
-            catch (RunException ex)
-            {
-                System.Diagnostics.Trace.TraceInformation($"Braid: skipping non-target schedule ({ex}).");
-                hungSchedule = steps;
-                hungPrefixLength = GetHungPrefixLength(ex, steps.Count);
-            }
-        }
-    }
-
     /// <summary>
-    /// Gets the number of leading steps after which a skipped schedule hung on a worker that waits for a parked one.
+    /// Decides whether a failure that exploration skips is a hang on a worker that waits for a parked one.
     /// Among the failures that exploration skips, only that timeout carries the cancellation of the run timeout.
     /// </summary>
-    /// <param name="ex">The failure that exploration skipped.</param>
-    /// <param name="stepCount">The number of steps of the generated schedule.</param>
-    /// <returns>The length of the prefix that leads to the hang, or zero when the schedule was skipped for another reason.</returns>
-    private static int GetHungPrefixLength(RunException ex, int stepCount) =>
-        ex.InnerException is OperationCanceledException ? Math.Min(ex.SchedulerDiagnostics?.LastMatchedReplayStepOneBased ?? 0, stepCount) : 0;
-
-    private static bool StartsWithPrefix(IReadOnlyList<ReplayStep> steps, IReadOnlyList<ReplayStep> prefixSource, int prefixLength)
-    {
-        if (prefixLength == 0 || steps.Count < prefixLength)
-            return false;
-
-        for (var index = 0; index < prefixLength; index++)
-        {
-            if (steps[index] != prefixSource[index])
-                return false;
-        }
-
-        return true;
-    }
-
-    /// <summary>
-    /// Decides whether a failure stops exploration. Only failures that come from the schedule itself are skipped: a schedule that does not fit
-    /// the run, or a hang caused by braid keeping a worker parked. Test failures, timeouts and API misuse errors stop exploration.
-    /// </summary>
-    /// <param name="ex">The failure.</param>
-    /// <returns><see langword="true" /> if the failure stops exploration; otherwise <see langword="false" />.</returns>
-    private static bool IsExplorationTargetFailure(RunException ex) => !ex.SkippedByExploration;
-
-    private static Task RunScheduledExploreAttemptAsync(in ExploreOptions options, ExploreCallback callback, ReplaySchedule schedule, CancellationToken cancellationToken)
-    {
-        var runOptions = new RunOptions
-        {
-            Iterations = 1,
-            Seed = options.Seed,
-            Schedule = schedule,
-            Timeout = options.Timeout,
-            CompletesScheduleInForkOrder = true,
-        };
-
-        return RunAsync(callback.RunReplayAsync, runOptions, cancellationToken);
-    }
-
-    /// <summary>Enumerates the interleavings of the workers' steps: a start step per worker, then one hit step per probe it hit in the discovery run.</summary>
-    private static class ExploreScheduleEnumerator
-    {
-        internal static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateSchedules(IReadOnlyList<WorkerProbes> workers, int maxSchedules, int maxHitsPerSchedule)
-        {
-            ArgumentNullException.ThrowIfNull(workers);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSchedules);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxHitsPerSchedule);
-
-            return EnumerateSchedulesCore(workers, maxSchedules, maxHitsPerSchedule);
-        }
-
-        private static bool AllWorkersCompleted(IReadOnlyList<WorkerProbes> workers, int[] progress)
-        {
-            for (var index = 0; index < workers.Count; index++)
-            {
-                if (progress[index] <= workers[index].ProbeNames.Count)
-                    return false;
-            }
-
-            return true;
-        }
-
-        private static int[] CloneProgress(int[] progress)
-        {
-            var copy = new int[progress.Length];
-            for (var index = 0; index < progress.Length; index++)
-                copy[index] = progress[index];
-
-            return copy;
-        }
-
-        private static ReplayStep[] CopySteps(List<ReplayStep> steps)
-        {
-            var copy = new ReplayStep[steps.Count];
-            for (var index = 0; index < steps.Count; index++)
-                copy[index] = steps[index];
-
-            return copy;
-        }
-
-        /// <summary>Orders the workers by id for hit steps, the order the enumeration had before start steps existed.</summary>
-        /// <param name="workers">The workers in fork order.</param>
-        /// <returns>The indexes of the workers, sorted by worker id.</returns>
-        private static int[] CreateHitOrder(IReadOnlyList<WorkerProbes> workers)
-        {
-            var order = new int[workers.Count];
-            for (var i = 0; i < order.Length; i++)
-            {
-                var j = i;
-                while (j > 0 && string.CompareOrdinal(workers[order[j - 1]].WorkerId, workers[i].WorkerId) > 0)
-                {
-                    order[j] = order[j - 1];
-                    j--;
-                }
-
-                order[j] = i;
-            }
-
-            return order;
-        }
-
-        private static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateSchedulesCore(IReadOnlyList<WorkerProbes> workers, int maxSchedules, int maxHits)
-        {
-            if (workers.Count == 0)
-                yield break;
-
-            var hitOrder = CreateHitOrder(workers);
-            var yielded = 0;
-            var stack = new Stack<SearchFrame>();
-            stack.Push(new SearchFrame(new int[workers.Count], [], 0, 0));
-
-            while (stack.Count > 0 && yielded < maxSchedules)
-            {
-                var frame = stack.Pop();
-
-                // A schedule cut at the hit limit is completed in fork order by the run, like one that ends before the test does.
-                if (frame.Hits == maxHits || AllWorkersCompleted(workers, frame.Progress))
-                {
-                    yielded++;
-                    yield return CopySteps(frame.Steps);
-                    continue;
-                }
-
-                ScheduleNextWorker(workers, hitOrder, in frame, stack);
-            }
-        }
-
-        private static void PushContinuation(Stack<SearchFrame> stack, in SearchFrame frame, int workerIndex, in ReplayStep step, int nextCandidate)
-        {
-            var nextProgress = CloneProgress(frame.Progress);
-            nextProgress[workerIndex]++;
-            var nextSteps = new List<ReplayStep>(frame.Steps) { step };
-
-            stack.Push(frame with { NextCandidate = nextCandidate });
-            stack.Push(new SearchFrame(nextProgress, nextSteps, step.Kind is ReplayStepKind.Hit ? frame.Hits + 1 : frame.Hits, 0));
-        }
-
-        /// <summary>
-        /// Pushes the next untried continuation of a frame. Starts come first, in fork order, so the first schedules start every worker before any hit,
-        /// as every run did before start steps existed; later schedules move the starts between the hits.
-        /// </summary>
-        /// <param name="workers">The workers in fork order.</param>
-        /// <param name="hitOrder">The indexes of the workers, sorted by worker id.</param>
-        /// <param name="frame">The frame to continue.</param>
-        /// <param name="stack">The search stack.</param>
-        private static void ScheduleNextWorker(IReadOnlyList<WorkerProbes> workers, int[] hitOrder, in SearchFrame frame, Stack<SearchFrame> stack)
-        {
-            var candidate = 0;
-            for (var workerIndex = 0; workerIndex < workers.Count; workerIndex++)
-            {
-                if (frame.Progress[workerIndex] != 0)
-                    continue;
-
-                candidate++;
-                if (candidate <= frame.NextCandidate)
-                    continue;
-
-                PushContinuation(stack, in frame, workerIndex, ReplayStep.Start(workers[workerIndex].WorkerId), candidate);
-                return;
-            }
-
-            for (var position = 0; position < hitOrder.Length; position++)
-            {
-                var workerIndex = hitOrder[position];
-                var progress = frame.Progress[workerIndex];
-                if (progress == 0 || progress > workers[workerIndex].ProbeNames.Count)
-                    continue;
-
-                candidate++;
-                if (candidate <= frame.NextCandidate)
-                    continue;
-
-                PushContinuation(stack, in frame, workerIndex, ReplayStep.Hit(workers[workerIndex].WorkerId, workers[workerIndex].ProbeNames[progress - 1]), candidate);
-                return;
-            }
-        }
-
-        [Mutable]
-        private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int Hits, int NextCandidate);
-    }
+    /// <param name="ex">The failure that exploration skips.</param>
+    /// <returns><see langword="true" /> for a hang; <see langword="false" /> when the steps of the run did not fit the test.</returns>
+    private static bool IsHang(RunException ex) => ex.InnerException is OperationCanceledException;
 
     private sealed class ExploreCallback
     {
         private readonly Func<ExploreContext, Task> _callback;
+        private RunContext? _context;
 
         internal ExploreCallback(Func<ExploreContext, Task> callback)
         {
             _callback = callback;
         }
 
-        internal RunContext? DiscoveryContext { get; private set; }
-
-        internal Task RunDiscoveryAsync(RunContext context)
+        internal Task InvokeAsync(RunContext context)
         {
-            DiscoveryContext = context;
+            _context = context;
             return _callback(new ExploreContext(context));
         }
 
-        internal Task RunReplayAsync(RunContext context) => _callback(new ExploreContext(context));
+        /// <summary>Takes the choices that the last run made after the steps it replayed.</summary>
+        /// <returns>The choices, or an empty list when the run stopped before its callback started.</returns>
+        internal IReadOnlyList<ReplayStep[]> TakeExploredChoices()
+        {
+            var choices = _context?.ExploredChoices ?? [];
+            _context = null;
+            return choices;
+        }
     }
 }
