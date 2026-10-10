@@ -5,6 +5,8 @@
 ### Added
 
 - `RunOptions.MaxTimeout`, the longest supported run timeout (about 49.7 days).
+- Start steps: `ReplayStep.Start(workerId)`, `ReplayStepKind.Start` and the replay text line `start <worker>` start a worker, which then runs
+  up to its first probe. A schedule without start steps starts every worker before its first step, in fork order, as before.
 - `RunFailureOrigin.Timeout` for runs that timed out while no worker was parked at a probe.
 - `SchedulerDiagnostics.RunningWorkers` and a **Running workers** section in failure reports, with the probe each running worker was last released at.
 - `ProbeWaitDiagnostic.StartProbeName` and `NotStartedProbeName` mark workers before their first probe; waiting workers that have not started are now listed.
@@ -22,6 +24,9 @@
   not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
   before the callback starts.
   A caller that blocks the only thread of its synchronization context while waiting for the run no longer hangs it.
+- Breaking: the start of a worker is a scheduling point. A random run chooses the order in which workers start, so code before the first probes
+  is no longer always run in fork order, and one seed gives a different run than before. `ExploreAsync` tries the orders of the starts too,
+  also for workers that hit no probe: it generates more schedules, and its replay tokens begin with `start` lines.
 - Breaking: canceling the token passed to `Probe.HitAsync` no longer wakes a worker parked at the probe. The worker observes the cancellation
   when the scheduler releases it, and the probe then throws `OperationCanceledException`. A canceled wait used to let the worker run at the same
   time as the released one, so one seed or replay token gave different runs, and a retry with a canceled token could fail the run with

@@ -11,7 +11,7 @@ public static class Runner
 
     /// <summary>
     /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
-    /// Discovery uses one random run to learn per-worker probe sequences, then tries generated hit schedules up to the configured bounds.
+    /// Discovery uses one random run to learn per-worker probe sequences, then tries generated schedules of start and hit steps up to the configured bounds.
     /// The callback must not return null.
     /// </summary>
     /// <remarks>Every run, discovery or generated, starts its callback on the thread pool, without the synchronization context or task scheduler of the caller.</remarks>
@@ -110,6 +110,7 @@ public static class Runner
             Iterations = 1,
             Seed = options.Seed,
             Timeout = options.Timeout,
+            StartsWorkersInForkOrder = true,
         };
 
         RunException? discoveryFailure = null;
@@ -123,7 +124,7 @@ public static class Runner
             discoveryFailure = ex;
         }
 
-        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? [with(StringComparer.Ordinal)];
+        var workerProbeSequences = callback.DiscoveryContext?.WorkerProbeSequences ?? [];
 
         // When sequences were discovered, a target failure is deferred: generated schedules may reproduce it with a replay token.
         // If none does, the discovery failure is surfaced, so exploration never passes after a target failure was observed.
@@ -147,7 +148,7 @@ public static class Runner
             cancellationToken.ThrowIfCancellationRequested();
 
             var seed = unchecked(baseSeed + iteration);
-            using var scheduler = new Scheduler(seed, iteration, resolvedOptions.Timeout, resolvedOptions.Schedule?.Steps, resolvedOptions.CompletesScheduleInForkOrder);
+            using var scheduler = new Scheduler(seed, iteration, resolvedOptions);
             var context = new RunContext(scheduler);
 
             using var scope = RunScope.Enter(scheduler);
@@ -215,14 +216,10 @@ public static class Runner
     private static async Task ExploreGeneratedSchedulesAsync(
         ExploreOptions options,
         ExploreCallback callback,
-        Dictionary<string, List<string>> workerProbeSequences,
+        IReadOnlyList<WorkerProbes> workerProbeSequences,
         CancellationToken cancellationToken)
     {
-        var readOnlySequences = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
-        foreach (var entry in workerProbeSequences)
-            readOnlySequences[entry.Key] = entry.Value.AsReadOnly();
-
-        foreach (var steps in ExploreScheduleEnumerator.EnumerateHitSchedules(readOnlySequences, options.MaxSchedules, options.MaxStepsPerSchedule))
+        foreach (var steps in ExploreScheduleEnumerator.EnumerateSchedules(workerProbeSequences, options.MaxSchedules, options.MaxStepsPerSchedule))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -264,25 +261,23 @@ public static class Runner
         return RunAsync(callback.RunReplayAsync, runOptions, cancellationToken);
     }
 
+    /// <summary>Enumerates the interleavings of the workers' steps: a start step per worker, then one hit step per probe it hit in the discovery run.</summary>
     private static class ExploreScheduleEnumerator
     {
-        internal static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateHitSchedules(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
-            int maxSchedules,
-            int maxStepsPerSchedule)
+        internal static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateSchedules(IReadOnlyList<WorkerProbes> workers, int maxSchedules, int maxHitsPerSchedule)
         {
-            ArgumentNullException.ThrowIfNull(workerProbeSequences);
+            ArgumentNullException.ThrowIfNull(workers);
             ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxSchedules);
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxStepsPerSchedule);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxHitsPerSchedule);
 
-            return EnumerateHitSchedulesCore(workerProbeSequences, maxSchedules, maxStepsPerSchedule);
+            return EnumerateSchedulesCore(workers, maxSchedules, maxHitsPerSchedule);
         }
 
-        private static bool AllWorkersCompleted(string[] workerIds, IReadOnlyList<string>[] sequences, int[] progress)
+        private static bool AllWorkersCompleted(IReadOnlyList<WorkerProbes> workers, int[] progress)
         {
-            for (var index = 0; index < workerIds.Length; index++)
+            for (var index = 0; index < workers.Count; index++)
             {
-                if (progress[index] < sequences[index].Count)
+                if (progress[index] <= workers[index].ProbeNames.Count)
                     return false;
             }
 
@@ -307,123 +302,105 @@ public static class Runner
             return copy;
         }
 
-        private static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateHitSchedulesCore(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> sequences,
-            int maxSchedules,
-            int maxSteps)
+        /// <summary>Orders the workers by id for hit steps, the order the enumeration had before start steps existed.</summary>
+        /// <param name="workers">The workers in fork order.</param>
+        /// <returns>The indexes of the workers, sorted by worker id.</returns>
+        private static int[] CreateHitOrder(IReadOnlyList<WorkerProbes> workers)
         {
-            if (!TryCreateWorkerState(sequences, out var workerIds, out var lists))
+            var order = new int[workers.Count];
+            for (var i = 0; i < order.Length; i++)
+            {
+                var j = i;
+                while (j > 0 && string.CompareOrdinal(workers[order[j - 1]].WorkerId, workers[i].WorkerId) > 0)
+                {
+                    order[j] = order[j - 1];
+                    j--;
+                }
+
+                order[j] = i;
+            }
+
+            return order;
+        }
+
+        private static IEnumerable<IReadOnlyList<ReplayStep>> EnumerateSchedulesCore(IReadOnlyList<WorkerProbes> workers, int maxSchedules, int maxHits)
+        {
+            if (workers.Count == 0)
                 yield break;
 
+            var hitOrder = CreateHitOrder(workers);
             var yielded = 0;
             var stack = new Stack<SearchFrame>();
-            stack.Push(new SearchFrame(new int[workerIds.Length], [], 0));
+            stack.Push(new SearchFrame(new int[workers.Count], [], 0, 0));
 
-            while (stack.Count > 0)
+            while (stack.Count > 0 && yielded < maxSchedules)
             {
-                if (yielded >= maxSchedules)
-                    break;
-
                 var frame = stack.Pop();
-                if (frame.Steps.Count == maxSteps)
-                {
-                    if (frame.Steps.Count > 0 && yielded < maxSchedules)
-                    {
-                        yielded++;
-                        yield return CopySteps(frame.Steps);
-                    }
 
+                // A schedule cut at the hit limit is completed in fork order by the run, like one that ends before the test does.
+                if (frame.Hits == maxHits || AllWorkersCompleted(workers, frame.Progress))
+                {
+                    yielded++;
+                    yield return CopySteps(frame.Steps);
                     continue;
                 }
 
-                if (AllWorkersCompleted(workerIds, lists, frame.Progress))
-                {
-                    if (frame.Steps.Count > 0 && frame.Steps.Count <= maxSteps && yielded < maxSchedules)
-                    {
-                        yielded++;
-                        yield return CopySteps(frame.Steps);
-                    }
-
-                    continue;
-                }
-
-                ScheduleNextWorker(workerIds, lists, in frame, stack);
+                ScheduleNextWorker(workers, hitOrder, in frame, stack);
             }
         }
 
-        private static void ScheduleNextWorker(string[] workerIds, IReadOnlyList<string>[] sequences, in SearchFrame frame, Stack<SearchFrame> stack)
+        private static void PushContinuation(Stack<SearchFrame> stack, in SearchFrame frame, int workerIndex, in ReplayStep step, int nextCandidate)
         {
-            for (var workerIndex = frame.NextWorkerIndex; workerIndex < workerIds.Length; workerIndex++)
+            var nextProgress = CloneProgress(frame.Progress);
+            nextProgress[workerIndex]++;
+            var nextSteps = new List<ReplayStep>(frame.Steps) { step };
+
+            stack.Push(frame with { NextCandidate = nextCandidate });
+            stack.Push(new SearchFrame(nextProgress, nextSteps, step.Kind is ReplayStepKind.Hit ? frame.Hits + 1 : frame.Hits, 0));
+        }
+
+        /// <summary>
+        /// Pushes the next untried continuation of a frame. Starts come first, in fork order, so the first schedules start every worker before any hit,
+        /// as every run did before start steps existed; later schedules move the starts between the hits.
+        /// </summary>
+        /// <param name="workers">The workers in fork order.</param>
+        /// <param name="hitOrder">The indexes of the workers, sorted by worker id.</param>
+        /// <param name="frame">The frame to continue.</param>
+        /// <param name="stack">The search stack.</param>
+        private static void ScheduleNextWorker(IReadOnlyList<WorkerProbes> workers, int[] hitOrder, in SearchFrame frame, Stack<SearchFrame> stack)
+        {
+            var candidate = 0;
+            for (var workerIndex = 0; workerIndex < workers.Count; workerIndex++)
             {
-                if (frame.Progress[workerIndex] >= sequences[workerIndex].Count)
+                if (frame.Progress[workerIndex] != 0)
                     continue;
 
-                var nextProgress = CloneProgress(frame.Progress);
-                nextProgress[workerIndex]++;
-                var nextSteps = new List<ReplayStep>(frame.Steps)
-                {
-                    ReplayStep.Hit(workerIds[workerIndex], sequences[workerIndex][frame.Progress[workerIndex]]),
-                };
+                candidate++;
+                if (candidate <= frame.NextCandidate)
+                    continue;
 
-                stack.Push(frame with { NextWorkerIndex = workerIndex + 1 });
-                stack.Push(new SearchFrame(nextProgress, nextSteps, 0));
+                PushContinuation(stack, in frame, workerIndex, ReplayStep.Start(workers[workerIndex].WorkerId), candidate);
+                return;
+            }
+
+            for (var position = 0; position < hitOrder.Length; position++)
+            {
+                var workerIndex = hitOrder[position];
+                var progress = frame.Progress[workerIndex];
+                if (progress == 0 || progress > workers[workerIndex].ProbeNames.Count)
+                    continue;
+
+                candidate++;
+                if (candidate <= frame.NextCandidate)
+                    continue;
+
+                PushContinuation(stack, in frame, workerIndex, ReplayStep.Hit(workers[workerIndex].WorkerId, workers[workerIndex].ProbeNames[progress - 1]), candidate);
                 return;
             }
         }
 
-        private static void SortWorkerEntries(string[] workerIds, IReadOnlyList<string>[] sequences)
-        {
-            for (var i = 1; i < workerIds.Length; i++)
-            {
-                var workerId = workerIds[i];
-                var sequence = sequences[i];
-                var j = i;
-                while (j > 0 && string.CompareOrdinal(workerIds[j - 1], workerId) > 0)
-                {
-                    workerIds[j] = workerIds[j - 1];
-                    sequences[j] = sequences[j - 1];
-                    j--;
-                }
-
-                workerIds[j] = workerId;
-                sequences[j] = sequence;
-            }
-        }
-
-        private static bool TryCreateWorkerState(
-            IReadOnlyDictionary<string, IReadOnlyList<string>> workerProbeSequences,
-            out string[] workerIds,
-            out IReadOnlyList<string>[] sequences)
-        {
-            workerIds = [];
-            sequences = [];
-
-            if (workerProbeSequences.Count == 0)
-                return false;
-
-            workerIds = new string[workerProbeSequences.Count];
-            sequences = new IReadOnlyList<string>[workerProbeSequences.Count];
-            var index = 0;
-            foreach (var pair in workerProbeSequences)
-            {
-                if (pair.Value.Count == 0)
-                {
-                    workerIds = [];
-                    sequences = [];
-                    return false;
-                }
-
-                workerIds[index] = pair.Key;
-                sequences[index] = pair.Value;
-                index++;
-            }
-
-            SortWorkerEntries(workerIds, sequences);
-            return true;
-        }
-
         [Mutable]
-        private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int NextWorkerIndex);
+        private readonly record struct SearchFrame(int[] Progress, List<ReplayStep> Steps, int Hits, int NextCandidate);
     }
 
     private sealed class ExploreCallback

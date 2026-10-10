@@ -27,6 +27,12 @@ public sealed class RunOptions
     /// <summary>Gets a value indicating whether workers still waiting after the last schedule step are released in fork order instead of failing the run.</summary>
     internal bool CompletesScheduleInForkOrder { get; init; }
 
+    /// <summary>
+    /// Gets a value indicating whether a random run starts every worker before any other choice, in fork order.
+    /// The discovery run of an exploration does, so it learns the probes of every worker even when it stops early.
+    /// </summary>
+    internal bool StartsWorkersInForkOrder { get; init; }
+
     /// <summary>Throws when <paramref name="value" /> is not a positive timeout of at most <see cref="MaxTimeout" />.</summary>
     /// <param name="value">The timeout to check.</param>
     /// <param name="paramName">The name reported in the exception.</param>

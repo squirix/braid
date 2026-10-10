@@ -222,7 +222,7 @@ public sealed class RunException : Exception
         for (var index = 0; index < Steps.Count; index++)
         {
             var step = Steps[index];
-            lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
+            lines.Add($"  {index + 1}. {ReplayFormat.ReportStepLine(in step)}");
         }
 
         lines.Add("Replay text:");
@@ -269,7 +269,17 @@ public sealed class RunException : Exception
             ReplayStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
             ReplayStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",
             ReplayStepKind.Release => $"release {step.WorkerId} {step.ProbeName}",
+            ReplayStepKind.Start => $"start {step.WorkerId}",
             _ => $"{step.Kind} {step.WorkerId} {step.ProbeName}",
+        };
+
+        internal static string ReportStepLine(in ReplayStep step) => step.Kind switch
+        {
+            ReplayStepKind.Hit => $"{step.WorkerId} @ {step.ProbeName}",
+            ReplayStepKind.Arrive => $"Arrive {step.WorkerId} @ {step.ProbeName}",
+            ReplayStepKind.Release => $"Release {step.WorkerId} @ {step.ProbeName}",
+            ReplayStepKind.Start => $"Start {step.WorkerId}",
+            _ => $"{step.Kind} {step.WorkerId} @ {step.ProbeName}",
         };
     }
 }

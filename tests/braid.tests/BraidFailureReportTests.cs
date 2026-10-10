@@ -227,7 +227,7 @@ public sealed class BraidFailureReportTests : TestBase
 
                 await context.JoinAsync(cancellationToken);
             },
-            new RunOptions { Iterations = 1, Seed = 1 },
+            new RunOptions { Iterations = 1, Seed = 1, Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "before-boom")) },
             cancellationToken);
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
 

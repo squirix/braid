@@ -3,10 +3,14 @@
 A **replay token** is Braid’s canonical replay text: the same format produced by `ReplaySchedule.ToReplayText()` and accepted by `ReplaySchedule.Parse(...)`. There is no separate syntax.
 
 ```text
+start <worker>
 hit <worker> <probe>
 arrive <worker> <probe>
 release <worker> <probe>
 ```
+
+`start` runs a worker from its beginning up to its first probe. A token without `start` lines starts every worker before its first line,
+in fork order; a token with them starts only the workers it names.
 
 **Product goal:** find the interleaving, copy the token, keep the race fixed forever.
 

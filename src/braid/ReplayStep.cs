@@ -4,7 +4,7 @@ namespace Braid;
 
 /// <summary>Defines replay step semantics at a named probe for a logical worker.</summary>
 /// <param name="WorkerId">The stable worker id, such as worker-1.</param>
-/// <param name="ProbeName">The probe name that must be waiting before the worker is released.</param>
+/// <param name="ProbeName">The probe name that must be waiting before the worker is released. A start step has no probe; create it with <see cref="Start" />.</param>
 /// <param name="Kind">The step kind.</param>
 [Immutable]
 public readonly record struct ReplayStep(string WorkerId, string ProbeName, ReplayStepKind Kind = ReplayStepKind.Hit)
@@ -27,11 +27,17 @@ public readonly record struct ReplayStep(string WorkerId, string ProbeName, Repl
     /// <returns>A release step.</returns>
     public static ReplayStep Release(string workerId, string probeName) => new(workerId, probeName, ReplayStepKind.Release);
 
+    /// <summary>Creates a step that starts a worker: the worker runs from its beginning up to its first probe.</summary>
+    /// <param name="workerId">The stable worker id.</param>
+    /// <returns>A start step.</returns>
+    public static ReplayStep Start(string workerId) => new(workerId, ProbeWaitDiagnostic.StartProbeName, ReplayStepKind.Start);
+
     internal void Validate()
     {
         ValidateRequired(WorkerId, nameof(WorkerId));
         ValidateRequired(ProbeName, nameof(ProbeName));
         ValidateKind(Kind, nameof(Kind));
+        ValidateStartHasNoProbe(Kind, ProbeName, nameof(ProbeName));
     }
 
     private static void ValidateKind(ReplayStepKind kind, string paramName)
@@ -41,10 +47,17 @@ public readonly record struct ReplayStep(string WorkerId, string ProbeName, Repl
             case ReplayStepKind.Hit:
             case ReplayStepKind.Arrive:
             case ReplayStepKind.Release:
+            case ReplayStepKind.Start:
                 return;
             default:
                 throw new ArgumentOutOfRangeException(paramName, kind, "Unknown braid step kind.");
         }
+    }
+
+    private static void ValidateStartHasNoProbe(ReplayStepKind kind, string probeName, string paramName)
+    {
+        if (kind == ReplayStepKind.Start && !string.Equals(probeName, ProbeWaitDiagnostic.StartProbeName, StringComparison.Ordinal))
+            throw new ArgumentException("A start step has no probe. Create it with ReplayStep.Start.", paramName);
     }
 
     private static void ValidateRequired(string value, string paramName)

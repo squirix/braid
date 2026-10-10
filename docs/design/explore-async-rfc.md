@@ -46,7 +46,10 @@ await Runner.ExploreAsync(
 ## Strategy
 
 1. **Discovery run** — one random `RunAsync` iteration records per-worker probe sequences from the scheduling trace (`{workerId} hit {probe}` lines).
-2. **Enumeration** — bounded depth-first generation of hit schedules that preserve each worker's probe order. A schedule longer than `MaxStepsPerSchedule` is cut to its first steps.
+   It starts every worker first, in fork order, so it learns the probes of every worker even when it stops early.
+2. **Enumeration** — bounded depth-first generation of schedules: a start step per worker, then its hit steps in probe order, interleaved across workers.
+   The first schedules start every worker before any hit, in fork order; later ones move the starts between the hits.
+   A schedule with more hit steps than `MaxStepsPerSchedule` is cut there; start steps do not count.
 3. **Replay attempts** — each generated schedule runs under `RunAsync` with `Iterations = 1`.
    After its last step, waiting workers are released in fork order, so the test runs to completion; the reported replay token includes those completion steps.
 4. **Stop** — return when bounds are exhausted without failure; throw the first `RunException` caused by a test assertion, a timeout or an API misuse error (or a discovery random failure).

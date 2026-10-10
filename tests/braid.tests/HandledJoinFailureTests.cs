@@ -28,7 +28,7 @@ public sealed class HandledJoinFailureTests : TestBase
     }
 
     /// <summary>Verifies the worker failure is reported whichever worker the seed releases first.</summary>
-    /// <param name="seed">The run seed. Seeds 1 and 3 release w2 first, so w1 is parked when w2 fails; seeds 2 and 4 release w1 first.</param>
+    /// <param name="seed">The run seed, which decides the order in which the workers start and are released.</param>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]

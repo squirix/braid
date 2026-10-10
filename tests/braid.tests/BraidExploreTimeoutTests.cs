@@ -55,7 +55,9 @@ public sealed class BraidExploreTimeoutTests : TestBase
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Timeout);
         _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
-        _ = await Assert.That(exception.Steps).IsEquivalentTo([ReplayStep.Hit("first", "a"), ReplayStep.Hit("second", "b")], CollectionOrdering.Matching);
+        _ = await Assert.That(exception.Steps).IsEquivalentTo(
+            [ReplayStep.Start("first"), ReplayStep.Start("second"), ReplayStep.Hit("first", "a"), ReplayStep.Hit("second", "b")],
+            CollectionOrdering.Matching);
 
         await using var replayHang = new HungWorker();
         var replayed = await BraidAssertions.AssertExpectsAsync<RunException>(
@@ -156,7 +158,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
                     context.Fork("second", async () => await Probe.HitAsync("b", cancellationToken));
                     return context.JoinAsync(cancellationToken);
                 },
-                new RunOptions { Iterations = 1, Seed = 1, Timeout = RunTimeout },
+                new RunOptions { Iterations = 1, Seed = 1, Timeout = RunTimeout, Schedule = ReplaySchedule.Replay(ReplayStep.Start("first")) },
                 cancellationToken));
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Scheduler);
