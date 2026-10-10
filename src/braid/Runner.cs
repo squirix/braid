@@ -12,6 +12,7 @@ public static class Runner
     /// <summary>
     /// Explores bounded replay schedules for the supplied workers and probe points, stopping at the first test failure.
     /// Discovery uses one random run to learn per-worker probe sequences, then tries generated hit schedules up to the configured bounds.
+    /// The callback must not return null.
     /// </summary>
     /// <remarks>Every run, discovery or generated, starts its callback on the thread pool, without the synchronization context or task scheduler of the caller.</remarks>
     /// <param name="configure">Configures exploration bounds and seed.</param>
@@ -21,7 +22,10 @@ public static class Runner
     /// <exception cref="ArgumentNullException"><paramref name="configure" /> or <paramref name="test" /> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">Configured bounds are invalid.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken" /> was canceled.</exception>
-    /// <exception cref="RunException">A test failure, a timeout or an API misuse error was found under a replay schedule or during discovery.</exception>
+    /// <exception cref="RunException">
+    /// A test failure, a timeout or an API misuse error was found under a replay schedule or during discovery, or the callback returned a null task
+    /// (reported with <see cref="RunFailureOrigin.UserTest" /> and an inner <see cref="InvalidOperationException" />).
+    /// </exception>
     public static Task ExploreAsync(Action<ExploreOptionsBuilder> configure, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(configure);

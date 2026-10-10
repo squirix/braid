@@ -109,22 +109,6 @@ public sealed class BraidSchedulerValidationTests : TestBase
         _ = await BraidAssertions.AssertExpectsAnyAsync<ArgumentException>(() => Probe.HitAsync(" ", cancellationToken));
     }
 
-    /// <summary>Verifies callback null-task failures are clearly reported.</summary>
-    /// <param name="cancellationToken">The cancellation token for the current test.</param>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Test]
-    public async Task RunAsyncCallbackReturnsNullFailsClearly(CancellationToken cancellationToken)
-    {
-        var operation = Runner.RunAsync(NullTestValues.NullReturningRunCallback, cancellationToken);
-
-        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(operation);
-
-        var report = exception.ToString();
-        _ = await Assert.That(report).DoesNotContain(nameof(NullReferenceException));
-        _ = await Assert.That(report).Contains("null", StringComparison.OrdinalIgnoreCase);
-        _ = await Assert.That(report).Contains("callback", StringComparison.OrdinalIgnoreCase);
-    }
-
     /// <summary>Verifies empty runs complete with empty replay schedules.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>

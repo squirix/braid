@@ -46,6 +46,8 @@ Tests: `BraidProbeConcurrencyBoundaryTests.ProbeInsideFlowingFailsOrSerializes`,
   A callback that catches the failure of its join does not make the run pass. Only canceling the run token changes the outcome:
   the run then ends with `OperationCanceledException`.
 - Fork delegates must return a non-null `Task`.
+- The run callback must return a non-null `Task`. A null task fails the run with `RunException` (`RunFailureOrigin.UserTest`, inner
+  `InvalidOperationException`), in `RunAsync` and `ExploreAsync` alike: it is found inside the run, so the failure carries the seed and the iteration.
 - Probe names cannot be null, empty, or whitespace.
 - Non-empty replay schedules must be fully consumed.
 
