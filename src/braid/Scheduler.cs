@@ -176,16 +176,21 @@ internal sealed class Scheduler : IDisposable
         }
 
         _ = _stateChanged.Release();
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdownCts.Token);
+
+        // Only the scheduler, or the shutdown of the run, ends the wait. If the caller's token ended it, the worker would leave the probe
+        // while the scheduler still counts it as parked, and would run at the same time as the released worker.
         try
         {
-            await task.WaitForReleaseAsync(linkedCts.Token).ConfigureAwait(false);
+            await task.WaitForReleaseAsync(_shutdownCts.Token).ConfigureAwait(false);
         }
         finally
         {
             lock (_gate)
                 task.ProbeWaitInFlight = false;
         }
+
+        // The worker observes the cancellation at its own turn, once it is released.
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     internal async Task JoinAsync(CancellationToken cancellationToken)

@@ -5,8 +5,15 @@ public static class Probe
 {
     /// <summary>Hits a named scheduling point. Outside a braid run this method completes immediately.</summary>
     /// <param name="name">The probe name; null, empty, and whitespace-only values are rejected.</param>
-    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <param name="cancellationToken">
+    /// A cancellation token. Inside a braid run it does not end the wait at the probe: the worker observes it when the scheduler releases it,
+    /// and the probe then throws. Outside a braid run it is ignored.
+    /// </param>
     /// <returns>A <see cref="ValueTask" /> that completes when the scheduler releases the current operation.</returns>
+    /// <exception cref="ArgumentException"><paramref name="name" /> is null, empty or whitespace.</exception>
+    /// <exception cref="OperationCanceledException">
+    /// The scheduler released the worker and <paramref name="cancellationToken" /> was canceled by then, or the run stopped while the worker was parked.
+    /// </exception>
     public static ValueTask HitAsync(string name, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
