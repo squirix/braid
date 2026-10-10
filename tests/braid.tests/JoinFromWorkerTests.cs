@@ -38,7 +38,7 @@ public sealed class JoinFromWorkerTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithTimeout(TimeSpan.FromMinutes(1)),
+                static options => options.WithTimeout(TimeSpan.FromMinutes(1)),
                 async braid =>
                 {
                     await braid.WorkerAsync("w", async () => await braid.JoinAsync(cancellationToken));

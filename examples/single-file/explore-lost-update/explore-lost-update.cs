@@ -22,7 +22,6 @@ public sealed class ExploreLostUpdateTests
         {
             await Runner.ExploreAsync(
                 static options => options
-                    .WithSeed(12_345)
                     .WithMaxSchedules(100)
                     .WithMaxStepsPerSchedule(10),
                 RunLostUpdateExploreAsync,

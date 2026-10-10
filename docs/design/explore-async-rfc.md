@@ -29,7 +29,6 @@ Users need a bounded, deterministic search that stops at the first reproducible 
 ```csharp
 await Runner.ExploreAsync(
     options => options
-        .WithSeed(123)
         .WithMaxSchedules(1_000)
         .WithMaxStepsPerSchedule(100),
     async braid =>
@@ -74,7 +73,7 @@ again, exploration fails with "The test did not repeat under the same schedule";
 ## Determinism
 
 Same bounds and test callback give the same order of schedules, so the first reported failure is stable.
-The seed does not change the order; it is only reported with a failure.
+Exploration makes no random choice and has no seed; a failure it finds reports seed 0.
 
 ## Failure artifacts
 
@@ -82,7 +81,7 @@ When exploration fails, use `RunException.TryGetReplayText` exactly as with `Run
 
 ## Seed corpus (docs convention)
 
-Teams may persist failing `(seed, replay text)` pairs in test data or CI artifacts. No file format is mandated in v0.6.0.
+Teams may persist the replay text of failures in test data or CI artifacts. No file format is mandated in v0.6.0.
 
 ## Open questions (deferred)
 

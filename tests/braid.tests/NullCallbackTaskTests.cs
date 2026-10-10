@@ -50,7 +50,7 @@ public sealed class NullCallbackTaskTests : TestBase
     public async Task ExploreCallbackReturningNullFails(CancellationToken cancellationToken)
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
-            Runner.ExploreAsync(static options => options.WithSeed(1), NullTestValues.NullReturningExploreCallback, cancellationToken));
+            Runner.ExploreAsync(static _ => { }, NullTestValues.NullReturningExploreCallback, cancellationToken));
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
         _ = await Assert.That(exception.InnerException).IsTypeOf<InvalidOperationException>();

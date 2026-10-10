@@ -23,7 +23,7 @@ public static class Runner
     /// Every run starts its callback on the thread pool, without the synchronization context or task scheduler of the caller.
     /// The test must take the same steps whenever its workers are released in the same order.
     /// </remarks>
-    /// <param name="configure">Configures exploration bounds and seed.</param>
+    /// <param name="configure">Configures exploration bounds.</param>
     /// <param name="test">The exploration callback.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A <see cref="Task" /> that completes when exploration finishes without finding a failure.</returns>
@@ -126,7 +126,9 @@ public static class Runner
             var runOptions = new RunOptions
             {
                 Iterations = 1,
-                Seed = options.Seed,
+
+                // Exploration makes no random choice; the seed only appears in the report of a failure.
+                Seed = 0,
                 Timeout = options.Timeout,
                 ExploredPrefix = search.Prefix,
             };

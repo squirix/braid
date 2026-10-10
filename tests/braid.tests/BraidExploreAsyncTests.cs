@@ -13,7 +13,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
+                static options => options.WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
                 braid => RunLostUpdateExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -60,11 +60,11 @@ public sealed class BraidExploreAsyncTests : TestBase
                 cancellationToken));
     }
 
-    /// <summary>Verifies the same seed and bounds report the same first failure.</summary>
+    /// <summary>Verifies the same bounds report the same first failure.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreAsyncIsDeterministicForSeedBounds(CancellationToken cancellationToken)
+    public async Task ExploreAsyncIsDeterministicForBounds(CancellationToken cancellationToken)
     {
         var first = await ExploreLostUpdateAsync(cancellationToken);
         var second = await ExploreLostUpdateAsync(cancellationToken);
@@ -99,7 +99,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(12_345).WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
+                static options => options.WithMaxSchedules(100).WithMaxStepsPerSchedule(10),
                 braid => RunNamedLostUpdateExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -117,7 +117,7 @@ public sealed class BraidExploreAsyncTests : TestBase
         var explored = false;
 
         await Runner.ExploreAsync(
-            static options => options.WithSeed(99).WithMaxSchedules(5).WithMaxStepsPerSchedule(4),
+            static options => options.WithMaxSchedules(5).WithMaxStepsPerSchedule(4),
             async braid =>
             {
                 await braid.WorkerAsync("worker-1", async () => await Probe.HitAsync("only-probe", cancellationToken));
@@ -137,7 +137,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(77).WithMaxSchedules(100).WithMaxStepsPerSchedule(3),
+                static options => options.WithMaxSchedules(100).WithMaxStepsPerSchedule(3),
                 braid => RunLostUpdateExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -156,7 +156,7 @@ public sealed class BraidExploreAsyncTests : TestBase
         // "second" first, so "second" finishes first.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(2).WithMaxSchedules(10).WithMaxStepsPerSchedule(2),
+                static options => options.WithMaxSchedules(10).WithMaxStepsPerSchedule(2),
                 braid => RunFinishOrderExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -197,13 +197,13 @@ public sealed class BraidExploreAsyncTests : TestBase
     {
         // The first schedule releases "first" before "second", which passes; the second schedule fails.
         await Runner.ExploreAsync(
-            static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
+            static options => options.WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
             braid => RunOrderDependentExploreAsync(braid, cancellationToken),
             cancellationToken);
 
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(0).WithMaxSchedules(2).WithMaxStepsPerSchedule(10),
+                static options => options.WithMaxSchedules(2).WithMaxStepsPerSchedule(10),
                 braid => RunOrderDependentExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -219,7 +219,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     public async Task ExploreCompletesWhenOnlyPassingSchedule(CancellationToken cancellationToken)
     {
         _ = await Assert.That(() => Runner.ExploreAsync(
-            static options => options.WithSeed(99).WithMaxSchedules(1).WithMaxStepsPerSchedule(2),
+            static options => options.WithMaxSchedules(1).WithMaxStepsPerSchedule(2),
             async braid =>
             {
                 await braid.WorkerAsync("worker-1", async () => await Probe.HitAsync("only-probe", cancellationToken));
@@ -236,7 +236,7 @@ public sealed class BraidExploreAsyncTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(7).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
+                static options => options.WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
                 static _ => throw new InvalidOperationException("user test failure"),
                 cancellationToken));
 
@@ -270,11 +270,11 @@ public sealed class BraidExploreAsyncTests : TestBase
     }
 
     private static Task<RunException> ExploreLostUpdateAsync(CancellationToken cancellationToken = default) => BraidAssertions.AssertExpectsAsync<RunException>(
-        Runner.ExploreAsync(static options => options.WithSeed(77).WithMaxSchedules(40).WithMaxStepsPerSchedule(10), braid => RunLostUpdateExploreAsync(braid, cancellationToken), cancellationToken));
+        Runner.ExploreAsync(static options => options.WithMaxSchedules(40).WithMaxStepsPerSchedule(10), braid => RunLostUpdateExploreAsync(braid, cancellationToken), cancellationToken));
 
     private static Task<RunException> ExploreReaderWriterStableIdsAsync(CancellationToken cancellationToken = default) => BraidAssertions.AssertExpectsAsync<RunException>(
         Runner.ExploreAsync(
-            static options => options.WithSeed(5).WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
+            static options => options.WithMaxSchedules(10).WithMaxStepsPerSchedule(4),
             braid => RegisterReaderWriterWorkersAsync(braid, cancellationToken),
             cancellationToken));
 

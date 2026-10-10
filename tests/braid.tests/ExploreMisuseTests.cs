@@ -11,7 +11,7 @@ public sealed class ExploreMisuseTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     await braid.WorkerAsync("w", async () => await Probe.HitAsync("a", cancellationToken));
@@ -31,17 +31,30 @@ public sealed class ExploreMisuseTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
+                    var secondHit = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
                     await braid.WorkerAsync(
                         "w",
                         async () =>
                         {
                             var first = Probe.HitAsync("a", cancellationToken).AsTask();
-                            await Probe.HitAsync("b", cancellationToken);
+                            try
+                            {
+                                await Probe.HitAsync("b", cancellationToken);
+                            }
+                            finally
+                            {
+                                secondHit.SetResult();
+                            }
+
                             await first;
                         });
+
+                    // Once "w" waits at "a", the first run starts "blocker" before it releases anyone, and "blocker" runs until "w" has hit "b".
+                    // So the wait at "a" is still in flight at the second hit, whatever the timing of the threads.
+                    await braid.WorkerAsync("blocker", () => secondHit.Task.WaitAsync(cancellationToken));
                     await braid.JoinAsync(cancellationToken);
                 },
                 cancellationToken));

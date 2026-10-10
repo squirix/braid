@@ -16,7 +16,7 @@ public sealed class ExploreStartOrderTests : TestBase
         // With one explored hit per schedule, the choices of "start w1; hit w1 a" end before w2 starts; the run then starts w2 itself.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithMaxStepsPerSchedule(1),
+                static options => options.WithMaxStepsPerSchedule(1),
                 braid => RunLateStartAsync(braid.WorkerAsync, braid.JoinAsync, cancellationToken),
                 cancellationToken));
 
@@ -43,7 +43,7 @@ public sealed class ExploreStartOrderTests : TestBase
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(1),
+                static _ => { },
                 async braid =>
                 {
                     await braid.WorkerAsync("z", () => HitTwiceAsync("z1", "z2"));
@@ -82,7 +82,7 @@ public sealed class ExploreStartOrderTests : TestBase
         {
             // w2 waits, before its first probe, for what w1 does before its own: every schedule that starts w2 first hangs.
             await Runner.ExploreAsync(
-                static options => options.WithSeed(1).WithTimeout(TimeSpan.FromMilliseconds(300)),
+                static options => options.WithTimeout(TimeSpan.FromMilliseconds(300)),
                 async braid =>
                 {
                     _ = Interlocked.Increment(ref runs);
