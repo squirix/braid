@@ -47,6 +47,7 @@
 - A failed `JoinAsync` is final: a later join in the same run throws the same exception. When the callback catches the failure of its join,
   the run reports that failure. It used to report the `OperationCanceledException` that braid itself raised in a parked worker while stopping
   the run, or a timeout that elapsed afterwards, and it could pass after the callback caught the cancellation of its own join.
+- `RunContext.TraceSteps` returns the trace so far inside the run callback. It used to stay empty until the run completed.
 - A failed run waits about one second, not two, for a worker that keeps running after braid stopped the run.
 - A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
 

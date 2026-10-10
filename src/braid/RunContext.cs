@@ -2,11 +2,12 @@ namespace Braid;
 
 /// <summary>
 /// Provides task orchestration APIs for a braid run. Only use members while the active
-/// <see cref="Runner" /> run callback is executing.
+/// <see cref="Runner" /> run callback is executing; <see cref="TraceSteps" /> stays readable afterwards.
 /// </summary>
 public sealed class RunContext
 {
     private readonly Scheduler _runScheduler;
+    private IReadOnlyList<string>? _completedTrace;
     private int _isActive = 1;
 
     internal RunContext(Scheduler runScheduler)
@@ -14,8 +15,11 @@ public sealed class RunContext
         _runScheduler = runScheduler;
     }
 
-    /// <summary>Gets the scheduling trace from the completed run, when available.</summary>
-    public IReadOnlyList<string> TraceSteps { get; private set; } = [];
+    /// <summary>
+    /// Gets the scheduling trace of the run: a snapshot of the steps so far while the run callback is executing, and the trace as of the end of the run once it has completed.
+    /// Each read during the callback copies the trace.
+    /// </summary>
+    public IReadOnlyList<string> TraceSteps => Volatile.Read(ref _completedTrace) ?? _runScheduler.GetTraceSnapshot();
 
     internal Dictionary<string, List<string>> WorkerProbeSequences { get; private set; } = [with(StringComparer.Ordinal)];
 
@@ -53,7 +57,7 @@ public sealed class RunContext
 
     internal void Complete()
     {
-        TraceSteps = _runScheduler.GetTraceSnapshot();
+        Volatile.Write(ref _completedTrace, _runScheduler.GetTraceSnapshot());
         WorkerProbeSequences = _runScheduler.GetWorkerProbeSequences();
         _ = Interlocked.Exchange(ref _isActive, 0);
     }
