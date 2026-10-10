@@ -2,11 +2,10 @@ using TUnit.Assertions.Enums;
 
 namespace Braid.Tests;
 
-/// <summary>Covers how exploration handles worker starts: schedules cut before a start, the order of the first schedules, start orders that hang, and the discovery run.</summary>
+/// <summary>Covers how exploration handles worker starts: schedules cut before a start, the order of the first schedules, and start orders that hang.</summary>
 public sealed class ExploreStartOrderTests : TestBase
 {
     private const string LateStart = "w2 started after w1 passed its probe";
-    private const string SecondFirst = "second ran before first";
 
     /// <summary>Verifies a schedule cut before a worker started is completed with a start step for it, and the reported token reproduces the failure.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
@@ -14,7 +13,7 @@ public sealed class ExploreStartOrderTests : TestBase
     [Test]
     public async Task CompletionStartsWorkerLeftUnstarted(CancellationToken cancellationToken)
     {
-        // With one hit per schedule, the schedule "start w1; hit w1 a" ends before w2 starts; fork-order completion then starts w2.
+        // With one explored hit per schedule, the choices of "start w1; hit w1 a" end before w2 starts; the run then starts w2 itself.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(1).WithMaxStepsPerSchedule(1),
@@ -36,27 +35,37 @@ public sealed class ExploreStartOrderTests : TestBase
         _ = await Assert.That(replayed.InnerException!.Message).IsEqualTo(LateStart);
     }
 
-    /// <summary>Verifies the first schedule starts the workers in fork order and then hits them in worker id order, as schedules did before start steps existed.</summary>
+    /// <summary>Verifies the first schedule starts the workers in fork order and then releases them in turn, the one that has waited longest first.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task FirstScheduleHitsWorkersInIdOrder(CancellationToken cancellationToken)
+    public async Task FirstScheduleReleasesWorkersInTurn(CancellationToken cancellationToken)
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(1),
                 async braid =>
                 {
-                    await braid.WorkerAsync("z", async () => await Probe.HitAsync("pz", cancellationToken));
-                    await braid.WorkerAsync("a", async () => await Probe.HitAsync("pa", cancellationToken));
+                    await braid.WorkerAsync("z", () => HitTwiceAsync("z1", "z2"));
+                    await braid.WorkerAsync("a", () => HitTwiceAsync("a1", "a2"));
                     await braid.JoinAsync(cancellationToken);
                     throw new InvalidOperationException("fails under every schedule");
                 },
                 cancellationToken));
 
         _ = await Assert.That(exception.Steps).IsEquivalentTo(
-            [ReplayStep.Start("z"), ReplayStep.Start("a"), ReplayStep.Hit("a", "pa"), ReplayStep.Hit("z", "pz")],
+            [
+                ReplayStep.Start("z"), ReplayStep.Start("a"),
+                ReplayStep.Hit("z", "z1"), ReplayStep.Hit("a", "a1"),
+                ReplayStep.Hit("z", "z2"), ReplayStep.Hit("a", "a2"),
+            ],
             CollectionOrdering.Matching);
+
+        async Task HitTwiceAsync(string first, string second)
+        {
+            await Probe.HitAsync(first, cancellationToken);
+            await Probe.HitAsync(second, cancellationToken);
+        }
     }
 
     /// <summary>Verifies exploration runs one schedule, not all of them, from the group that begins with a start order that hangs.</summary>
@@ -101,36 +110,8 @@ public sealed class ExploreStartOrderTests : TestBase
             await release.CancelAsync();
         }
 
-        // The discovery run, the three schedules that start w1 first, and one of the three that start w2 first.
-        _ = await Assert.That(runs).IsEqualTo(5);
-    }
-
-    /// <summary>Verifies a discovery failure that no generated schedule reproduces carries a replay token that reproduces it.</summary>
-    /// <param name="cancellationToken">The cancellation token for the current test.</param>
-    /// <returns>A task that represents the asynchronous test.</returns>
-    [Test]
-    public async Task SurfacedDiscoveryFailureHasAToken(CancellationToken cancellationToken)
-    {
-        // Seed 0 makes the discovery run release "second" first, so it fails; the only generated schedule within MaxSchedules(1) passes.
-        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
-            Runner.ExploreAsync(
-                static options => options.WithSeed(0).WithMaxSchedules(1),
-                braid => RunOrderDependentAsync(braid.WorkerAsync, braid.JoinAsync, cancellationToken),
-                cancellationToken));
-
-        _ = await Assert.That(exception.InnerException!.Message).IsEqualTo(SecondFirst);
-        _ = await Assert.That(exception.Steps).IsEquivalentTo(
-            [ReplayStep.Start("first"), ReplayStep.Start("second"), ReplayStep.Hit("second", "b")],
-            CollectionOrdering.Matching);
-        _ = await Assert.That(exception.TryGetReplayText(out var replayText, out var error)).IsTrue().Because(error!);
-
-        var replayed = await BraidAssertions.AssertExpectsAsync<RunException>(
-            Runner.RunAsync(
-                context => RunOrderDependentAsync(ForkWith(context), context.JoinAsync, cancellationToken),
-                new RunOptions { Iterations = 1, Seed = 0, Schedule = ReplaySchedule.Parse(replayText) },
-                cancellationToken));
-
-        _ = await Assert.That(replayed.InnerException!.Message).IsEqualTo(SecondFirst);
+        // The three schedules that start w1 first, and one of the three that start w2 first.
+        _ = await Assert.That(runs).IsEqualTo(4);
     }
 
     private static Func<string, Func<Task>, Task> ForkWith(RunContext context)
@@ -171,32 +152,5 @@ public sealed class ExploreStartOrderTests : TestBase
 
         if (startedLate)
             throw new InvalidOperationException(LateStart);
-    }
-
-    /// <summary>Fails in the second worker when it passes its probe before the first worker has passed its own.</summary>
-    /// <param name="fork">Forks a worker.</param>
-    /// <param name="join">Joins the workers.</param>
-    /// <param name="cancellationToken">The cancellation token for the current test.</param>
-    /// <returns>A task that completes when the scenario has run.</returns>
-    private static async Task RunOrderDependentAsync(Func<string, Func<Task>, Task> fork, Func<CancellationToken, Task> join, CancellationToken cancellationToken)
-    {
-        var firstDone = false;
-
-        await fork(
-            "first",
-            async () =>
-            {
-                await Probe.HitAsync("a", cancellationToken);
-                firstDone = true;
-            });
-        await fork(
-            "second",
-            async () =>
-            {
-                await Probe.HitAsync("b", cancellationToken);
-                if (!firstDone)
-                    throw new InvalidOperationException(SecondFirst);
-            });
-        await join(cancellationToken);
     }
 }

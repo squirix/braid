@@ -11,7 +11,6 @@ internal sealed class Scheduler : IDisposable
     private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(1);
     private readonly Lock _gate = new();
     private readonly int _iteration;
-    private readonly List<ReplayStep>? _discoverySteps;
     private readonly SemaphoreSlim _joinMutex = new(1, 1);
     private readonly JoinFailure _joinFailure = new();
     private readonly DeterministicRandom _random;
@@ -24,13 +23,18 @@ internal sealed class Scheduler : IDisposable
     private readonly List<string> _trace = [];
     private bool _joined;
     private int _nextScheduleStep;
+    private int _releases;
 
     internal Scheduler(int seed, int iteration, RunOptions options)
     {
         _iteration = iteration;
         _timeoutCts.CancelAfter(options.Timeout);
-        _script = options.Schedule == null ? null : new ReplayScript(options.Schedule.Steps, options.CompletesScheduleInForkOrder);
-        _discoverySteps = options.IsDiscoveryRun ? [] : null;
+        _script = options switch
+        {
+            { ExploredPrefix: { } prefix } => new ReplayScript(prefix, true),
+            { Schedule: { } schedule } => new ReplayScript(schedule.Steps, false),
+            _ => null,
+        };
         _random = new DeterministicRandom(seed);
     }
 
@@ -87,7 +91,7 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             traceSnapshot = [.. _trace];
-            scheduleSnapshot = [.. ScriptSteps ?? _discoverySteps ?? []];
+            scheduleSnapshot = [.. ScriptSteps ?? []];
             resolvedMessage = AppendReplayState(message);
             diagnostics = BuildDiagnosticSnapshot();
         }
@@ -134,16 +138,10 @@ internal sealed class Scheduler : IDisposable
             return [.. _trace];
     }
 
-    internal List<WorkerProbes> GetWorkerProbeSequences()
+    internal IReadOnlyList<ReplayStep[]> GetExploredChoices()
     {
         lock (_gate)
-        {
-            var sequences = new List<WorkerProbes>(_tasks.Count);
-            for (var index = 0; index < _tasks.Count; index++)
-                sequences.Add(new WorkerProbes(_tasks[index].WorkerId, [.. _tasks[index].ProbeNames]));
-
-            return sequences;
-        }
+            return _script == null ? [] : [.. _script.Choices];
     }
 
     internal async ValueTask HitAsync(RunTask task, string name, CancellationToken cancellationToken)
@@ -159,7 +157,6 @@ internal sealed class Scheduler : IDisposable
             task.ProbeWaitInFlight = true;
             task.State = RunTaskState.Waiting;
             task.LastProbeName = name;
-            task.ProbeNames.Add(name);
             _trace.Add($"{task.WorkerId} hit {name}");
         }
 
@@ -252,7 +249,7 @@ internal sealed class Scheduler : IDisposable
     }
 
     /// <summary>
-    /// Rejects a second worker with the same id: replay steps and explored probe sequences address workers by id,
+    /// Rejects a second worker with the same id: replay steps address workers by id,
     /// so two workers with one id could not be scheduled or replayed separately.
     /// </summary>
     /// <param name="workerId">The id of the worker being forked, explicit or generated.</param>
@@ -452,7 +449,6 @@ internal sealed class Scheduler : IDisposable
             Tasks = _tasks,
             NextScheduleStep = _nextScheduleStep,
             Script = _script,
-            StartsInForkOrder = _discoverySteps != null,
             Random = _random,
             Trace = _trace,
             CreateException = CreateException,
@@ -488,8 +484,8 @@ internal sealed class Scheduler : IDisposable
                 if (nextTask != null)
                 {
                     nextTask.State = RunTaskState.Running;
+                    nextTask.ReleaseOrder = ++_releases;
                     _trace.Add(nextTask.LastProbeName == null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
-                    _discoverySteps?.Add(nextTask.LastProbeName == null ? ReplayStep.Start(nextTask.WorkerId) : ReplayStep.Hit(nextTask.WorkerId, nextTask.LastProbeName));
                 }
             }
 
@@ -760,11 +756,10 @@ internal sealed class Scheduler : IDisposable
 
         private static RunTask? SelectNextTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
-            // The start of a worker is a choice like any probe, so code before the first probe is interleaved too. Two kinds of run leave it to the
-            // scheduler, which then starts every worker first, in fork order: a script without start steps, so that schedules written before start
-            // steps existed run as they did, and the discovery run of an exploration.
-            var startsInForkOrder = context.Script == null ? context.StartsInForkOrder : !context.Script.StartsWorkers;
-            var notStarted = startsInForkOrder ? SelectNotStartedTask(waitingTasks) : null;
+            // The start of a worker is a choice like any probe, so code before the first probe is interleaved too. Only a script without start
+            // steps leaves it to the scheduler, which then starts every worker first, in fork order, so that schedules written before start steps
+            // existed run as they did.
+            var notStarted = context.Script is { StartsWorkers: false } ? SelectNotStartedTask(waitingTasks) : null;
             return notStarted ?? (context.Script == null
                 ? SelectRandomWaitingTask(waitingTasks, context)
                 : SelectScriptedTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease));
@@ -782,14 +777,14 @@ internal sealed class Scheduler : IDisposable
 
         private static RunTask? SelectExhaustedScriptTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
-            return context.Script!.CompletesInForkOrder
-                ? SelectForkOrderCompletionTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease)
+            return context.Script!.Explores
+                ? SelectExploredTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease)
                 : throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler).SkipInExploration();
         }
 
         /// <summary>
-        /// Releases the first waiting worker in fork order once no worker is running, so the choice depends only on which workers are parked.
-        /// The choice is appended to the script as a hit step, or as a start step for a worker that has not started, so the reported schedule replays the whole run.
+        /// Makes the next choice of a run of an exploration once no worker is running, so the choice depends only on which workers are parked.
+        /// The script records what the run could take and appends the step it takes, so the reported schedule replays the whole run.
         /// </summary>
         /// <param name="context">The join context.</param>
         /// <param name="waitingTasks">The waiting workers, sorted by fork order.</param>
@@ -797,7 +792,7 @@ internal sealed class Scheduler : IDisposable
         /// <param name="advancedWithoutRelease">Set when the step advanced without releasing a worker.</param>
         /// <returns>The worker to release, or <see langword="null"/> to wait for a state change.</returns>
         /// <exception cref="RunException">Only held workers remain, so none can be released.</exception>
-        private static RunTask? SelectForkOrderCompletionTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
+        private static RunTask? SelectExploredTask(SchedulerJoinContext context, RunTask[] waitingTasks, bool hasRunningTasks, ref bool advancedWithoutRelease)
         {
             if (hasRunningTasks)
                 return null;
@@ -806,8 +801,7 @@ internal sealed class Scheduler : IDisposable
             if (waitingTasks.Length == 0)
                 throw context.CreateException(ScriptExhaustedMessage, null, RunFailureOrigin.Scheduler).SkipInExploration();
 
-            var task = waitingTasks[0];
-            context.Script!.AppendCompletionStep(task.LastProbeName == null ? ReplayStep.Start(task.WorkerId) : ReplayStep.Hit(task.WorkerId, task.LastProbeName));
+            context.Script!.AppendChoice(waitingTasks);
             return SelectScheduledTask(context, waitingTasks, hasRunningTasks, ref advancedWithoutRelease);
         }
 

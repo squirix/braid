@@ -16,9 +16,10 @@ internal sealed class RunTask : IDisposable
 
     internal string? LastProbeName { get; set; }
 
-    internal List<string> ProbeNames { get; } = [];
-
     internal bool ProbeWaitInFlight { get; set; }
+
+    /// <summary>Gets or sets the position of the worker's last release among the releases of the run, or zero while the worker has not started.</summary>
+    internal int ReleaseOrder { get; set; }
 
     internal RunTaskState State { get; set; } = RunTaskState.Waiting;
 

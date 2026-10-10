@@ -7,11 +7,11 @@ public sealed class BraidExploreTimeoutTests : TestBase
 {
     private static readonly TimeSpan RunTimeout = TimeSpan.FromSeconds(1);
 
-    /// <summary>Verifies a hang in the discovery run with no parked worker fails exploration with a timeout.</summary>
+    /// <summary>Verifies a hang in the first run with no parked worker fails exploration with a timeout.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreSurfacesDiscoveryTimeout(CancellationToken cancellationToken)
+    public async Task ExploreSurfacesFirstRunTimeout(CancellationToken cancellationToken)
     {
         await using var hang = new HungWorker();
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
@@ -29,7 +29,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
         _ = await Assert.That(exception.SchedulerDiagnostics!.RunningWorkers).Contains(new ProbeWaitDiagnostic("w", ProbeWaitDiagnostic.StartProbeName));
     }
 
-    /// <summary>Verifies a hang of the last worker under a generated schedule fails exploration with a replay token that reproduces it.</summary>
+    /// <summary>Verifies a hang of the last worker fails exploration with a replay token that reproduces it.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]

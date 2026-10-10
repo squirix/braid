@@ -54,7 +54,7 @@ public sealed class IterationContextTests : TestBase
         _ = await Assert.That(string.Join(',', starts)).IsEqualTo("pool,pool,pool");
     }
 
-    /// <summary>Verifies the discovery run and every generated schedule start the callback on the thread pool.</summary>
+    /// <summary>Verifies every run of an exploration starts the callback on the thread pool.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]

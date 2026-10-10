@@ -20,13 +20,18 @@
   Duplicate ids used to be accepted, and exploration merged their probe sequences and missed interleavings.
 - Breaking: `JoinAsync` called from a forked worker throws `InvalidOperationException` at once; uncaught, `RunAsync` and `ExploreAsync`
   report it as `RunException` with `RunFailureOrigin.UserTest` and that inner exception. It used to hang until the run timed out.
-- Breaking: the run callback of the first iteration, and of the `ExploreAsync` discovery run, starts on the thread pool like every later one:
+- Breaking: `ExploreAsync` no longer generates its schedules from the probes that one random discovery run hit. It searches depth-first over
+  the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another waiting worker there, and
+  from then on releases the worker that has waited longest. The seed no longer changes the order of the schedules, and the callback runs
+  one time less. When a step that an earlier run took cannot be taken again, exploration fails with "The test did not repeat under the same schedule".
+- Breaking: `ExploreAsync` fails with the timeout when every schedule it ran hung on a worker waiting for a parked one. It used to pass.
+- Breaking: the run callback of the first iteration, and of the first `ExploreAsync` run, starts on the thread pool like every later one:
   not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
   before the callback starts.
   A caller that blocks the only thread of its synchronization context while waiting for the run no longer hangs it.
 - Breaking: the start of a worker is a scheduling point. A random run chooses the order in which workers start, so code before the first probes
   is no longer always run in fork order, and one seed gives a different run than before. `ExploreAsync` tries the orders of the starts too,
-  also for workers that hit no probe: it generates more schedules, and its replay tokens begin with `start` lines. The schedules that start
+  also for workers that hit no probe: it runs more schedules, and its replay tokens begin with `start` lines. The schedules that start
   every worker first come first, so other start orders need a `MaxSchedules` above the number of hit orders. A worker that waits, before its
   first probe, for another worker's code before its first probe now times out when it starts first.
 - Breaking: canceling the token passed to `Probe.HitAsync` no longer wakes a worker parked at the probe. The worker observes the cancellation
@@ -44,22 +49,22 @@
 - A timeout above `RunOptions.MaxTimeout` is rejected with `ArgumentOutOfRangeException` when options are validated. It used to fail the run as a user test failure.
 - `RunException.ToString()` includes the inner exception's stack trace and nested inner exceptions, and the report's own stack trace.
 - `ExploreAsync` no longer passes a test that hangs with no running worker blocked on a parked one:
-  such a timeout in the discovery run or in a generated schedule fails exploration, with a replay token for a generated schedule.
-- `ExploreAsync` no longer skips generated schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
-  after the last step, waiting workers are released in fork order, so the test can run to completion, and the replay token includes the completion steps.
-- `ExploreAsync` no longer passes after the discovery run failed: when no generated schedule reproduces the failure, the discovery failure is thrown.
+  such a timeout fails exploration, with a replay token.
+- `ExploreAsync` explores schedules that change which probes a worker hits, for example a retry after a conflict. Schedules generated from
+  the probes of the discovery run did not fit such runs and were skipped, so the test passed unless the discovery run itself took the failing path.
+- `ExploreAsync` no longer skips schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
+  after the last explored step, a run releases the worker that has waited longest, so the test can run to completion, and the replay token includes those steps.
 - A worker still running after a failed run stopped waiting for it no longer gets `ObjectDisposedException` from its next probe:
   the probe throws `OperationCanceledException`, and the failure message names the abandoned workers.
 - A callback that waits before `JoinAsync`, for example for a forked worker (workers start only when the run joins), no longer hangs:
   the run timeout fails it with `RunFailureOrigin.Timeout`, and canceling the run token ends it with `OperationCanceledException`.
 - `ExploreAsync` no longer passes when the test misuses the API, for example forks after `JoinAsync` or hits a second probe on a worker
-  whose probe wait is still in flight: it reports the same `RunException` as `RunAsync`. Only failures caused by the schedule are skipped:
-  schedule mismatches and parked-worker timeouts. A `RunException` that test code creates and throws now stops exploration too.
+  whose probe wait is still in flight: it reports the same `RunException` as `RunAsync`. Only a timeout caused by the schedule is skipped:
+  a running worker that waits for a parked one. A `RunException` that test code creates and throws now stops exploration too.
 - A failed `JoinAsync` is final: a later join in the same run throws the same exception. When the callback catches the failure of its join,
   the run reports that failure. It used to report the `OperationCanceledException` that braid itself raised in a parked worker while stopping
   the run, or a timeout that elapsed afterwards, and it could pass after the callback caught the cancellation of its own join.
 - `RunContext.TraceSteps` returns the trace so far inside the run callback. It used to stay empty until the run completed.
-- A discovery failure that `ExploreAsync` surfaces because no generated schedule reproduced it carries a replay token.
 - `ExploreAsync` runs one schedule, not all of them, from each group that begins with the same steps and hangs on a worker waiting for a parked one.
 - Consecutive seeds no longer make related choices: with three workers, seeds 1 to 15 all used to release the first worker first, and a hundred
   consecutive seeds used to give 6 of the 20 orders of two workers with two probes each. The seed is mixed before use, so every seed gives

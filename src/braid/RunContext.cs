@@ -21,7 +21,8 @@ public sealed class RunContext
     /// </summary>
     public IReadOnlyList<string> TraceSteps => Volatile.Read(ref _completedTrace) ?? _runScheduler.GetTraceSnapshot();
 
-    internal IReadOnlyList<WorkerProbes> WorkerProbeSequences { get; private set; } = [];
+    /// <summary>Gets the choices a completed run of an exploration made after the steps it replayed. See <see cref="ReplayScript.Choices" />.</summary>
+    internal IReadOnlyList<ReplayStep[]> ExploredChoices { get; private set; } = [];
 
     /// <summary>Starts a logical concurrent operation controlled by the braid scheduler.</summary>
     /// <param name="operation">The operation to run.</param>
@@ -58,7 +59,7 @@ public sealed class RunContext
     internal void Complete()
     {
         Volatile.Write(ref _completedTrace, _runScheduler.GetTraceSnapshot());
-        WorkerProbeSequences = _runScheduler.GetWorkerProbeSequences();
+        ExploredChoices = _runScheduler.GetExploredChoices();
         _ = Interlocked.Exchange(ref _isActive, 0);
     }
 

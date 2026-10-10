@@ -129,7 +129,7 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(explored).IsTrue();
     }
 
-    /// <summary>Verifies a step cap below the schedule length still runs each generated schedule to completion.</summary>
+    /// <summary>Verifies a step cap below the schedule length still runs each schedule to completion.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
@@ -152,7 +152,8 @@ public sealed class BraidExploreAsyncTests : TestBase
     [Test]
     public async Task ExploreFindsOrderFailureAfterStepCap(CancellationToken cancellationToken)
     {
-        // The generated schedule starts both workers, then "hit second b1; hit second b2" finishes "second" first; fork order then completes "first".
+        // The schedule starts both workers and explores "hit second b1; hit first a1"; the run then releases the workers in turn itself,
+        // "second" first, so "second" finishes first.
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
                 static options => options.WithSeed(2).WithMaxSchedules(10).WithMaxStepsPerSchedule(2),
@@ -166,8 +167,8 @@ public sealed class BraidExploreAsyncTests : TestBase
                 ReplayStep.Start("first"),
                 ReplayStep.Start("second"),
                 ReplayStep.Hit("second", "b1"),
-                ReplayStep.Hit("second", "b2"),
                 ReplayStep.Hit("first", "a1"),
+                ReplayStep.Hit("second", "b2"),
                 ReplayStep.Hit("first", "a2"),
             ],
             CollectionOrdering.Matching);
@@ -188,17 +189,21 @@ public sealed class BraidExploreAsyncTests : TestBase
         _ = await Assert.That(replayed.SchedulerDiagnostics!.UnusedReplaySteps).IsEmpty();
     }
 
-    /// <summary>Verifies a discovery failure is surfaced when no generated schedule within the bounds reproduces it.</summary>
+    /// <summary>Verifies exploration runs only the schedules within MaxSchedules: it passes when the failing one lies beyond, and finds it with a larger bound.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreSurfacesFailureOutsideBounds(CancellationToken cancellationToken)
+    public async Task ExploreStopsAtMaxSchedules(CancellationToken cancellationToken)
     {
-        // Seed 0 makes the random discovery run release "second" first, so it fails.
-        // The only generated schedule within MaxSchedules(1) is "first, second", which passes.
+        // The first schedule releases "first" before "second", which passes; the second schedule fails.
+        await Runner.ExploreAsync(
+            static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
+            braid => RunOrderDependentExploreAsync(braid, cancellationToken),
+            cancellationToken);
+
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(
-                static options => options.WithSeed(0).WithMaxSchedules(1).WithMaxStepsPerSchedule(10),
+                static options => options.WithSeed(0).WithMaxSchedules(2).WithMaxStepsPerSchedule(10),
                 braid => RunOrderDependentExploreAsync(braid, cancellationToken),
                 cancellationToken));
 
@@ -223,11 +228,11 @@ public sealed class BraidExploreAsyncTests : TestBase
             cancellationToken)).ThrowsNothing();
     }
 
-    /// <summary>Verifies user InvalidOperationException failures are not suppressed during discovery.</summary>
+    /// <summary>Verifies a user InvalidOperationException thrown by the callback of the first run is not suppressed.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    public async Task ExploreSurfacesUserInvalidOpDiscovery(CancellationToken cancellationToken)
+    public async Task ExploreSurfacesUserInvalidOp(CancellationToken cancellationToken)
     {
         var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.ExploreAsync(

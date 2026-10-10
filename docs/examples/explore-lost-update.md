@@ -10,7 +10,7 @@ The final assertion expects `2`, but a classic lost update leaves `1` when both 
 
 ## Exploration
 
-`Runner.ExploreAsync` runs one discovery pass to learn each worker's probe sequence, then tries bounded permutations of start and hit steps until the assertion fails:
+`Runner.ExploreAsync` runs the test under one order of start and hit steps after another, within the bounds, until the assertion fails:
 
 ```csharp
 await Runner.ExploreAsync(
