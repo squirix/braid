@@ -26,8 +26,8 @@ internal sealed class DeterministicRandom
     }
 
     /// <summary>
-    /// Mixes the seed over all bits. Without it the first value of a small seed is a multiple of that seed,
-    /// so nearby small seeds make related first choices: with three workers, seeds 1 to 15 all chose the first one.
+    /// Mixes the seed over all bits. Without it consecutive seeds make related choices: the first value of a small seed is a multiple of that seed,
+    /// so with three workers seeds 1 to 15 all chose the first one, and a hundred consecutive seeds gave 6 of the 20 orders of two workers with two probes each.
     /// </summary>
     /// <param name="seed">The seed.</param>
     /// <returns>The initial state.</returns>

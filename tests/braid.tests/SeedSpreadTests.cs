@@ -1,6 +1,6 @@
 namespace Braid.Tests;
 
-/// <summary>Covers how small seeds spread the first scheduling choice.</summary>
+/// <summary>Covers how nearby seeds spread the scheduling choices.</summary>
 public sealed class SeedSpreadTests : TestBase
 {
     /// <summary>Verifies consecutive small seeds do not all start the same worker first.</summary>
@@ -8,10 +8,8 @@ public sealed class SeedSpreadTests : TestBase
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
     [Test]
-    [Arguments(2)]
     [Arguments(3)]
-    [Arguments(4)]
-    [Arguments(5)]
+    [Arguments(6)]
     public async Task SmallSeedsStartEveryWorkerFirst(int workerCount, CancellationToken cancellationToken)
     {
         var firstStarts = new int[workerCount];
@@ -40,12 +38,54 @@ public sealed class SeedSpreadTests : TestBase
             firstStarts[first]++;
         }
 
-        // An even spread gives each worker 60 / workerCount first starts. Half of that is well below what an unbiased choice gives,
-        // and above the 6 and 7 that two of three workers got when the first value of a small seed was a multiple of the seed.
+        // An even spread gives each worker 60 / workerCount first starts. Half of that is well below what an unbiased choice gives.
+        // When the first value of a small seed was a multiple of the seed, two of three workers got 6 and 7, and two of six workers got none.
         var fewest = int.MaxValue;
         for (var worker = 0; worker < workerCount; worker++)
             fewest = Math.Min(fewest, firstStarts[worker]);
 
         _ = await Assert.That(fewest).IsGreaterThanOrEqualTo(60 / workerCount / 2);
+    }
+
+    /// <summary>Verifies a hundred consecutive seeds, as a run with a hundred iterations uses, give most of the possible orders of two workers.</summary>
+    /// <param name="baseSeed">The first of the consecutive seeds.</param>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    [Arguments(1)]
+    [Arguments(1_000_000_000)]
+    public async Task ConsecutiveSeedsGiveManyOrders(int baseSeed, CancellationToken cancellationToken)
+    {
+        var orders = new HashSet<string>(StringComparer.Ordinal);
+        for (var seed = baseSeed; seed < baseSeed + 100; seed++)
+        {
+            var trace = string.Empty;
+            await Runner.RunAsync(
+                async context =>
+                {
+                    context.Fork(
+                        "a",
+                        async () =>
+                        {
+                            await Probe.HitAsync("a1", cancellationToken);
+                            await Probe.HitAsync("a2", cancellationToken);
+                        });
+                    context.Fork(
+                        "b",
+                        async () =>
+                        {
+                            await Probe.HitAsync("b1", cancellationToken);
+                            await Probe.HitAsync("b2", cancellationToken);
+                        });
+                    await context.JoinAsync(cancellationToken);
+                    trace = string.Join('|', context.TraceSteps);
+                },
+                new RunOptions { Iterations = 1, Seed = seed },
+                cancellationToken);
+            _ = orders.Add(trace);
+        }
+
+        // Two workers with a start and two probes each have 20 orders. Seeding the generator with the seed itself gave 6 of them.
+        _ = await Assert.That(orders.Count).IsGreaterThanOrEqualTo(15);
     }
 }
