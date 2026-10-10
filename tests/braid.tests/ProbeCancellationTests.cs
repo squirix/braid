@@ -3,6 +3,10 @@ namespace Braid.Tests;
 /// <summary>Covers a probe whose token is canceled while the worker is parked at it, or before the worker hits it.</summary>
 public sealed class ProbeCancellationTests : TestBase
 {
+    private const string HeldTrace =
+        "a forked | b forked | a released | a hit a1 | b released | b hit b1 | a arrival observed at a1 (held) | b released at b1 | b hit b2 | "
+        + "b released at b2 | b completed | a released at a1 | a hit a2 | a released at a2 | a completed";
+
     /// <summary>Verifies a worker whose probe token another worker cancels stays parked until the scheduler releases it, so the two never run at once.</summary>
     /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
@@ -19,6 +23,61 @@ public sealed class ProbeCancellationTests : TestBase
         _ = await Assert.That(scenario.CanceledWith).IsEqualTo(probeCts.Token);
         _ = await Assert.That(trace).IsEqualTo(
             "a forked | b forked | a released | a hit a1 | b released | b hit b1 | b released at b1 | b hit b2 | a released at a1 | a hit a2 | b released at b2 | b completed | a released at a2 | a completed");
+    }
+
+    /// <summary>Verifies a worker held at its arrival observes the cancellation of its probe token only at its Release step.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task HeldWorkerObservesCancelAtItsRelease(CancellationToken cancellationToken)
+    {
+        using var probeCts = new CancellationTokenSource();
+        var scenario = new CancelWhileParked(probeCts, cancellationToken);
+        var schedule = ReplaySchedule.Replay(
+            ReplayStep.Arrive("a", "a1"),
+            ReplayStep.Hit("b", "b1"),
+            ReplayStep.Hit("b", "b2"),
+            ReplayStep.Release("a", "a1"),
+            ReplayStep.Hit("a", "a2"));
+
+        var trace = await scenario.RunAsync(new RunOptions { Iterations = 1, Seed = 1, Schedule = schedule });
+
+        _ = await Assert.That(scenario.Overlaps).IsEqualTo(0);
+        _ = await Assert.That(scenario.CanceledWith).IsEqualTo(probeCts.Token);
+        _ = await Assert.That(trace).IsEqualTo(HeldTrace);
+    }
+
+    /// <summary>Verifies a canceled probe token that the worker does not catch fails the run as a failure of that worker, at its release.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task UncaughtProbeCancellationFailsTheRun(CancellationToken cancellationToken)
+    {
+        using var probeCts = new CancellationTokenSource();
+        var probeToken = probeCts.Token;
+
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(
+                async context =>
+                {
+                    context.Fork("a", async () => await Probe.HitAsync("a1", probeToken));
+                    context.Fork(
+                        "b",
+                        async () =>
+                        {
+                            await Probe.HitAsync("b1", cancellationToken);
+                            await probeCts.CancelAsync();
+                        });
+                    await context.JoinAsync(cancellationToken);
+                },
+                new RunOptions { Iterations = 1, Seed = 1, Schedule = ReplaySchedule.Replay(ReplayStep.Hit("b", "b1"), ReplayStep.Hit("a", "a1")) },
+                cancellationToken));
+
+        _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.UserTest);
+        var canceled = await Assert.That(exception.InnerException).IsTypeOf<OperationCanceledException>();
+        _ = await Assert.That(canceled!.CancellationToken).IsEqualTo(probeToken);
+        _ = await Assert.That(exception.Traces[^1]).IsEqualTo("a completed");
+        _ = await Assert.That(exception.Traces).Contains("a released at a1");
     }
 
     /// <summary>Verifies a random run in which a worker cancels another worker's probe token gives the same trace every time for one seed.</summary>

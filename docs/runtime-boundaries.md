@@ -83,6 +83,7 @@ the parked worker holds across a probe) never continues, and the run times out. 
 - Canceling the token passed to `Probe.HitAsync` does not wake a parked worker. The worker observes the cancellation when the scheduler
   releases it: the probe then throws `OperationCanceledException`. A worker that cancels the token and then waits for the parked worker
   to react, before its own next probe, hangs the same way. A probe hit with an already canceled token is still a scheduling point.
+  To stop a run, cancel the token passed to `RunAsync` / `JoinAsync`; a probe token alone does not stop it.
 
 ---
 

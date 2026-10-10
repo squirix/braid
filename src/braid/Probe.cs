@@ -12,7 +12,7 @@ public static class Probe
     /// <returns>A <see cref="ValueTask" /> that completes when the scheduler releases the current operation.</returns>
     /// <exception cref="ArgumentException"><paramref name="name" /> is null, empty or whitespace.</exception>
     /// <exception cref="OperationCanceledException">
-    /// The scheduler released the worker and <paramref name="cancellationToken" /> was canceled by then, or the run stopped while the worker was parked.
+    /// The scheduler released the worker and <paramref name="cancellationToken" /> was canceled by then, or the run has stopped.
     /// </exception>
     public static ValueTask HitAsync(string name, CancellationToken cancellationToken)
     {
