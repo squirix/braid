@@ -63,9 +63,9 @@ SHELL ["/bin/bash", "-c"]
 RUN set -euo pipefail \
     && mkdir -p /tmp/gpghome \
     && chmod 700 /tmp/gpghome \
-    && curl -SL https://dot.net/v1/dotnet-install.sh --output /tmp/dotnet-install.sh \
-    && curl -SL https://dot.net/v1/dotnet-install.sig --output /tmp/dotnet-install.sig \
-    && curl -SL https://dot.net/v1/dotnet-install.asc --output /tmp/dotnet-install.asc \
+    && curl --proto '=https' --tlsv1.2 -SL https://dot.net/v1/dotnet-install.sh --output /tmp/dotnet-install.sh \
+    && curl --proto '=https' --tlsv1.2 -SL https://dot.net/v1/dotnet-install.sig --output /tmp/dotnet-install.sig \
+    && curl --proto '=https' --tlsv1.2 -SL https://dot.net/v1/dotnet-install.asc --output /tmp/dotnet-install.asc \
     && gpg --batch --homedir /tmp/gpghome --import /tmp/dotnet-install.asc \
     && gpg --batch --homedir /tmp/gpghome --show-keys --with-colons /tmp/dotnet-install.asc \
         | grep -qi ":2b930ab1228d11d5d7f6b6acb9cf1a51fc7d3acf:" \
