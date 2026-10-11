@@ -91,7 +91,8 @@ Use the same `$Version` as in `Directory.Build.props`.
 ## NuGet.org
 
 1. Push the `.nupkg`: `dotnet nuget push path\to\braid.$Version.nupkg --api-key <scoped-key> --source https://api.nuget.org/v3/index.json`
-2. Push the `.snupkg` the same way (same API key is typical).
+2. Do not push the `.snupkg` separately when it lies next to the `.nupkg`: the push of the package sends it too,
+   and a second push fails with 409 while the first copy is pending validation.
 3. Open the package page on NuGet and verify metadata, README rendering, dependencies, and target framework.
 4. Confirm **owners** on the package; use a **scoped** API key with push-only permissions where possible.
 5. Never commit API keys or paste them into the repository.

@@ -94,19 +94,11 @@ jobs:
                 run: |
                     set -euo pipefail
                     shopt -s nullglob
-                    # NOTE: `*.nupkg` also matches `*.snupkg`, so collect the
-                    # two kinds separately to avoid pushing the symbol package twice
-                    # (the second push fails with 409 while the first copy is
-                    # still pending validation).
-                    packages=()
-                    for package in out/packages/*.nupkg; do
-                        # Skip symbol packages caught by the `*.nupkg` glob.
-                        [[ "${package}" == *.snupkg ]] && continue
-                        packages+=("${package}")
-                    done
-                    for package in out/packages/*.snupkg; do
-                        packages+=("${package}")
-                    done
+                    # Push only the `.nupkg` files: `dotnet nuget push` also pushes
+                    # the `.snupkg` that lies next to a package. A second push of the
+                    # symbol package fails with 409 while the first copy is still
+                    # pending validation.
+                    packages=(out/packages/*.nupkg)
                     if [ ${#packages[@]} -eq 0 ]; then
                         echo "No packages found under out/packages." >&2
                         ls -la out/packages/ >&2 || true
