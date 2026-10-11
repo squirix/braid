@@ -9,8 +9,9 @@ public enum ReplayStepKind
     /// <summary>Wait for a worker to be blocked at the probe and keep it held.</summary>
     Arrive = 1,
 
-    /// <summary>
-    /// Release a worker previously held by an <see cref="Arrive" /> step.
-    /// </summary>
+    /// <summary>Release a worker previously held by an <see cref="Arrive" /> step.</summary>
     Release = 2,
+
+    /// <summary>Start a worker that has not started yet: it runs from its beginning up to its first probe.</summary>
+    Start = 3,
 }

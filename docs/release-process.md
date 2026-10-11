@@ -1,6 +1,7 @@
 # Manual release process
 
-Compact checklist for publishing a new `braid` preview or stable version. NuGet package versions are immutable: a typo in a published version cannot be overwritten—publish a new version instead.
+Compact checklist for publishing a new `braid` preview or stable version.
+NuGet package versions are immutable: a typo in a published version cannot be overwritten—publish a new version instead.
 
 ## Release variables (PowerShell)
 
@@ -60,7 +61,8 @@ dotnet new xunit -f net10.0
 dotnet add package braid --version $Version
 ```
 
-If the installed xUnit template does not support `-f net10.0`, run `dotnet new xunit`, set `<TargetFramework>net10.0</TargetFramework>` in the generated project, and add a `global.json` that selects the .NET 10 SDK.
+If the installed xUnit template does not support `-f net10.0`, run `dotnet new xunit`,
+set `<TargetFramework>net10.0</TargetFramework>` in the generated project, and add a `global.json` that selects the .NET 10 SDK.
 
 **Before NuGet publishing**, validate the locally packed package instead:
 
@@ -76,7 +78,8 @@ dotnet test --configuration Release
 
 After publishing to NuGet.org, you can repeat `dotnet add package braid --version $Version` **without** `--source` once the package is indexed, and run the same tests.
 
-Optionally smoke-test **text replay** against the live package: parse a short schedule with `ReplaySchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering. Use the same `$Version` as in `Directory.Build.props`.
+Optionally smoke-test **text replay** against the live package: parse a short schedule with `ReplaySchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering.
+Use the same `$Version` as in `Directory.Build.props`.
 
 ## GitHub release
 

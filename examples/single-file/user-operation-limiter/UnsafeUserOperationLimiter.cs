@@ -26,8 +26,8 @@ public sealed class UnsafeUserOperationLimiter
     /// <returns><see langword="true" /> when the operation is allowed; otherwise, <see langword="false" />.</returns>
     public async Task<bool> TryEnterAsync(CancellationToken cancellationToken)
     {
+        await Probe.HitAsync("before-read", cancellationToken);
         _ = _activeOperations.TryGetValue(_userId, out var current);
-        await Probe.HitAsync("after-read", cancellationToken);
 
         if (current >= _limit)
         {

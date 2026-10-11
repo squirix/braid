@@ -74,8 +74,8 @@ public sealed class UserOperationLimiterTests
             Iterations = 1,
             Seed = 12345,
             Schedule = ReplaySchedule.Replay(
-                new ReplayStep("worker-1", "after-read"),
-                new ReplayStep("worker-2", "after-read"),
+                new ReplayStep("worker-1", "before-read"),
+                new ReplayStep("worker-2", "before-read"),
                 new ReplayStep("worker-1", "before-write"),
                 new ReplayStep("worker-2", "before-write")),
         };
@@ -100,7 +100,7 @@ public sealed class UserOperationLimiterTests
         Assert.Contains("Seed: 12345", report, StringComparison.Ordinal);
         Assert.Contains("Iteration:", report, StringComparison.Ordinal);
         Assert.Contains("Schedule:", report, StringComparison.Ordinal);
-        Assert.Contains("worker-1 @ after-read", report, StringComparison.Ordinal);
+        Assert.Contains("worker-1 @ before-read", report, StringComparison.Ordinal);
         Assert.Contains("worker-2 @ before-write", report, StringComparison.Ordinal);
         Assert.Contains("Replay text:", report, StringComparison.Ordinal);
         Assert.Contains("hit worker-2 before-write", report, StringComparison.Ordinal);

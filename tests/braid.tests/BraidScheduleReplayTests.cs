@@ -1,4 +1,4 @@
-using Xunit;
+using TUnit.Assertions.Enums;
 
 namespace Braid.Tests;
 
@@ -6,9 +6,10 @@ namespace Braid.Tests;
 public sealed class BraidScheduleReplayTests : TestBase
 {
     /// <summary>Verifies scripted schedules release workers in the requested order.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncReleasesWorkersInScriptedOrder()
+    [Test]
+    public async Task RunAsyncReleasesWorkersInScriptedOrder(CancellationToken cancellationToken)
     {
         var releases = new List<string>();
         var options = new RunOptions
@@ -23,28 +24,29 @@ public sealed class BraidScheduleReplayTests : TestBase
             {
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", cancellationToken);
                     releases.Add("worker-1");
                 });
 
                 context.Fork(async () =>
                 {
-                    await Probe.HitAsync("ready", DefaultCancellationToken);
+                    await Probe.HitAsync("ready", cancellationToken);
                     releases.Add("worker-2");
                 });
 
-                await context.JoinAsync(DefaultCancellationToken);
+                await context.JoinAsync(cancellationToken);
             },
             options,
-            DefaultCancellationToken);
+            cancellationToken);
 
-        Assert.Equal(["worker-2", "worker-1"], releases);
+        _ = await Assert.That(releases).IsEquivalentTo(["worker-2", "worker-1"], CollectionOrdering.Matching);
     }
 
     /// <summary>Verifies scripted schedules can reproduce a lost update.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncReplaysReproducesLostUpdate()
+    [Test]
+    public async Task RunAsyncReplaysReproducesLostUpdate(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -57,36 +59,36 @@ public sealed class BraidScheduleReplayTests : TestBase
                 new ReplayStep("worker-2", "before-write")),
         };
 
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
                     var value = 0;
 
                     context.Fork(async () =>
                     {
                         var current = value;
-                        await Probe.HitAsync("after-read", DefaultCancellationToken);
-                        await Probe.HitAsync("before-write", DefaultCancellationToken);
+                        await Probe.HitAsync("after-read", cancellationToken);
+                        await Probe.HitAsync("before-write", cancellationToken);
                         value = current + 1;
                     });
 
                     context.Fork(async () =>
                     {
                         var current = value;
-                        await Probe.HitAsync("after-read", DefaultCancellationToken);
-                        await Probe.HitAsync("before-write", DefaultCancellationToken);
+                        await Probe.HitAsync("after-read", cancellationToken);
+                        await Probe.HitAsync("before-write", cancellationToken);
                         value = current + 1;
                     });
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
 
-                    Assert.Equal(2, value);
+                    _ = await Assert.That(value).IsEqualTo(2);
                 },
                 options,
-                DefaultCancellationToken));
+                cancellationToken));
 
-        Assert.Equal(12345, exception.Seed);
+        _ = await Assert.That(exception.Seed).IsEqualTo(12345);
         foreach (var marker in new[] { "worker-1", "worker-2", "after-read", "before-write" })
         {
             var found = false;
@@ -98,7 +100,7 @@ public sealed class BraidScheduleReplayTests : TestBase
                 break;
             }
 
-            Assert.True(found, $"Trace should mention '{marker}'.");
+            _ = await Assert.That(found).IsTrue().Because($"Trace should mention '{marker}'.");
         }
     }
 }

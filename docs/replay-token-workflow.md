@@ -3,10 +3,14 @@
 A **replay token** is Braid’s canonical replay text: the same format produced by `ReplaySchedule.ToReplayText()` and accepted by `ReplaySchedule.Parse(...)`. There is no separate syntax.
 
 ```text
+start <worker>
 hit <worker> <probe>
 arrive <worker> <probe>
 release <worker> <probe>
 ```
+
+`start` runs a worker from its beginning up to its first probe. A token without `start` lines starts every worker before its first line,
+in fork order; a token with them starts only the workers it names.
 
 **Product goal:** find the interleaving, copy the token, keep the race fixed forever.
 
@@ -20,8 +24,8 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
 
    ```csharp
    var schedule = ReplaySchedule.Parse("""
-   hit worker-1 after-read
-   hit worker-2 after-read
+   hit worker-1 before-read
+   hit worker-2 before-read
    hit worker-1 before-write
    hit worker-2 before-write
    """);
@@ -43,6 +47,7 @@ Random-only runs report **seed**, **iteration**, and **trace**. They do **not** 
 2. **Re-run** with the same seed to confirm the failure (`RunOptions.Seed`).
 3. **Add probes** at async boundaries in the code under test (`Probe.HitAsync`).
 4. **Build** a typed or text schedule that matches the interleaving you need (use trace lines as hints).
+   Write a `start` line for each `<worker> released` trace line, in that order: a token without `start` lines starts the workers in fork order.
 5. **Export** canonical text with `ReplaySchedule.ToReplayText()` once the schedule reproduces the bug.
 6. **Regression test** using `ReplaySchedule.Parse(token)` or `ReplaySchedule.Replay(...)`.
 
@@ -63,8 +68,9 @@ catch (RunException ex)
     }
     else
     {
-        // Schedule present but not text-exportable (e.g. whitespace in worker/probe names).
-        // Use ex.Schedule typed steps or fix naming.
+        // `error` set: the schedule is not text-exportable (e.g. whitespace in worker/probe names).
+        // Use ex.Steps typed steps or fix naming.
+        // `error` null: a random run failed. ex.Steps is empty and is not a schedule.
     }
 }
 ```
@@ -85,18 +91,19 @@ catch (RunException ex)
 
 ## Scheduler diagnostics
 
-When available, `ex.SchedulerDiagnostics` includes last matched replay step, waiting workers, held workers (after `Arrive`), and unused replay steps. Use these to fix incomplete or mismatched schedules—not to replace a replay token.
+When available, `ex.SchedulerDiagnostics` includes last matched replay step, waiting workers, held workers (after `Arrive`), and unused replay steps.
+Use these to fix incomplete or mismatched schedules—not to replace a replay token.
 
 ---
 
 ## Honest limits
 
 | Situation | Replay token |
-|-----------|----------------|
+| ----------- | ---------------- |
 | Typed or text schedule configured and exportable | Yes — `TryGetReplayText` or failure report |
 | Random-only run | No automatic full token — build schedule manually |
 | Whitespace in worker id or probe name | Token export may fail; use typed `ReplayStep` list |
-| Empty schedule | No token |
+| No steps, for example `RunException.Steps` of a random run | Not a schedule: `ReplaySchedule.Replay` throws `ArgumentException` |
 
 ---
 
@@ -104,6 +111,6 @@ When available, `ex.SchedulerDiagnostics` includes last matched replay step, wai
 
 - Only **one** logical probe wait may be in flight per forked worker at a time.
 - A **concurrent** probe hit on the same worker (for example from a flowing child task while the parent waits) fails with a clear error.
-- A probe in a child task **after** the parent’s probe completes is allowed (serialized).
+- A task that a worker starts may hit a probe only while the worker does nothing but wait for that task.
 
-See [runtime-boundaries.md](runtime-boundaries.md) and `tests/braid.tests/BraidRuntimeBoundaryTests.cs`.
+See [runtime-boundaries.md](runtime-boundaries.md) and `tests/braid.tests/BraidProbeConcurrencyBoundaryTests.cs`.

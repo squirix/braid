@@ -1,6 +1,95 @@
 # Changelog
 
-## Unreleased
+## 0.8.0
+
+### Added
+
+- `RunOptions.MaxTimeout`, the longest supported run timeout (about 49.7 days).
+- Start steps: `ReplayStep.Start(workerId)`, `ReplayStepKind.Start` and the replay text line `start <worker>` start a worker, which then runs
+  up to its first probe. A schedule without start steps starts every worker before its first step, in fork order, as before.
+- `RunFailureOrigin.Timeout` for runs that timed out while no worker was parked at a probe.
+- `SchedulerDiagnostics.RunningWorkers` and a **Running workers** section in failure reports, with the probe each running worker was last released at.
+- `ProbeWaitDiagnostic.StartProbeName` and `NotStartedProbeName` mark workers before their first probe; waiting workers that have not started are now listed.
+
+### Changed
+
+- Breaking: a run that times out reports `RunFailureOrigin.Timeout` instead of `RunFailureOrigin.Scheduler`, unless a worker was running
+  while others were parked: then it keeps `RunFailureOrigin.Scheduler` and says that the running worker may be waiting for a parked one.
+- Breaking: forking a second worker with an id already used in the run throws `ArgumentException` from `Fork` / `WorkerAsync`;
+  uncaught, `RunAsync` and `ExploreAsync` report it as `RunException` with that `ArgumentException` as the inner exception.
+  Duplicate ids used to be accepted, and exploration merged their probe sequences and missed interleavings.
+- Breaking: `JoinAsync` called from a forked worker throws `InvalidOperationException` at once; uncaught, `RunAsync` and `ExploreAsync`
+  report it as `RunException` with `RunFailureOrigin.UserTest` and that inner exception. It used to hang until the run timed out.
+- Breaking: `ExploreAsync` no longer generates its schedules from the probes that one random discovery run hit. It searches depth-first over
+  the choices of real runs: each run replays the steps of an earlier run up to one choice, releases another waiting worker there, and
+  from then on releases the worker that has waited longest. The callback runs one time less.
+  When a step that an earlier run took cannot be taken again, exploration fails with "The test did not repeat under the same schedule".
+- Breaking: `ExploreOptions.Seed` and `ExploreOptionsBuilder.WithSeed` are removed. Exploration makes no random choice, so the same bounds
+  and test give the same schedules in the same order. A failure found by `ExploreAsync` reports seed 0; reproduce it with its replay token.
+- Breaking: `ExploreAsync` fails with the timeout when every schedule it ran hung on a worker waiting for a parked one. It used to pass.
+- Breaking: the run callback of the first iteration, and of the first `ExploreAsync` run, starts on the thread pool like every later one:
+  not inline in the call, and without the caller's synchronization context or task scheduler. `RunAsync` and `ExploreAsync` can return
+  before the callback starts.
+  A caller that blocks the only thread of its synchronization context while waiting for the run no longer hangs it.
+- Breaking: the start of a worker is a scheduling point. A random run chooses the order in which workers start, so code before the first probes
+  is no longer always run in fork order, and one seed gives a different run than before. `ExploreAsync` tries the orders of the starts too,
+  also for workers that hit no probe: it runs more schedules, and its replay tokens begin with `start` lines. The schedules that start
+  every worker first come first, so other start orders need a `MaxSchedules` above the number of hit orders. A worker that waits, before its
+  first probe, for another worker's code before its first probe now times out when it starts first.
+- Breaking: canceling the token passed to `Probe.HitAsync` no longer wakes a worker parked at the probe. The worker observes the cancellation
+  when the scheduler releases it, and the probe then throws `OperationCanceledException`. A canceled wait used to let the worker run at the same
+  time as the released one, so one seed or replay token gave different runs, and a retry with a canceled token could fail the run with
+  `SemaphoreFullException`. A worker that cancels the token and waits for the parked worker before its own next probe now times out.
+- Breaking: `ReplaySchedule.Replay` rejects an empty step list with `ArgumentException`. A run with an empty schedule used to pass
+  until a worker hit a probe, then fail with "Scripted schedule was exhausted" while its diagnostics said no schedule was configured.
+  Leave `RunOptions.Schedule` unset for a random run.
+- Breaking: `RunOptions.Timeout` and `ExploreOptionsBuilder.WithTimeout` count from the start of the run callback instead of from `JoinAsync`,
+  so slow setup before the join now counts toward the timeout.
+
+### Fixed
+
+- A timeout above `RunOptions.MaxTimeout` is rejected with `ArgumentOutOfRangeException` when options are validated. It used to fail the run as a user test failure.
+- `RunException.ToString()` includes the inner exception's stack trace and nested inner exceptions, and the report's own stack trace.
+- `ExploreAsync` no longer passes a test that hangs with no running worker blocked on a parked one:
+  such a timeout fails exploration, with a replay token.
+- `ExploreAsync` explores schedules that change which probes a worker hits, for example a retry after a conflict. Schedules generated from
+  the probes of the discovery run did not fit such runs and were skipped, so the test passed unless the discovery run itself took the failing path.
+- `ExploreAsync` no longer skips schedules that end before the test does, including schedules cut by `MaxStepsPerSchedule`:
+  after the last explored step, a run releases the worker that has waited longest, so the test can run to completion, and the replay token includes those steps.
+- A worker still running after a failed run stopped waiting for it no longer gets `ObjectDisposedException` from its next probe:
+  the probe throws `OperationCanceledException`, and the failure message names the abandoned workers.
+- A callback that waits before `JoinAsync`, for example for a forked worker (workers start only when the run joins), no longer hangs:
+  the run timeout fails it with `RunFailureOrigin.Timeout`, and canceling the run token ends it with `OperationCanceledException`.
+- `ExploreAsync` no longer passes when the test misuses the API, for example forks after `JoinAsync` or hits a second probe on a worker
+  whose probe wait is still in flight: it reports the same `RunException` as `RunAsync`. Only a timeout caused by the schedule is skipped:
+  a running worker that waits for a parked one. A `RunException` that test code creates and throws now stops exploration too.
+- A failed `JoinAsync` is final: a later join in the same run throws the same exception. When the callback catches the failure of its join,
+  the run reports that failure. It used to report the `OperationCanceledException` that braid itself raised in a parked worker while stopping
+  the run, or a timeout that elapsed afterwards, and it could pass after the callback caught the cancellation of its own join.
+- `RunContext.TraceSteps` returns the trace so far inside the run callback. It used to stay empty until the run completed.
+- `ExploreAsync` runs one schedule, not all of them, from each group that begins with the same steps and hangs on a worker waiting for a parked one.
+- Consecutive seeds no longer make related choices: with three workers, seeds 1 to 15 all used to release the first worker first, and a hundred
+  consecutive seeds used to give 6 of the 20 orders of two workers with two probes each. The seed is mixed before use, so every seed gives
+  a different run than before.
+- A worker that returns while a probe hit by it, or by a task it started, still waits fails with an error that names the probe.
+  It used to pass and leave the wait parked.
+- A failed run waits about one second, not two, for a worker that keeps running after braid stopped the run.
+- A run canceled through its token no longer reports a schedule mismatch when a worker observed the cancellation before the join did.
+
+### Documentation
+
+- The lost-update and user-operation-limiter examples put a probe before the shared read, so the replay token decides the race; a sequential schedule passes.
+- `docs/runtime-boundaries.md` states when a task started by a worker may hit a probe: only while the worker waits for that task.
+  It used to call every probe from such a task allowed; a probe hit while the worker keeps running lets two workers run at once,
+  which braid reports only if the worker then hits a probe or returns while that task still waits.
+- `docs/runtime-boundaries.md` states which code the scheduler orders: a worker runs alone between its start and its first probe, and between probes.
+- The README quick start compiles: probe, join and run calls pass a `CancellationToken`; README C# snippets are compiled and checked by tests.
+- `RunAsync` and `ExploreAsync` XML docs: a null callback task surfaces as `RunException` with an inner `InvalidOperationException`.
+- Fixed stale references in `docs/runtime-boundaries.md`, `docs/replay-token-workflow.md` and `contributing.md` (test names, `RunException.Steps`, TUnit, SDK).
+
+### Packaging
+
+- Builds on GitHub Actions set `ContinuousIntegrationBuild`, so PDB paths are deterministic.
 
 ## 0.7.0
 
@@ -10,7 +99,11 @@
 
 ### Changed
 
-- Breaking: renamed all public `Braid`-prefixed types to drop the redundant prefix, matching the `Braid` namespace (SQR0007): `BraidRunner` → `Runner`, `BraidContext` → `RunContext`, `BraidOptions` → `RunOptions`, `BraidRunException` → `RunException`, `BraidRunFailureOrigin` → `RunFailureOrigin`, `BraidSchedule` → `ReplaySchedule`, `BraidStep` → `ReplayStep`, `BraidStepKind` → `ReplayStepKind`, `BraidProbe` → `Probe`, `BraidProbeWaitDiagnostic` → `ProbeWaitDiagnostic`, `BraidSchedulerDiagnostics` → `SchedulerDiagnostics`, `BraidExploreOptions` → `ExploreOptions`, `BraidExploreOptionsBuilder` → `ExploreOptionsBuilder`, `BraidExploreContext` → `ExploreContext`.
+- Breaking: renamed all public `Braid`-prefixed types to drop the redundant prefix, matching the `Braid` namespace (SQR0007):
+  `BraidRunner` → `Runner`, `BraidContext` → `RunContext`, `BraidOptions` → `RunOptions`, `BraidRunException` → `RunException`,
+  `BraidRunFailureOrigin` → `RunFailureOrigin`, `BraidSchedule` → `ReplaySchedule`, `BraidStep` → `ReplayStep`, `BraidStepKind` → `ReplayStepKind`,
+  `BraidProbe` → `Probe`, `BraidProbeWaitDiagnostic` → `ProbeWaitDiagnostic`, `BraidSchedulerDiagnostics` → `SchedulerDiagnostics`,
+  `BraidExploreOptions` → `ExploreOptions`, `BraidExploreOptionsBuilder` → `ExploreOptionsBuilder`, `BraidExploreContext` → `ExploreContext`.
 - Converted `ExploreOptions` to a readonly record struct and extracted `RunExceptionContext` to simplify failure-report construction.
 - Centralized the assembly version in `Directory.Build.props`.
 
@@ -98,11 +191,14 @@
 
 ### Documentation
 
-- Aligned README, roadmap, release checklist/process examples, and example walkthroughs with **.NET 10**, **v0.3.0** text replay schedules, **Arrive / Hit / Release** semantics, **random-only failure** limits (no synthesized full replay schedule), and explicit **non-goals** (`TaskScheduler` replacement, await interception, binary rewriting, exhaustive model checking).
+- Aligned README, roadmap, release checklist/process examples, and example walkthroughs with **.NET 10**,
+  **v0.3.0** text replay schedules, **Arrive / Hit / Release** semantics, **random-only failure** limits (no synthesized full replay schedule),
+  and explicit **non-goals** (`TaskScheduler` replacement, await interception, binary rewriting, exhaustive model checking).
 
 ### Fixed
 
-- Stabilized `CancellationWhileWorkerIsHeldDoesNotDeadlock`: assertion now allows either cancellation propagation or normal replay completion before cancellation, matching the intent “no deadlock on teardown.”
+- Stabilized `CancellationWhileWorkerIsHeldDoesNotDeadlock`: assertion now allows either cancellation propagation
+  or normal replay completion before cancellation, matching the intent “no deadlock on teardown.”
 
 ## 0.3.0
 
@@ -143,18 +239,18 @@ Stable release of braid.
 
 ### Added
 
-* Deterministic explicit-probe concurrency testing for .NET with `Braid.RunAsync`.
-* Fork/join orchestration through `BraidContext`.
-* Probe control with `BraidProbe.HitAsync`.
-* Typed replay schedules through `BraidSchedule` and `BraidStep`.
-* Failure reports with seed, iteration, schedule, and trace.
+- Deterministic explicit-probe concurrency testing for .NET with `Braid.RunAsync`.
+- Fork/join orchestration through `BraidContext`.
+- Probe control with `BraidProbe.HitAsync`.
+- Typed replay schedules through `BraidSchedule` and `BraidStep`.
+- Failure reports with seed, iteration, schedule, and trace.
 
 ### Known limitations
 
-* Explicit probes are required.
-* No automatic `await` interception.
-* No `TaskScheduler` replacement.
-* No exhaustive state-space search.
+- Explicit probes are required.
+- No automatic `await` interception.
+- No `TaskScheduler` replacement.
+- No exhaustive state-space search.
 
 ## 0.1.0-preview.1
 
@@ -162,20 +258,20 @@ Initial preview of braid.
 
 ### Added
 
-* Explicit probe-based concurrency testing with `BraidProbe.HitAsync`.
-* Fork/join run model through `Braid.RunAsync` and `BraidContext`.
-* Deterministic seed-based scheduling.
-* Typed replay schedules through `BraidSchedule` and `BraidStep`.
-* Reproducible failure reports with seed, iteration, schedule, and trace.
-* Scripted schedule failure handling.
-* Cancellation and timeout handling.
-* Public API contract tests and scheduler stress smoke tests.
+- Explicit probe-based concurrency testing with `BraidProbe.HitAsync`.
+- Fork/join run model through `Braid.RunAsync` and `BraidContext`.
+- Deterministic seed-based scheduling.
+- Typed replay schedules through `BraidSchedule` and `BraidStep`.
+- Reproducible failure reports with seed, iteration, schedule, and trace.
+- Scripted schedule failure handling.
+- Cancellation and timeout handling.
+- Public API contract tests and scheduler stress smoke tests.
 
 ### Known limitations
 
-* Explicit probes are required.
-* No automatic `await` interception.
-* No `TaskScheduler` replacement.
-* No exhaustive state-space search.
-* No string schedule parser yet.
-* No test-framework-specific output adapters yet.
+- Explicit probes are required.
+- No automatic `await` interception.
+- No `TaskScheduler` replacement.
+- No exhaustive state-space search.
+- No string schedule parser yet.
+- No test-framework-specific output adapters yet.

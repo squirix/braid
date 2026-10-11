@@ -2,9 +2,11 @@
 
 braid is deterministic concurrency testing for .NET libraries (currently **.NET 10**) using explicit async probe points.
 
-The current stable product intentionally focuses on small, reproducible async interleavings. Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control, binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
+The current stable product intentionally focuses on small, reproducible async interleavings.
+Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control,
+binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
-**Recommended next release:** **v0.8.0** — fairness-aware search and richer failure collection (v0.7.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
+**Recommended next release:** **v0.9.0** — minimal replay tokens and richer failure collection (v0.8.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
 
 This roadmap matches [CHANGELOG.md](../CHANGELOG.md) for completed work and keeps future direction intentionally high level.
 
@@ -121,13 +123,28 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.7.0**):
 - `ExploreOptions` as a readonly record struct; assembly version centralized in `Directory.Build.props`
 - SonarCloud, PVS-Studio, and NDepend analysis in CI; Apache-2.0 license
 
+### v0.8.0 — Scheduler and exploration correctness
+
+Goal: close the cases in which a run or an exploration passed, hung or reported the wrong failure.
+
+Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.8.0** and [design/explore-async-rfc.md](design/explore-async-rfc.md)):
+
+- the start of a worker is a scheduling point: `ReplayStep.Start`, the replay text line `start <worker>`, and start orders in random runs and exploration
+- `ExploreAsync` searches depth-first over the choices of real runs, so it explores schedules that change which probes a worker hits;
+  it releases the worker that has waited longest after the explored steps, and it has no seed
+- exploration reports API misuse, a test that does not repeat under the same schedule, and an exploration in which every schedule hung, instead of passing
+- `RunFailureOrigin.Timeout`, running workers in failure reports, and bounded waits for a callback that never joins and for workers that outlive a failed run
+- only the scheduler ends a probe wait; a failed join is final; `JoinAsync` from a worker and duplicate worker ids are rejected
+- the callback of every iteration starts on the thread pool; consecutive seeds make unrelated choices
+- runtime-boundary documentation for code before the first probe, waiting for a parked worker, and probes in tasks that a worker starts
+
 ## Planned releases
 
 This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
 
-### v0.8.0 — Exploration follow-on
+### v0.9.0 — Replay tokens and failure collection
 
-Goal: fairness-aware search and richer failure collection.
+Goal: minimal replay tokens for every failure, richer failure collection, and telling real deadlocks from hangs caused by the order of releases.
 
 ## Future preview
 
@@ -156,4 +173,5 @@ braid will not aim to become:
 - a general actor runtime or a built-in linearizability checker
 - a Rider plugin or UI before core 1.0-quality story
 
-Related: braid does not hide races behind sleeps, delays, or timing assumptions; probes stay explicit. This mirrors [README.md](../README.md) (“What braid does not do”) in spirit and detail.
+Related: braid does not hide races behind sleeps, delays, or timing assumptions; probes stay explicit.
+This mirrors [README.md](../README.md) (“What braid does not do”) in spirit and detail.

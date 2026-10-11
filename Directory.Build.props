@@ -1,12 +1,14 @@
 <Project>
     <PropertyGroup Label="Build">
-        <Version>0.7.1</Version>
+        <Version>0.8.0</Version>
         <TargetFramework>net10.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
+        <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+        <!-- Deterministic paths in PDBs and binaries for builds on GitHub Actions; local builds keep full paths for debugging. -->
+        <ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
     </PropertyGroup>
 
     <PropertyGroup Label="Analyzers">
@@ -29,8 +31,8 @@
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(IsBraidTestProject)' == 'true'">
-        <!-- xUnit: public test, fixture, and helper types. -->
-        <!-- Tests run on xUnit's sync context; ConfigureAwait(false) is unnecessary and can break test semantics. -->
+        <!-- TUnit: public test and helper types. -->
+        <!-- Tests run on TUnit's sync context; ConfigureAwait(false) is unnecessary and can break test semantics. -->
         <NoWarn>$(NoWarn);CA1515;CA2007;MA0004</NoWarn>
         <MeziantouAnalysisMode>all-errors</MeziantouAnalysisMode>
         <TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport>
@@ -40,24 +42,18 @@
     <ItemGroup Label="GlobalAnalyzers">
         <PackageReference Include="AsyncFixer" PrivateAssets="all"/>
         <PackageReference Include="ErrorProne.NET.CoreAnalyzers" PrivateAssets="all"/>
-        <PackageReference Include="ErrorProne.NET.Structs" PrivateAssets="all"/>
         <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all"/>
         <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all"/>
         <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" PrivateAssets="all"/>
         <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" PrivateAssets="all"/>
         <PackageReference Include="Roslynator.Analyzers" PrivateAssets="all"/>
         <PackageReference Include="SonarAnalyzer.CSharp" PrivateAssets="all"/>
-        <PackageReference Include="StyleCop.Analyzers" PrivateAssets="all"/>
+        <PackageReference Include="StyleCopNext.Analyzers" PrivateAssets="all"/>
         <PackageReference Include="ZeroAlloc.Analyzers" PrivateAssets="all"/>
     </ItemGroup>
 
     <ItemGroup Label="SquirixAnalyzers">
         <PackageReference Include="squirix.analyzers" PrivateAssets="all"/>
-    </ItemGroup>
-
-    <!-- Test-project analyzers: tests/** (not src/**). -->
-    <ItemGroup Label="TestAnalyzers" Condition="'$(IsBraidTestProject)' == 'true'">
-        <PackageReference Include="xunit.analyzers" PrivateAssets="all"/>
     </ItemGroup>
 
     <!-- MTP native code coverage for every test executable. -->

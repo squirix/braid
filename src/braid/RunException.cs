@@ -9,26 +9,22 @@ namespace Braid;
 [PublicAPI]
 public sealed class RunException : Exception
 {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class.
-    /// </summary>
+    private string? _abandonedWorkers;
+
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     public RunException()
         : this("A braid run failed.", new RunExceptionContext(0, 0, [], []))
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class with a message.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class with a message.</summary>
     /// <param name="message">The exception message.</param>
     public RunException(string message)
         : this(message, new RunExceptionContext(0, 0, [], []))
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class with a message and inner exception.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class with a message and inner exception.</summary>
     /// <param name="message">The exception message.</param>
     /// <param name="innerException">The underlying exception.</param>
     public RunException(string message, Exception innerException)
@@ -36,9 +32,7 @@ public sealed class RunException : Exception
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     /// <param name="message">The exception message.</param>
     /// <param name="seed">The seed used for the failing iteration.</param>
     /// <param name="iteration">The failing iteration index.</param>
@@ -56,13 +50,11 @@ public sealed class RunException : Exception
     {
     }
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="RunException" /> class.
-    /// </summary>
+    /// <summary>Initializes a new instance of the <see cref="RunException" /> class.</summary>
     /// <param name="message">The exception message.</param>
     /// <param name="context">Reproducibility context for the failure.</param>
     /// <param name="innerException">The underlying exception.</param>
-    /// <param name="failureOrigin">Whether the failure came from user test code or braid infrastructure.</param>
+    /// <param name="failureOrigin">Whether the failure came from user test code, braid infrastructure, or a run timeout.</param>
     public RunException(
         string message,
         RunExceptionContext context,
@@ -75,7 +67,7 @@ public sealed class RunException : Exception
         FailureOrigin = failureOrigin;
     }
 
-    /// <summary>Gets whether the failure originated from user test code or braid infrastructure.</summary>
+    /// <summary>Gets whether the failure originated from user test code, braid infrastructure, or a run timeout.</summary>
     public RunFailureOrigin FailureOrigin { get; }
 
     /// <summary>Gets the reproducibility context for the failure.</summary>
@@ -84,7 +76,7 @@ public sealed class RunException : Exception
     /// <summary>Gets the zero-based failing iteration index.</summary>
     public int Iteration => Context.Iteration;
 
-    /// <summary>Gets the configured replay schedule, or an empty list when random scheduling was used.</summary>
+    /// <summary>Gets the replay schedule the run executed, including any steps appended to complete it, or an empty list when random scheduling was used.</summary>
     public IReadOnlyList<ReplayStep> Steps => Context.Steps;
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
@@ -95,6 +87,16 @@ public sealed class RunException : Exception
 
     /// <summary>Gets the recorded scheduling trace for the failing iteration.</summary>
     public IReadOnlyList<string> Traces => Context.Traces;
+
+    /// <inheritdoc />
+    /// <remarks>Names the workers that were still running after the run stopped, when there were any.</remarks>
+    public override string Message => _abandonedWorkers == null ? base.Message : base.Message + Environment.NewLine + _abandonedWorkers;
+
+    /// <summary>
+    /// Gets a value indicating whether the failure comes from the schedule rather than from the test: the schedule did not fit the run,
+    /// or the run hung only because braid kept a worker parked. Exploration skips such a hang and reports a schedule that did not fit as a test that did not repeat.
+    /// </summary>
+    internal bool SkippedByExploration { get; private set; }
 
     /// <inheritdoc />
     public override string ToString()
@@ -110,21 +112,18 @@ public sealed class RunException : Exception
         AppendSchedulerDiagnosticsLines(lines, SchedulerDiagnostics);
         AppendTraceSection(lines);
         AppendInnerExceptionSection(lines);
+        AppendStackTraceSection(lines);
 
         return string.Join(Environment.NewLine, lines);
     }
 
-    /// <summary>
-    /// Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="ReplaySchedule.Parse(string)" /> accepts).
-    /// </summary>
+    /// <summary>Attempts to obtain canonical replay text for the configured typed schedule (same format as <see cref="ReplaySchedule.Parse(string)" /> accepts).</summary>
     /// <param name="text">When this method returns <see langword="true" />, the exportable replay text. Otherwise <see cref="string.Empty" />.</param>
     /// <param name="error">
     /// When this method returns <see langword="false" /> because the schedule cannot be exported (for example whitespace in worker id or probe name),
     /// a diagnostic message; otherwise <see langword="null" /> (including when no typed schedule was configured).
     /// </param>
-    /// <returns>
-    /// <see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.
-    /// </returns>
+    /// <returns><see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.</returns>
     public bool TryGetReplayText(out string text, out string? error)
     {
         text = string.Empty;
@@ -146,6 +145,24 @@ public sealed class RunException : Exception
         }
     }
 
+    /// <summary>Marks the failure as one that comes from the schedule rather than from the test.</summary>
+    /// <returns>This failure.</returns>
+    internal RunException SkipInExploration()
+    {
+        SkippedByExploration = true;
+        return this;
+    }
+
+    /// <summary>Adds the description of the workers abandoned after the run stopped to <see cref="Message" />, once.</summary>
+    /// <param name="description">The description of the abandoned workers.</param>
+    internal void ReportAbandonedWorkers(string description) => _abandonedWorkers ??= description;
+
+    private static void AppendIndentedLines(List<string> lines, string text)
+    {
+        foreach (var line in text.Split(["\r\n", "\n", "\r"], StringSplitOptions.None))
+            lines.Add($"  {line}");
+    }
+
     private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
     {
         if (diagnostics == null)
@@ -161,11 +178,12 @@ public sealed class RunException : Exception
             lines.Add("Last matched replay step:");
             lines.Add(
                 diagnostics is { LastMatchedReplayStep: { } lastStep, LastMatchedReplayStepOneBased: { } stepNumber }
-                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(lastStep)}" : "  none");
+                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(in lastStep)}" : "  none");
         }
 
         AppendProbeWaitDiagnostics(lines, "Waiting workers:", diagnostics.WaitingWorkers);
         AppendProbeWaitDiagnostics(lines, "Held workers:", diagnostics.HeldWorkers);
+        AppendProbeWaitDiagnostics(lines, "Running workers (last released at):", diagnostics.RunningWorkers);
         AppendUnusedReplayStepDiagnostics(lines, diagnostics.UnusedReplaySteps);
     }
 
@@ -191,7 +209,7 @@ public sealed class RunException : Exception
         for (var index = 0; index < steps.Count; index++)
         {
             var (oneBasedIndex, step) = steps[index];
-            lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(step)}");
+            lines.Add($"  {oneBasedIndex}. {ReplayFormat.CanonicalStepLine(in step)}");
         }
     }
 
@@ -204,7 +222,7 @@ public sealed class RunException : Exception
         for (var index = 0; index < Steps.Count; index++)
         {
             var step = Steps[index];
-            lines.Add(step.Kind is ReplayStepKind.Hit ? $"  {index + 1}. {step.WorkerId} @ {step.ProbeName}" : $"  {index + 1}. {step.Kind} {step.WorkerId} @ {step.ProbeName}");
+            lines.Add($"  {index + 1}. {ReplayFormat.ReportStepLine(in step)}");
         }
 
         lines.Add("Replay text:");
@@ -232,17 +250,36 @@ public sealed class RunException : Exception
             return;
 
         lines.Add("Inner exception:");
-        lines.Add($"  {InnerException.GetType().FullName}: {InnerException.Message}");
+        AppendIndentedLines(lines, InnerException.ToString());
+    }
+
+    private void AppendStackTraceSection(List<string> lines)
+    {
+        if (StackTrace == null)
+            return;
+
+        lines.Add("Stack trace:");
+        AppendIndentedLines(lines, StackTrace);
     }
 
     private static class ReplayFormat
     {
-        internal static string CanonicalStepLine(ReplayStep step) => step.Kind switch
+        internal static string CanonicalStepLine(in ReplayStep step) => step.Kind switch
         {
             ReplayStepKind.Hit => $"hit {step.WorkerId} {step.ProbeName}",
             ReplayStepKind.Arrive => $"arrive {step.WorkerId} {step.ProbeName}",
             ReplayStepKind.Release => $"release {step.WorkerId} {step.ProbeName}",
+            ReplayStepKind.Start => $"start {step.WorkerId}",
             _ => $"{step.Kind} {step.WorkerId} {step.ProbeName}",
+        };
+
+        internal static string ReportStepLine(in ReplayStep step) => step.Kind switch
+        {
+            ReplayStepKind.Hit => $"{step.WorkerId} @ {step.ProbeName}",
+            ReplayStepKind.Arrive => $"Arrive {step.WorkerId} @ {step.ProbeName}",
+            ReplayStepKind.Release => $"Release {step.WorkerId} @ {step.ProbeName}",
+            ReplayStepKind.Start => $"Start {step.WorkerId}",
+            _ => $"{step.Kind} {step.WorkerId} @ {step.ProbeName}",
         };
     }
 }

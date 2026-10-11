@@ -1,14 +1,13 @@
-using Xunit;
-
 namespace Braid.Tests;
 
 /// <summary>Covers scripted schedule failure behavior.</summary>
 public sealed class BraidScheduleFailureTests : TestBase
 {
     /// <summary>Verifies schedule exhaustion fails with a clear report.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncFailsWhenScheduleExhausted()
+    [Test]
+    public async Task RunAsyncFailsWhenScheduleExhausted(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -18,29 +17,30 @@ public sealed class BraidScheduleFailureTests : TestBase
             Schedule = ReplaySchedule.Replay(new ReplayStep("worker-1", "ready")),
         };
 
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 options,
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule was exhausted", report, StringComparison.Ordinal);
-        Assert.Contains("Seed: 12345", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Scripted schedule was exhausted");
+        _ = await Assert.That(report).Contains("Seed: 12345");
+        _ = await Assert.That(report).Contains("Trace:");
     }
 
     /// <summary>Verifies an unsatisfied scripted step fails with a clear report.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
     /// <returns>A task that represents the asynchronous test.</returns>
-    [Fact]
-    public async Task RunAsyncFailsWhenStepCannotBeMet()
+    [Test]
+    public async Task RunAsyncFailsWhenStepCannotBeMet(CancellationToken cancellationToken)
     {
         var options = new RunOptions
         {
@@ -49,22 +49,22 @@ public sealed class BraidScheduleFailureTests : TestBase
             Schedule = ReplaySchedule.Replay(new ReplayStep("worker-2", "ready")),
         };
 
-        var exception = await Assertions.ExpectsAsync<RunException>(
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
             Runner.RunAsync(
-                static async context =>
+                async context =>
                 {
-                    context.Fork(static async () => await Probe.HitAsync("ready", DefaultCancellationToken));
+                    context.Fork(async () => await Probe.HitAsync("ready", cancellationToken));
 
-                    await context.JoinAsync(DefaultCancellationToken);
+                    await context.JoinAsync(cancellationToken);
                 },
                 options,
-                DefaultCancellationToken));
+                cancellationToken));
 
         var report = exception.ToString();
-        Assert.Contains("Scripted schedule step", report, StringComparison.Ordinal);
-        Assert.Contains("worker-2", report, StringComparison.Ordinal);
-        Assert.Contains("ready", report, StringComparison.Ordinal);
-        Assert.Contains("Seed: 12345", report, StringComparison.Ordinal);
-        Assert.Contains("Trace:", report, StringComparison.Ordinal);
+        _ = await Assert.That(report).Contains("Scripted schedule step");
+        _ = await Assert.That(report).Contains("worker-2");
+        _ = await Assert.That(report).Contains("ready");
+        _ = await Assert.That(report).Contains("Seed: 12345");
+        _ = await Assert.That(report).Contains("Trace:");
     }
 }

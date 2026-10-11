@@ -24,6 +24,7 @@ braid targets **.NET 10**.
 ```csharp
 using Braid;
 
+// Inside a test method: cancellationToken is the test framework's token (or CancellationToken.None).
 var workerCompleted = false;
 var options = new RunOptions
 {
@@ -36,13 +37,16 @@ await Runner.RunAsync(
     {
         context.Fork(async () =>
         {
-            await Probe.HitAsync("ready");
+            await Probe.HitAsync("ready", cancellationToken);
             workerCompleted = true;
         });
 
-        await context.JoinAsync();
+        await context.JoinAsync(cancellationToken);
     },
-    options);
+    options,
+    cancellationToken);
+
+// workerCompleted is true here.
 ```
 
 Outside a braid run, `Probe.HitAsync` completes immediately. Inside a
@@ -52,8 +56,7 @@ Don't know the failing interleaving yet? Try bounded exploration:
 
 ```csharp
 await Runner.ExploreAsync(
-    options => options
-        .WithSeed(123)
+    static options => options
         .WithMaxSchedules(1_000)
         .WithMaxStepsPerSchedule(100),
     async braid =>
@@ -62,11 +65,13 @@ await Runner.ExploreAsync(
         await braid.WorkerAsync("writer", WriterAsync);
 
         await braid.JoinAsync(cancellationToken);
-        Assert.Equal(expected, observed);
+        if (observed != expected)
+            throw new InvalidOperationException($"Observed {observed}, expected {expected}.");
     },
     cancellationToken);
 ```
 
+`ReaderAsync` and `WriterAsync` are your worker methods, and they call `Probe.HitAsync` at the points braid should interleave.
 When a run fails, use `RunException.TryGetReplayText` to export a replay token
 for a stable regression test.
 
@@ -79,19 +84,22 @@ var options = new RunOptions
 {
     Iterations = 1,
     Schedule = ReplaySchedule.Replay(
-        ReplayStep.Hit("worker-1", "after-read"),
-        ReplayStep.Hit("worker-2", "after-read"),
+        ReplayStep.Hit("worker-1", "before-read"),
+        ReplayStep.Hit("worker-2", "before-read"),
         ReplayStep.Hit("worker-1", "before-write"),
         ReplayStep.Hit("worker-2", "before-write")),
 };
 ```
 
 Schedules can also be parsed from text:
-`ReplaySchedule.Parse("hit worker-1 after-read\nhit worker-2 after-read")`.
+`ReplaySchedule.Parse("hit worker-1 before-read\nhit worker-2 before-read")`.
 The parsed text is the same format braid emits as a replay token on failure.
 
 For stricter two-phase interleaving control, use `ReplayStep.Arrive` / `ReplayStep.Release`
 instead of `ReplayStep.Hit`.
+
+A schedule can also say which worker starts first, with `ReplayStep.Start("worker-2")` or the text line `start worker-2`.
+A schedule without start steps starts every worker before its first step, in fork order; a schedule with start steps starts only the workers it names.
 
 ## When to use braid
 

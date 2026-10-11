@@ -6,7 +6,8 @@ See also: [roadmap.md](../roadmap.md), [replay-token-workflow.md](../replay-toke
 
 ## Problem
 
-`Runner.RunAsync` with random scheduling can find flaky failures, but turning them into stable replay regressions still requires manual schedule construction. Users need a bounded, deterministic search that stops at the first reproducible failure and exports a replay token when possible.
+`Runner.RunAsync` with random scheduling can find flaky failures, but turning them into stable replay regressions still requires manual schedule construction.
+Users need a bounded, deterministic search that stops at the first reproducible failure and exports a replay token when possible.
 
 ## Goals
 
@@ -28,7 +29,6 @@ See also: [roadmap.md](../roadmap.md), [replay-token-workflow.md](../replay-toke
 ```csharp
 await Runner.ExploreAsync(
     options => options
-        .WithSeed(123)
         .WithMaxSchedules(1_000)
         .WithMaxStepsPerSchedule(100),
     async braid =>
@@ -44,24 +44,44 @@ await Runner.ExploreAsync(
 
 ## Strategy
 
-1. **Discovery run** — one random `RunAsync` iteration records per-worker probe sequences from the scheduling trace (`{workerId} hit {probe}` lines).
-2. **Enumeration** — bounded depth-first generation of hit schedules that preserve each worker's probe order.
-3. **Replay attempts** — each generated schedule runs under `RunAsync` with `Iterations = 1`.
-4. **Stop** — return when bounds are exhausted without failure; throw the first `RunException` caused by a test assertion (or a discovery random failure).
+Exploration is a depth-first search over the choices of real runs. A choice is a point where no worker runs and at least one waits,
+before its start or at a probe.
 
-Invalid schedules (scheduler mismatch) are skipped. Scheduler-only failures during replay do not stop exploration.
+1. **First run** — at every choice the run releases the worker that has waited longest: workers that have not started, in fork order,
+   then started workers by their last release. So the first schedule starts every worker before any probe is passed and then releases
+   the workers in turn, and a worker that hits a probe again while it waits for another worker does not keep that worker from running.
+   The run records which steps it could take at every choice.
+2. **Next runs** — each run replays the steps of the path so far up to the last choice that still has an untried step, takes that step,
+   and from then on releases the worker that has waited longest, recording its choices again.
+   Every replayed step was taken by an earlier run, so a schedule fits the test also when the order of the workers changes which probes
+   a worker hits: a retry loop, a conflict branch, an early exit.
+3. **Bounds** — `MaxSchedules` limits the number of runs. Only the choices up to the first `MaxStepsPerSchedule` hit steps of a run are explored;
+   start steps do not count. A run makes its later choices itself, so the test runs to completion, and the reported replay token
+   includes those steps.
+   A test whose probes do not depend on the order has `(n(p + 1))! / ((p + 1)!)^n` schedules for `n` workers with `p` probes each,
+   of which the first `(np)! / (p!)^n` start every worker first.
+4. **Hangs** — a run that times out while a worker runs and others are parked
+   (see [runtime boundaries](../runtime-boundaries.md#waiting-for-a-parked-worker)) is skipped. Its choices end at the hang,
+   so no other schedule that begins the same way is run. When every run hangs this way, exploration fails with the first of those timeouts.
+5. **Stop** — return when every choice was tried or `MaxSchedules` runs were made without failure; throw the first `RunException` caused by
+   a test assertion, a timeout or an API misuse error, such as a fork after `JoinAsync` or two probe waits in flight on one worker,
+   which `RunAsync` reports the same way.
+
+The test must take the same steps whenever its workers are released in the same order. When a step that an earlier run took cannot be taken
+again, exploration fails with "The test did not repeat under the same schedule"; the inner exception names the step.
 
 ## Determinism
 
-Same seed, bounds, and test callback produce the same discovery trace and the same enumeration order, so the first reported failure is stable.
+Same bounds and test callback give the same order of schedules, so the first reported failure is stable.
+Exploration makes no random choice and has no seed; a failure it finds reports seed 0.
 
 ## Failure artifacts
 
-When exploration fails under a replay schedule, use `RunException.TryGetReplayText` exactly as with `RunAsync`. Random-only discovery failures may not export replay text until a replay schedule reproduces the assertion.
+When exploration fails, use `RunException.TryGetReplayText` exactly as with `RunAsync`. The replay text holds every step of the failing run.
 
 ## Seed corpus (docs convention)
 
-Teams may persist failing `(seed, replay text)` pairs in test data or CI artifacts. No file format is mandated in v0.6.0.
+Teams may persist the replay text of failures in test data or CI artifacts. No file format is mandated in v0.6.0.
 
 ## Open questions (deferred)
 

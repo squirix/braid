@@ -6,7 +6,9 @@ internal sealed class SchedulerJoinContext
 
     internal required int NextScheduleStep { get; set; }
 
-    internal required IReadOnlyList<ReplayStep>? Steps { get; init; }
+    internal required ReplayScript? Script { get; init; }
+
+    internal IReadOnlyList<ReplayStep>? Steps => Script?.Steps;
 
     internal required DeterministicRandom Random { get; init; }
 
