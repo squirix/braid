@@ -1,3 +1,5 @@
+using System;
+
 namespace Braid;
 
 internal sealed class DeterministicRandom
