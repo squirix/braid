@@ -4,7 +4,9 @@
         <TargetFramework>net10.0</TargetFramework>
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
-        <ImplicitUsings>enable</ImplicitUsings>
+        <ImplicitUsings>disable</ImplicitUsings>
+        <TUnitImplicitUsings>false</TUnitImplicitUsings>
+        <TUnitAssertionsImplicitUsings>false</TUnitAssertionsImplicitUsings>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <!-- Deterministic paths in PDBs and binaries for builds on GitHub Actions; local builds keep full paths for debugging. -->

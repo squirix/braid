@@ -7,6 +7,13 @@
 #:include VersionedEntry.cs
 #:include VersionedCell.cs
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Braid.Examples.CacheCasRace;

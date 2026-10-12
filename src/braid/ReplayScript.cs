@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace Braid;
 
 /// <summary>Holds the scripted steps of a replay run and, for a run of an exploration, the choices the run makes after those steps.</summary>
