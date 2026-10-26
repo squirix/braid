@@ -40,7 +40,7 @@ internal sealed class RunTask : IDisposable
     {
         return ProbeWaitInFlight && State is RunTaskState.Waiting or RunTaskState.Held
             ? $"Worker '{WorkerId}' returned while probe '{LastProbeName}' was still waiting on it. "
-            + "A worker must wait for every probe that it, or a task it started, has hit before it returns."
+                + "A worker must wait for every probe that it, or a task it started, has hit before it returns."
             : null;
     }
 

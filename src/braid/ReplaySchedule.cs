@@ -124,7 +124,8 @@ public sealed class ReplaySchedule
             if (!char.IsWhiteSpace(ch))
                 continue;
             throw new InvalidOperationException(
-                isWorkerId ? "Worker id cannot be exported to replay text because it contains whitespace."
+                isWorkerId
+                    ? "Worker id cannot be exported to replay text because it contains whitespace."
                     : "Probe name cannot be exported to replay text because it contains whitespace.");
         }
     }

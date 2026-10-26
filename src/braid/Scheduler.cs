@@ -274,7 +274,8 @@ internal sealed class Scheduler : IDisposable
 
         if (ScriptSteps == null || _nextScheduleStep >= ScriptSteps.Count)
             return true;
-        var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
+        var message = _tasks.Count == 0
+            ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
         throw CreateException(message, null).SkipInExploration();
     }
@@ -419,7 +420,8 @@ internal sealed class Scheduler : IDisposable
                 }
                 catch (OperationCanceledException operationCanceled)
                 {
-                    braidTask.Exception = operationCanceled is TaskCanceledException ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
+                    braidTask.Exception = operationCanceled is TaskCanceledException
+                        ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
                         : operationCanceled;
                 }
             }
@@ -748,10 +750,12 @@ internal sealed class Scheduler : IDisposable
             var releasableTask = heldTask ?? waitingTask;
             if (releasableTask == null)
             {
-                return hasRunningTasks ? null : throw context.CreateException(
-                    BuildStepMismatchMessage(context.NextScheduleStep, "hit", in step, sameWorkerBlockedTask),
-                    null,
-                    RunFailureOrigin.Scheduler).SkipInExploration();
+                return hasRunningTasks
+                    ? null
+                    : throw context.CreateException(
+                        BuildStepMismatchMessage(context.NextScheduleStep, "hit", in step, sameWorkerBlockedTask),
+                        null,
+                        RunFailureOrigin.Scheduler).SkipInExploration();
             }
 
             context.NextScheduleStep++;
