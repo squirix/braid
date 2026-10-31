@@ -118,6 +118,7 @@ public static class Runner
         options.Validate();
 
         var callback = new ExploreCallback(test);
+        Func<RunContext, Task> invoke = callback.InvokeAsync;
         var search = new ExploreSearch(options.MaxStepsPerSchedule);
         RunException? firstHang = null;
         var anyRunCompleted = false;
@@ -139,7 +140,7 @@ public static class Runner
 
             try
             {
-                await RunAsync(callback.InvokeAsync, runOptions, cancellationToken).ConfigureAwait(false);
+                await RunAsync(invoke, runOptions, cancellationToken).ConfigureAwait(false);
                 anyRunCompleted = true;
             }
             catch (RunException ex) when (ex.SkippedByExploration)
