@@ -42,16 +42,15 @@ internal sealed class ReplayScript
     /// passed, then started workers by their last release. A worker that hits a probe again while it waits for another worker therefore
     /// does not keep that worker from running. The order depends only on the releases so far, so a run that replays the same steps makes the same choices.
     /// </summary>
-    /// <param name="waitingTasks">The waiting workers; at least one.</param>
+    /// <param name="waitingTasks">An owned array of waiting workers; at least one. Sorted in place by this method.</param>
     internal void AppendChoice(RunTask[] waitingTasks)
     {
-        RunTask[] byLongestWait = [.. waitingTasks];
-        Array.Sort(byLongestWait, ByLongestWait);
+        Array.Sort(waitingTasks, ByLongestWait);
 
-        var steps = new ReplayStep[byLongestWait.Length];
+        var steps = new ReplayStep[waitingTasks.Length];
         for (var index = 0; index < steps.Length; index++)
         {
-            var task = byLongestWait[index];
+            var task = waitingTasks[index];
             steps[index] = task.LastProbeName == null ? ReplayStep.Start(task.WorkerId) : ReplayStep.Hit(task.WorkerId, task.LastProbeName);
         }
 

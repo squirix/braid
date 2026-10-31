@@ -120,10 +120,14 @@ internal sealed class Scheduler : IDisposable
             _trace.Add($"{braidTask.WorkerId} forked");
         }
 
-        var registration = new ForkOperationRegistration();
+        var registration = new ForkOperationRegistration
+        {
+            BraidTask = braidTask,
+            Operation = operation,
+        };
         var forkTask = Task.Factory.StartNew(
             RunForkedOperationAsync,
-            (braidTask, operation, registration),
+            registration,
             CancellationToken.None,
             TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default).Unwrap();
@@ -397,9 +401,10 @@ internal sealed class Scheduler : IDisposable
 
     private async Task RunForkedOperationAsync(object? state)
     {
-        if (state is not (RunTask braidTask, Func<Task> operation, ForkOperationRegistration registration))
+        if (state is not ForkOperationRegistration registration)
             throw new InvalidOperationException("Invalid fork state.");
 
+        var braidTask = registration.BraidTask;
         RunTaskSlot.Current = braidTask;
         var returned = false;
         try
@@ -407,7 +412,7 @@ internal sealed class Scheduler : IDisposable
             await braidTask.WaitForReleaseAsync(_shutdownCts.Token).ConfigureAwait(false);
             var opTask = Task.Factory.StartNew(
                 SchedulerSearch.InvokeForkOperationAsync,
-                operation,
+                registration.Operation,
                 CancellationToken.None,
                 TaskCreationOptions.DenyChildAttach,
                 TaskScheduler.Default).Unwrap();
@@ -634,7 +639,7 @@ internal sealed class Scheduler : IDisposable
                     waitingTasks[writeIndex++] = task;
             }
 
-            Array.Sort(waitingTasks, static (left, right) => left.Id.CompareTo(right.Id));
+            // Workers are appended in id order; filtering preserves that order.
             return waitingTasks;
         }
 
@@ -849,6 +854,10 @@ internal sealed class Scheduler : IDisposable
 
     private sealed class ForkOperationRegistration
     {
+        internal required RunTask BraidTask { get; init; }
+
+        internal required Func<Task> Operation { get; init; }
+
         internal Task ForkTask { get; set; } = Task.CompletedTask;
     }
 }
