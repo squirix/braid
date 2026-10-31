@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using JetBrains.Annotations;
 
 namespace Braid;
@@ -178,7 +180,8 @@ public sealed class RunException : Exception
             lines.Add("Last matched replay step:");
             lines.Add(
                 diagnostics is { LastMatchedReplayStep: { } lastStep, LastMatchedReplayStepOneBased: { } stepNumber }
-                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(in lastStep)}" : "  none");
+                    ? $"  {stepNumber}. {ReplayFormat.CanonicalStepLine(in lastStep)}"
+                    : "  none");
         }
 
         AppendProbeWaitDiagnostics(lines, "Waiting workers:", diagnostics.WaitingWorkers);

@@ -1,3 +1,5 @@
+using System;
+
 namespace Braid.Attributes;
 
 /// <summary>Indicates that a type is immutable.</summary>

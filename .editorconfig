@@ -137,6 +137,7 @@ dotnet_diagnostic.SQR0011.severity = warning # Squirix rule (SQR0011)
 dotnet_diagnostic.SQR0012.severity = warning # prefer ==/!= over is/is not patterns for null checks (reverses MA0142/MA0148/MA0149)
 dotnet_diagnostic.SQR0013.severity = warning # Squirix design/naming rule
 dotnet_diagnostic.SQR0014.severity = warning # Squirix design/naming rule
+dotnet_diagnostic.SQR0034.severity = warning # no global using directives, including generated ones (ImplicitUsings, TUnitImplicitUsings)
 
 # ===========================================================================
 # StyleCop analyzers (SA*)

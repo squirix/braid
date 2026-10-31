@@ -1,3 +1,5 @@
+using System;
+
 namespace Braid;
 
 /// <summary>Configures bounded exploration options.</summary>

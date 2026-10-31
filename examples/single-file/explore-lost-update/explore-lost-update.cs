@@ -4,6 +4,13 @@
 #:package xunit.v3@3.2.2
 #:package Microsoft.NET.Test.Sdk@18.7.0
 
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 using Xunit;
 
 namespace Braid.Examples.ExploreLostUpdate;
