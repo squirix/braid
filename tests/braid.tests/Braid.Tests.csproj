@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <TargetFrameworks>net10.0;net11.0</TargetFrameworks>
         <IsPackable>false</IsPackable>
         <OutputType>Exe</OutputType>
         <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
@@ -10,5 +11,9 @@
     </ItemGroup>
     <ItemGroup>
         <PackageReference Include="TUnit"/>
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Update="Microsoft.CodeAnalysis.NetAnalyzers" VersionOverride="10.0.404" Condition="'$(TargetFramework)' == 'net10.0'"/>
+        <PackageReference Update="Microsoft.CodeAnalysis.NetAnalyzers" VersionOverride="11.0.100" Condition="'$(TargetFramework)' == 'net11.0'"/>
     </ItemGroup>
 </Project>

@@ -46,7 +46,7 @@ CAS with expected version **1** correctly returns **`VersionMismatch`**.
 
 ## Running the example tests
 
-Example projects inherit **`net10.0`** from the repository root [`Directory.Build.props`](../../Directory.Build.props), consistent with the main [README](../../README.md).
+The file-based example uses the repository’s .NET 11 SDK and references the braid project.
 
 ```powershell
 dotnet run examples/single-file/cache-cas-race/cache-cas-race.cs --configuration Release

@@ -1,8 +1,8 @@
 #:sdk Microsoft.NET.Sdk
 #:property PublishAot=false
 #:project ../../../src/braid/Braid.csproj
-#:package xunit.v3@3.2.2
-#:package Microsoft.NET.Test.Sdk@18.7.0
+#:package xunit.v3@4.0.3
+#:package Microsoft.NET.Test.Sdk@18.11.1
 
 using System;
 using System.Collections.Generic;

@@ -29,6 +29,8 @@ $Repo = "C:\Source\braid"
 
 ## Build and pack
 
+Install the .NET 11 SDK and .NET 10 runtime to build and test both target frameworks.
+
 ```powershell
 dotnet restore
 dotnet build --configuration Release
@@ -40,7 +42,7 @@ Inspect the output `.nupkg` (and `.snupkg` when symbols are enabled):
 
 - Package id is `braid`.
 - README is at package root.
-- XML documentation is present in the assembly.
+- `lib/net10.0/` and `lib/net11.0/` each contain `Braid.dll` and `Braid.xml`.
 - License expression matches repository intent (Apache-2.0).
 
 Expected artifact names (substitute your `$Version` when checking paths):
@@ -52,7 +54,7 @@ src/braid/bin/Release/braid.<Version>.snupkg
 
 ## Consumer smoke test
 
-From an empty directory **outside** the repository (uses .NET 10 xUnit template when available):
+Run the following from an empty directory **outside** the repository. Repeat with `net11.0` in a separate directory.
 
 ```powershell
 mkdir braid-consume-test
@@ -62,7 +64,7 @@ dotnet add package braid --version $Version
 ```
 
 If the installed xUnit template does not support `-f net10.0`, run `dotnet new xunit`,
-set `<TargetFramework>net10.0</TargetFramework>` in the generated project, and add a `global.json` that selects the .NET 10 SDK.
+then set `TargetFramework` in the generated project to the framework being tested.
 
 **Before NuGet publishing**, validate the locally packed package instead:
 

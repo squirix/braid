@@ -16,12 +16,14 @@ Report bugs and suggest improvements via [GitHub Issues](https://github.com/squi
 
 ## Development
 
-This repository is a single .NET 10 NuGet library. All development and testing runs in-process via the .NET CLI and
+The library and tests target .NET 10 and .NET 11.
+All development and testing runs in-process via the .NET CLI and
 TUnit on Microsoft.Testing.Platform — no databases, Docker, or long-running services.
 
 ### Prerequisites
 
-- The .NET SDK version pinned in `global.json`.
+- The .NET 11 SDK specified in `global.json`.
+- The .NET 10 runtime to run the `net10.0` tests.
 
 ### Common commands (from repository root)
 
@@ -30,7 +32,7 @@ TUnit on Microsoft.Testing.Platform — no databases, Docker, or long-running se
 | Restore | `dotnet restore` |
 | Build | `dotnet build --configuration Release` |
 | Test (full solution) | `dotnet test --configuration Release` |
-| Test (library only) | `dotnet test tests/braid.tests/Braid.Tests.csproj` |
+| Test (library only) | `dotnet test --project tests/braid.tests/Braid.Tests.csproj` |
 | Run (single example) | `dotnet run examples/single-file/lost-update/lost-update.cs` |
 | Run (all examples) | `powershell -File examples/single-file/run-examples.ps1` (Windows) or `bash examples/single-file/run-examples.sh` (Linux/macOS) |
 | Pack | `dotnet pack --configuration Release --no-build` |
