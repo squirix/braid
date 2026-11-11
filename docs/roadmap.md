@@ -1,6 +1,6 @@
 # braid roadmap
 
-braid is deterministic concurrency testing for .NET libraries (currently **.NET 10**) using explicit async probe points.
+braid is deterministic concurrency testing for .NET libraries (**.NET 10** and **.NET 11**) using explicit async probe points.
 
 The current stable product intentionally focuses on small, reproducible async interleavings.
 Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control,

@@ -40,7 +40,7 @@ The fixed implementation protects the read/check/write sequence with a lock.
 Its test runs the **same** replay schedule; the run completes without `RunException` because only one worker can enter.
 Probes are placed before and after the synchronized entry attempt so probe-controlled awaits are not taken while holding a synchronous lock.
 
-Example projects inherit **`net10.0`** from the repository root [`Directory.Build.props`](../../Directory.Build.props), consistent with the main [README](../../README.md).
+The file-based example uses the repository’s .NET 11 SDK and references the braid project.
 
 Run the example with:
 

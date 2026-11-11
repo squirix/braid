@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The NuGet package includes a .NET 11 build alongside .NET 10.
+
 ## 0.8.0
 
 ### Added

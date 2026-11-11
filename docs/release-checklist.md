@@ -76,12 +76,12 @@ Confirm:
 3. README is included.
 4. XML documentation is included.
 5. License metadata is present.
-6. Target framework is correct.
+6. `lib/net10.0/` and `lib/net11.0/` each contain `Braid.dll` and `Braid.xml`.
 7. No secrets, local paths, or machine-specific files are included.
 
 ## Local consumer smoke test
 
-Create a temporary directory outside the repository.
+Create a temporary directory outside the repository. Repeat the smoke test for `net11.0` in a separate directory.
 
 PowerShell example:
 

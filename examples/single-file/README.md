@@ -1,4 +1,4 @@
-# File-based examples (.NET 10)
+# File-based examples (.NET 11 SDK)
 
 Featured braid examples are single C# files run with `dotnet run` (no `.csproj` per example).
 

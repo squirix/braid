@@ -17,7 +17,7 @@ reproducing interleaving as a copyable replay token.
 dotnet add package braid
 ```
 
-braid targets **.NET 10**.
+The braid NuGet package supports **.NET 10** and **.NET 11**.
 
 ## Quick start
 

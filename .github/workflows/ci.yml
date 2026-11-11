@@ -47,10 +47,13 @@ jobs:
               uses: actions/setup-dotnet@v6
               with:
                   global-json-file: global.json
+                  dotnet-version: '10.0.x'
                   cache: true
                   cache-dependency-path: |
                       **/*.csproj
                       Directory.Build.props
+                      Directory.Packages.props
+                      global.json
 
             - name: Restore
               run: dotnet restore
@@ -58,12 +61,15 @@ jobs:
             - name: Build
               run: dotnet build --configuration Release --no-restore
 
-            - name: Test
+            - name: Test .NET 10 with coverage
               run: |
                   set -o pipefail
-                  dotnet test --configuration Release --no-build \
+                  dotnet test --framework net10.0 --configuration Release --no-build \
                     --results-directory "${{ github.workspace }}/coverage" \
                     --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+            - name: Test .NET 11
+              run: dotnet test --framework net11.0 --configuration Release --no-build
 
             - name: Verify Coverage Collected
               shell: bash
@@ -134,9 +140,9 @@ jobs:
                 uses: actions/cache@v6
                 with:
                     path: ~/.nuget/packages
-                    key: ${{ runner.os }}-dotnet10-nuget-${{ hashFiles('**/global.json', '**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
+                    key: ${{ runner.os }}-dotnet-nuget-${{ hashFiles('**/global.json', '**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
                     restore-keys: |
-                        ${{ runner.os }}-dotnet10-nuget-
+                        ${{ runner.os }}-dotnet-nuget-
 
             -   name: Cache SonarCloud Scanner
                 id: cache-sonar-scanner
