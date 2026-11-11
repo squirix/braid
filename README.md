@@ -72,8 +72,9 @@ await Runner.ExploreAsync(
 ```
 
 `ReaderAsync` and `WriterAsync` are your worker methods, and they call `Probe.HitAsync` at the points braid should interleave.
-When a run fails, use `RunException.TryGetReplayText` to export a replay token
-for a stable regression test.
+When a run fails, use `RunException.TryGetExecutedReplayText` to export the decisions taken before the failure,
+including decisions from random runs.
+See the [replay token workflow](docs/replay-token-workflow.md).
 
 ## Replay schedules
 

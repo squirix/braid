@@ -126,26 +126,14 @@ public sealed class RunException : Exception
     /// a diagnostic message; otherwise <see langword="null" /> (including when no typed schedule was configured).
     /// </param>
     /// <returns><see langword="true" /> if <see cref="Steps" /> is non-empty and <see cref="ReplaySchedule.ToReplayText" /> succeeds; otherwise <see langword="false" />.</returns>
-    public bool TryGetReplayText(out string text, out string? error)
-    {
-        text = string.Empty;
-        error = null;
+    public bool TryGetReplayText(out string text, out string? error) => TryFormatReplayText(Steps, out text, out error);
 
-        if (Steps.Count == 0)
-            return false;
-
-        try
-        {
-            var replaySchedule = ReplaySchedule.Replay(Steps);
-            text = replaySchedule.ToReplayText();
-            return true;
-        }
-        catch (InvalidOperationException ex)
-        {
-            error = ex.Message;
-            return false;
-        }
-    }
+    /// <summary>Attempts to export only the scheduling decisions taken before the failure.</summary>
+    /// <remarks>For a replay mismatch, the original schedule is needed to reproduce the mismatch.</remarks>
+    /// <param name="text">The replay text on success, or an empty string.</param>
+    /// <param name="error">The export error, if a step could not be represented as text.</param>
+    /// <returns>Whether any steps ran and could be exported.</returns>
+    public bool TryGetExecutedReplayText(out string text, out string? error) => TryFormatReplayText(Context.ExecutedSteps, out text, out error);
 
     /// <summary>Marks the failure as one that comes from the schedule rather than from the test.</summary>
     /// <returns>This failure.</returns>
@@ -163,6 +151,27 @@ public sealed class RunException : Exception
     {
         foreach (var line in text.Split(["\r\n", "\n", "\r"], StringSplitOptions.None))
             lines.Add($"  {line}");
+    }
+
+    private static bool TryFormatReplayText(IReadOnlyList<ReplayStep> steps, out string text, out string? error)
+    {
+        text = string.Empty;
+        error = null;
+
+        if (steps.Count == 0)
+            return false;
+
+        try
+        {
+            var replaySchedule = ReplaySchedule.Replay(steps);
+            text = replaySchedule.ToReplayText();
+            return true;
+        }
+        catch (InvalidOperationException ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 
     private static void AppendSchedulerDiagnosticsLines(List<string> lines, SchedulerDiagnostics? diagnostics)
@@ -218,18 +227,22 @@ public sealed class RunException : Exception
 
     private void AppendScheduleSection(List<string> lines)
     {
-        if (Steps.Count == 0)
+        var steps = Steps.Count > 0 ? Steps : Context.ExecutedSteps;
+        if (steps.Count == 0)
             return;
 
-        lines.Add("Schedule:");
-        for (var index = 0; index < Steps.Count; index++)
+        if (Steps.Count > 0)
         {
-            var step = Steps[index];
-            lines.Add($"  {index + 1}. {ReplayFormat.ReportStepLine(in step)}");
+            lines.Add("Schedule:");
+            for (var index = 0; index < Steps.Count; index++)
+            {
+                var step = Steps[index];
+                lines.Add($"  {index + 1}. {ReplayFormat.ReportStepLine(in step)}");
+            }
         }
 
-        lines.Add("Replay text:");
-        if (TryGetReplayText(out var replayText, out var replayError))
+        lines.Add(Steps.Count > 0 ? "Replay text:" : "Executed replay text:");
+        if (TryFormatReplayText(steps, out var replayText, out var replayError))
         {
             if (replayText.Length > 0)
                 lines.AddRange(replayText.Split(Environment.NewLine));

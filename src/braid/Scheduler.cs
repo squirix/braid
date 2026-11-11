@@ -24,7 +24,7 @@ internal sealed class Scheduler : IDisposable
     private readonly SemaphoreSlim _stateChanged = new(0);
     private readonly List<RunTask> _tasks = [];
     private readonly CancellationTokenSource _timeoutCts = new();
-    private readonly List<string> _trace = [];
+    private readonly RunTrace _trace = new();
     private bool _joined;
     private int _nextScheduleStep;
     private int _releases;
@@ -93,7 +93,11 @@ internal sealed class Scheduler : IDisposable
         lock (_gate)
         {
             resolvedMessage = AppendReplayState(message);
-            context = new RunExceptionContext(_random.Seed, _iteration, _trace, ScriptSteps ?? [], BuildDiagnosticSnapshot());
+            var steps = ScriptSteps ?? [];
+            context = new RunExceptionContext(_random.Seed, _iteration, _trace.Messages, steps, BuildDiagnosticSnapshot())
+            {
+                ExecutedSteps = _trace.SnapshotExecutedSteps(steps, _nextScheduleStep),
+            };
         }
 
         return new RunException(resolvedMessage, context, innerException, failureOrigin);
@@ -113,7 +117,7 @@ internal sealed class Scheduler : IDisposable
             braidTask = new RunTask(_tasks.Count + 1, workerId);
             ThrowIfWorkerIdInUse(braidTask.WorkerId);
             _tasks.Add(braidTask);
-            _trace.Add($"{braidTask.WorkerId} forked");
+            _trace.Messages.Add($"{braidTask.WorkerId} forked");
         }
 
         var registration = new ForkOperationRegistration
@@ -139,7 +143,7 @@ internal sealed class Scheduler : IDisposable
     internal IReadOnlyList<string> GetTraceSnapshot()
     {
         lock (_gate)
-            return [.. _trace];
+            return [.. _trace.Messages];
     }
 
     internal IReadOnlyList<ReplayStep[]> GetExploredChoices()
@@ -161,7 +165,7 @@ internal sealed class Scheduler : IDisposable
             task.ProbeWaitInFlight = true;
             task.State = RunTaskState.Waiting;
             task.LastProbeName = name;
-            _trace.Add($"{task.WorkerId} hit {name}");
+            _trace.Messages.Add($"{task.WorkerId} hit {name}");
         }
 
         _ = _stateChanged.Release();
@@ -389,7 +393,7 @@ internal sealed class Scheduler : IDisposable
                 braidTask.Exception = CreateException(leftBehind, null);
 
             braidTask.State = RunTaskState.Completed;
-            _trace.Add($"{braidTask.WorkerId} completed");
+            _trace.Messages.Add($"{braidTask.WorkerId} completed");
         }
 
         _ = _stateChanged.Release();
@@ -457,7 +461,7 @@ internal sealed class Scheduler : IDisposable
             NextScheduleStep = _nextScheduleStep,
             Script = _script,
             Random = _random,
-            Trace = _trace,
+            Trace = _trace.Messages,
             CreateException = CreateException,
         };
 
@@ -476,6 +480,7 @@ internal sealed class Scheduler : IDisposable
                 context.NextScheduleStep = _nextScheduleStep;
 
                 nextTask = SchedulerSearch.SelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);
+                var consumedScriptStep = _nextScheduleStep != context.NextScheduleStep;
                 _nextScheduleStep = context.NextScheduleStep;
 
                 switch (nextTask)
@@ -492,7 +497,7 @@ internal sealed class Scheduler : IDisposable
                 {
                     nextTask.State = RunTaskState.Running;
                     nextTask.ReleaseOrder = ++_releases;
-                    _trace.Add(nextTask.LastProbeName == null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
+                    _trace.RecordRelease(nextTask, consumedScriptStep);
                 }
             }
 
