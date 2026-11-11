@@ -1,17 +1,7 @@
 name: PVS-Studio image
 
 on:
-    push:
-        paths:
-            - 'docker/pvs-studio.Dockerfile'
-        branches:
-            - develop
-            - main
     workflow_dispatch:
-    schedule:
-        # Rebuild every two months to pick up analyzer updates from the PVS-Studio apt repo
-        # while limiting downstream digest noise.
-        - cron: '0 3 1 */2 *'
 
 concurrency:
     group: ${{ github.workflow }}

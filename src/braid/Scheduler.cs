@@ -87,20 +87,16 @@ internal sealed class Scheduler : IDisposable
 
     internal RunException CreateException(string message, Exception? innerException, RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
     {
-        IReadOnlyList<string> traceSnapshot;
-        IReadOnlyList<ReplayStep> scheduleSnapshot;
         string resolvedMessage;
-        SchedulerDiagnostics diagnostics;
+        RunExceptionContext context;
 
         lock (_gate)
         {
-            traceSnapshot = [.. _trace];
-            scheduleSnapshot = [.. ScriptSteps ?? []];
             resolvedMessage = AppendReplayState(message);
-            diagnostics = BuildDiagnosticSnapshot();
+            context = new RunExceptionContext(_random.Seed, _iteration, _trace, ScriptSteps ?? [], BuildDiagnosticSnapshot());
         }
 
-        return new RunException(resolvedMessage, new RunExceptionContext(_random.Seed, _iteration, traceSnapshot, scheduleSnapshot, diagnostics), innerException, failureOrigin);
+        return new RunException(resolvedMessage, context, innerException, failureOrigin);
     }
 
     internal void Fork(Func<Task> operation) => Fork(null, operation);
@@ -569,7 +565,7 @@ internal sealed class Scheduler : IDisposable
             if (matches.Count == 0)
                 return [];
 
-            matches.Sort(static (left, right) => left.Id.CompareTo(right.Id));
+            // Workers are appended in id order; filtering preserves that order.
             var diagnostics = new ProbeWaitDiagnostic[matches.Count];
             for (var matchIndex = 0; matchIndex < matches.Count; matchIndex++)
             {

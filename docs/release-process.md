@@ -1,104 +1,65 @@
-# Manual release process
+# Release process
 
-Compact checklist for publishing a new `braid` preview or stable version.
-NuGet package versions are immutable: a typo in a published version cannot be overwritten—publish a new version instead.
+Release changes go through a `develop` → `main` pull request. A `v*` tag on `main` starts the
+[Release workflow](../.github/workflows/release.yml). It builds and tests both targets, publishes the package and symbols
+to NuGet.org via trusted publishing (OIDC), and creates a draft GitHub Release.
 
-## Release variables (PowerShell)
+## Prepare and validate the release
 
-Set the version once for all commands in a session. The value must match `<Version>` in `Directory.Build.props` and the section you are publishing in `CHANGELOG.md`.
+1. Set `<Version>` in `Directory.Build.props` and add the matching release notes to `CHANGELOG.md`.
+2. From a clean checkout of the release candidate, install the .NET 11 SDK and .NET 10 runtime, then run:
 
-```powershell
-$Version = "<version>"
-$Tag = "v$Version"
-$Repo = "<absolute-path-to-this-repository>"
-```
+   ```powershell
+   dotnet build --configuration Release
+   dotnet test --configuration Release --no-build
+   dotnet pack --configuration Release --no-build
+   ```
 
-Example (illustration only—do not commit these lines with real numbers into the repo):
-
-```powershell
-$Version = "0.3.1"
-$Tag = "v$Version"
-$Repo = "C:\Source\braid"
-```
-
-## Preconditions
-
-- Working tree clean (`git status`).
-- Version in `Directory.Build.props` matches the intended NuGet version.
-- No secrets committed; API keys stay in user or CI secret storage only.
-
-## Build and pack
-
-Install the .NET 11 SDK and .NET 10 runtime to build and test both target frameworks.
-
-```powershell
-dotnet restore
-dotnet build --configuration Release
-dotnet test --configuration Release
-dotnet pack --configuration Release --no-build
-```
-
-Inspect the output `.nupkg` (and `.snupkg` when symbols are enabled):
-
-- Package id is `braid`.
-- README is at package root.
-- `lib/net10.0/` and `lib/net11.0/` each contain `Braid.dll` and `Braid.xml`.
-- License expression matches repository intent (Apache-2.0).
-
-Expected artifact names (substitute your `$Version` when checking paths):
-
-```text
-src/braid/bin/Release/braid.<Version>.nupkg
-src/braid/bin/Release/braid.<Version>.snupkg
-```
+3. Inspect `src/braid/bin/Release/braid.<Version>.nupkg` and `braid.<Version>.snupkg`. Check the package ID, version,
+   README, and Apache-2.0 license. Verify `lib/net10.0/` and `lib/net11.0/` each contain `Braid.dll` and `Braid.xml`,
+   and check the corresponding PDBs in the symbol package.
+4. Run the [consumer smoke test](#consumer-smoke-test) against the local package.
 
 ## Consumer smoke test
 
-Run the following from an empty directory **outside** the repository. Repeat with `net11.0` in a separate directory.
+Set `$Version` to the release version and `$Repo` to the absolute path to the braid checkout. From an empty directory
+outside the checkout, create a test project and install the local package:
 
 ```powershell
-mkdir braid-consume-test
-cd braid-consume-test
 dotnet new xunit -f net10.0
-dotnet add package braid --version $Version
-```
-
-If the installed xUnit template does not support `-f net10.0`, run `dotnet new xunit`,
-then set `TargetFramework` in the generated project to the framework being tested.
-
-**Before NuGet publishing**, validate the locally packed package instead:
-
-```powershell
 dotnet add package braid --version $Version --source "$Repo\src\braid\bin\Release"
 ```
 
-Add a tiny test (for example `SmokeTest.cs`) that runs one replay iteration and optionally checks `ReplaySchedule.Parse` / `ToReplayText()` round-trip.
+If the template does not offer the target, create the project with `dotnet new xunit` and set its `TargetFramework`.
+Add a test that parses a short schedule and runs one replay iteration with an assertion on probe order.
+Run `dotnet test --configuration Release`, then repeat in a separate directory targeting `net11.0`.
 
-```powershell
-dotnet test --configuration Release
-```
+## Tag and publish
 
-After publishing to NuGet.org, you can repeat `dotnet add package braid --version $Version` **without** `--source` once the package is indexed, and run the same tests.
+1. After the release PR is merged, check out the release commit on `main` and confirm the tag is unused locally and remotely.
+2. Confirm the GitHub `release` environment allows the tag and `NUGET_USER` is configured. Create and push the tag:
 
-Optionally smoke-test **text replay** against the live package: parse a short schedule with `ReplaySchedule.Parse(...)`, run one iteration under replay, and assert expected probe ordering.
-Use the same `$Version` as in `Directory.Build.props`.
+   ```powershell
+   $Tag = "v$Version"
+   git tag $Tag
+   git push origin $Tag
+   ```
 
-## GitHub release
+3. When the workflow completes, review the draft GitHub Release, update its notes from `CHANGELOG.md`, and publish it.
+4. Verify the two GitHub release assets and the version, README, dependencies, and target frameworks on NuGet.org.
+   After indexing, repeat the smoke test with a fresh consumer project and install from NuGet.org by omitting `--source`.
 
-1. Create an annotated or lightweight tag for the version: `git tag $Tag` (after validation).
-2. Push the tag: `git push origin $Tag`.
-3. Create a GitHub **Release** from that tag. Attach notes that match `CHANGELOG.md` for that version.
-4. Attach both `braid.$Version.nupkg` and `braid.$Version.snupkg` from `src/braid/bin/Release/` as release assets (same filenames as produced by `dotnet pack`).
+## Manual fallback
 
-## NuGet.org
+Use this only when the Release workflow is unavailable. Check which publication steps have already succeeded before
+resuming. NuGet package versions are immutable.
 
-1. Push the `.nupkg`: `dotnet nuget push path\to\braid.$Version.nupkg --api-key <scoped-key> --source https://api.nuget.org/v3/index.json`
-2. Do not push the `.snupkg` separately when it lies next to the `.nupkg`: the push of the package sends it too,
-   and a second push fails with 409 while the first copy is pending validation.
-3. Open the package page on NuGet and verify metadata, README rendering, dependencies, and target framework.
-4. Confirm **owners** on the package; use a **scoped** API key with push-only permissions where possible.
-5. Never commit API keys or paste them into the repository.
+1. Use the same validated artifacts and tag. If the package has yet to be published, push it with a scoped API key:
 
-## Related
+   ```powershell
+   dotnet nuget push "$Repo\src\braid\bin\Release\braid.$Version.nupkg" --api-key <scoped-key> --source https://api.nuget.org/v3/index.json
+   ```
 
-- Shorter checklist: [release-checklist.md](release-checklist.md).
+   Keep the key in secret storage. Leave the `.snupkg` next to the `.nupkg` so the same push sends the symbols.
+2. Create or finish the GitHub Release for the tag using the matching notes and attach both package files.
+3. Run the same post-publish verification as for a workflow release.

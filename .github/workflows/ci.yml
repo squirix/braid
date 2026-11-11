@@ -228,194 +228,8 @@ jobs:
                     dotnet build braid.slnx --configuration Release --no-restore
                     .sonar/scanner/dotnet-sonarscanner end "/d:sonar.token=${SONAR_TOKEN}"
 
-    # PVS-Studio Team: full analysis of the production package; fail CI when warnings remain.
-    # Secret: PVS_STUDIO_CREDENTIALS = "<license-name> <license-key>"
-    # Skipped on fork PRs (secrets unavailable). No SARIF upload.
-    pvs-studio:
-        name: PVS-Studio
-        runs-on: ubuntu-latest
-        container:
-            image: ghcr.io/squirix/braid-pvs-studio:latest
-        timeout-minutes: 60
-        # DISABLED while the repo builds on .NET 11: pvs-studio-dotnet does
-        # not support the .NET 11 SDK ("no supported versions of the .NET
-        # SDK"), and the analyzed code uses C# 15 syntax it cannot parse.
-        # TODO: re-enable (drop `false && `) once PVS-Studio ships .NET 11
-        # support.
-        if: false && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
-        permissions:
-            contents: read
-        steps:
-            -   name: Require PVS_STUDIO_CREDENTIALS
-                shell: bash
-                env:
-                    PVS_STUDIO_CREDENTIALS: ${{ secrets.PVS_STUDIO_CREDENTIALS }}
-                run: |
-                    if [[ -z "${PVS_STUDIO_CREDENTIALS}" ]]; then
-                      echo "Missing secrets.PVS_STUDIO_CREDENTIALS." >&2
-                      echo "Add GitHub Actions secret PVS_STUDIO_CREDENTIALS as: <name> <license-key>" >&2
-                      exit 1
-                    fi
-
-            -   name: Checkout
-                uses: actions/checkout@v7
-                with:
-                    persist-credentials: false
-
-            -   name: Cache NuGet Packages
-                uses: actions/cache@v6
-                with:
-                    path: ~/.nuget/packages
-                    key: ${{ runner.os }}-dotnet10-nuget-${{ hashFiles('**/global.json', '**/Directory.Packages.props', '**/Directory.Build.props', '**/*.csproj', '**/packages.lock.json') }}
-                    restore-keys: |
-                        ${{ runner.os }}-dotnet10-nuget-
-
-            -   name: Restore production project
-                run: dotnet restore src/braid/Braid.csproj
-
-            -   name: Configure PVS-Studio License
-                shell: bash
-                env:
-                    PVS_STUDIO_CREDENTIALS: ${{ secrets.PVS_STUDIO_CREDENTIALS }}
-                run: |
-                    set -euo pipefail
-                    # shellcheck disable=SC2086
-                    pvs-studio-analyzer credentials ${PVS_STUDIO_CREDENTIALS}
-
-            -   name: Analyze With PVS-Studio
-                id: analyze
-                shell: bash
-                timeout-minutes: 20
-                run: |
-                    set -uo pipefail
-                    mkdir -p pvs-studio-out
-                    echo "report=false" >> "$GITHUB_OUTPUT"
-                    exit_code=0
-                    pvs-studio-dotnet \
-                      -t src/braid/Braid.csproj \
-                      -o pvs-studio-out/pvs-studio-report.json \
-                      -c Release \
-                      -C .pvsconfig \
-                      -r \
-                      --disableLicenseExpirationCheck \
-                      --selectProjects "Braid" \
-                      || exit_code=$?
-
-                    echo "pvs-studio-dotnet exit_code=${exit_code}"
-
-                    if [[ -f pvs-studio-out/pvs-studio-report.json ]]; then
-                      echo "report=true" >> "$GITHUB_OUTPUT"
-                    fi
-
-                    if [[ "$exit_code" -eq 126 || "$exit_code" -eq 127 ]]; then
-                      echo "pvs-studio-dotnet failed to launch (exit_code=${exit_code})." >&2
-                      exit 1
-                    fi
-
-                    if (( (exit_code & 1) != 0 )); then
-                      echo "PVS-Studio license error (exit bit 1)." >&2
-                      exit 1
-                    fi
-                    if (( (exit_code & 2) != 0 )); then
-                      echo "PVS-Studio analyzer error (exit bit 2)." >&2
-                      exit 1
-                    fi
-                    if (( (exit_code & ~4 & ~8) != 0 )); then
-                      echo "Unexpected pvs-studio-dotnet exit_code=${exit_code}" >&2
-                      exit 1
-                    fi
-
-                    if [[ ! -f pvs-studio-out/pvs-studio-report.json ]]; then
-                      echo "PVS-Studio report missing." >&2
-                      exit 1
-                    fi
-
-                    pvs_all_groups='GA:1,2,3;64:1,2,3;OP:1,2,3;CS:1,2,3;MISRA:1,2,3;AUTOSAR:1,2,3;OWASP:1,2,3'
-
-                    plog-converter \
-                      pvs-studio-out/pvs-studio-report.json \
-                      -t totals \
-                      -a "${pvs_all_groups}" \
-                      -o pvs-studio-out/pvs-studio-totals.txt \
-                      || true
-                    if [[ -f pvs-studio-out/pvs-studio-totals.txt ]]; then
-                      {
-                        echo "## PVS-Studio totals (all groups/levels)"
-                        echo '```'
-                        cat pvs-studio-out/pvs-studio-totals.txt
-                        echo '```'
-                      } >> "$GITHUB_STEP_SUMMARY"
-                      cat pvs-studio-out/pvs-studio-totals.txt
-                    fi
-
-                    plog-converter \
-                      pvs-studio-out/pvs-studio-report.json \
-                      -t errorfile \
-                      -a "${pvs_all_groups}" \
-                      -o pvs-studio-out/pvs-studio-all.txt \
-                      || true
-                    if [[ -f pvs-studio-out/pvs-studio-all.txt ]]; then
-                      {
-                        echo "## PVS-Studio findings (all)"
-                        echo '```'
-                        cat pvs-studio-out/pvs-studio-all.txt
-                        echo '```'
-                      } >> "$GITHUB_STEP_SUMMARY"
-                      echo "--- all findings ---"
-                      cat pvs-studio-out/pvs-studio-all.txt
-                    fi
-
-                    gate_code=0
-                    plog-converter \
-                      pvs-studio-out/pvs-studio-report.json \
-                      -t totals \
-                      -a "${pvs_all_groups}" \
-                      -o pvs-studio-out/pvs-studio-gate-totals.txt \
-                      --indicate-warnings \
-                      || gate_code=$?
-                    if [[ -f pvs-studio-out/pvs-studio-gate-totals.txt ]]; then
-                      echo "--- gate filter (all groups/levels) ---"
-                      cat pvs-studio-out/pvs-studio-gate-totals.txt
-                    fi
-                    if [[ "$gate_code" -eq 2 ]]; then
-                      echo "PVS-Studio gate failed: warnings remain (all groups/levels)." >&2
-                      exit 1
-                    fi
-                    if [[ "$gate_code" -ne 0 ]]; then
-                      echo "plog-converter gate failed with exit_code=${gate_code}" >&2
-                      exit 1
-                    fi
-
-            -   name: Convert Report To HTML
-                if: always() && steps.analyze.outputs.report == 'true'
-                shell: bash
-                run: |
-                    set -euo pipefail
-                    mkdir -p pvs-studio-out
-                    plog-converter \
-                      pvs-studio-out/pvs-studio-report.json \
-                      -t fullhtml \
-                      -a 'GA:1,2,3;64:1,2,3;OP:1,2,3;CS:1,2,3;MISRA:1,2,3;AUTOSAR:1,2,3;OWASP:1,2,3' \
-                      -o pvs-studio-out \
-                      -n html
-
-            -   name: Upload PVS-Studio Report
-                if: always() && steps.analyze.outputs.report == 'true'
-                uses: actions/upload-artifact@v7
-                with:
-                    name: pvs-studio-report
-                    retention-days: 14
-                    if-no-files-found: warn
-                    path: |
-                        pvs-studio-out/pvs-studio-report.json
-                        pvs-studio-out/pvs-studio-totals.txt
-                        pvs-studio-out/pvs-studio-all.txt
-                        pvs-studio-out/pvs-studio-gate-totals.txt
-                        pvs-studio-out/html.fullhtml/**
-
     # Aggregates all CI jobs and reports a single required "CI success" check.
-    # Silently tolerates skipped jobs (e.g. sonarcloud/pvs-studio on fork PRs
-    # where secrets are unavailable) but fails if any required job failed.
+    # SonarCloud is skipped on fork PRs, where secrets are unavailable.
     ci-success:
         name: CI success
         runs-on: ubuntu-latest
@@ -423,7 +237,6 @@ jobs:
         needs:
             - build
             - sonarcloud
-            - pvs-studio
         if: always()
         steps:
             -   name: Verify Required Checks
@@ -431,7 +244,6 @@ jobs:
                 env:
                     RESULT_BUILD: ${{ needs.build.result }}
                     RESULT_SONAR: ${{ needs.sonarcloud.result }}
-                    RESULT_PVS: ${{ needs.pvs-studio.result }}
                 run: |
                     set -euo pipefail
                     failed=0
@@ -460,7 +272,6 @@ jobs:
 
                     assert_success "build" "$RESULT_BUILD"
                     assert_success_or_skipped "sonarcloud" "$RESULT_SONAR"
-                    assert_success_or_skipped "pvs-studio" "$RESULT_PVS"
 
                     if [[ "$failed" -ne 0 ]]; then
                       exit 1
