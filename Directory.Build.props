@@ -1,6 +1,6 @@
 <Project>
     <PropertyGroup Label="Build">
-        <Version>0.8.0</Version>
+        <Version>0.9.0</Version>
         <LangVersion>preview</LangVersion>
         <Nullable>enable</Nullable>
         <ImplicitUsings>disable</ImplicitUsings>
