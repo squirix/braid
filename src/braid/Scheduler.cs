@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Braid;
 
@@ -20,8 +24,8 @@ internal sealed class Scheduler : IDisposable
     private readonly SemaphoreSlim _stateChanged = new(0);
     private readonly List<RunTask> _tasks = [];
     private readonly CancellationTokenSource _timeoutCts = new();
-    private readonly List<string> _trace = [];
-    private bool _joined;
+    private readonly RunTrace _trace = new();
+    private JoinPhase _joinPhase;
     private int _nextScheduleStep;
     private int _releases;
 
@@ -38,13 +42,20 @@ internal sealed class Scheduler : IDisposable
         _random = new DeterministicRandom(seed);
     }
 
+    private enum JoinPhase
+    {
+        NotStarted = 0,
+        Started = 1,
+        StartedAfterTimeout = 2,
+    }
+
     /// <summary>Gets a value indicating whether <see cref="JoinAsync" /> has started.</summary>
     internal bool HasJoined
     {
         get
         {
             lock (_gate)
-                return _joined;
+                return _joinPhase != JoinPhase.NotStarted;
         }
     }
 
@@ -83,20 +94,20 @@ internal sealed class Scheduler : IDisposable
 
     internal RunException CreateException(string message, Exception? innerException, RunFailureOrigin failureOrigin = RunFailureOrigin.Scheduler)
     {
-        IReadOnlyList<string> traceSnapshot;
-        IReadOnlyList<ReplayStep> scheduleSnapshot;
         string resolvedMessage;
-        SchedulerDiagnostics diagnostics;
+        RunExceptionContext context;
 
         lock (_gate)
         {
-            traceSnapshot = [.. _trace];
-            scheduleSnapshot = [.. ScriptSteps ?? []];
             resolvedMessage = AppendReplayState(message);
-            diagnostics = BuildDiagnosticSnapshot();
+            var steps = ScriptSteps ?? [];
+            context = new RunExceptionContext(_random.Seed, _iteration, _trace.Messages, steps, BuildDiagnosticSnapshot())
+            {
+                ExecutedSteps = _trace.SnapshotExecutedSteps(steps, _nextScheduleStep),
+            };
         }
 
-        return new RunException(resolvedMessage, new RunExceptionContext(_random.Seed, _iteration, traceSnapshot, scheduleSnapshot, diagnostics), innerException, failureOrigin);
+        return new RunException(resolvedMessage, context, innerException, failureOrigin);
     }
 
     internal void Fork(Func<Task> operation) => Fork(null, operation);
@@ -107,19 +118,23 @@ internal sealed class Scheduler : IDisposable
         RunTask braidTask;
         lock (_gate)
         {
-            if (_joined)
+            if (_joinPhase != JoinPhase.NotStarted)
                 throw CreateException("Cannot fork after JoinAsync has started.", null);
 
             braidTask = new RunTask(_tasks.Count + 1, workerId);
             ThrowIfWorkerIdInUse(braidTask.WorkerId);
             _tasks.Add(braidTask);
-            _trace.Add($"{braidTask.WorkerId} forked");
+            _trace.Messages.Add($"{braidTask.WorkerId} forked");
         }
 
-        var registration = new ForkOperationRegistration();
+        var registration = new ForkOperationRegistration
+        {
+            BraidTask = braidTask,
+            Operation = operation,
+        };
         var forkTask = Task.Factory.StartNew(
             RunForkedOperationAsync,
-            (braidTask, operation, registration),
+            registration,
             CancellationToken.None,
             TaskCreationOptions.DenyChildAttach,
             TaskScheduler.Default).Unwrap();
@@ -135,7 +150,7 @@ internal sealed class Scheduler : IDisposable
     internal IReadOnlyList<string> GetTraceSnapshot()
     {
         lock (_gate)
-            return [.. _trace];
+            return [.. _trace.Messages];
     }
 
     internal IReadOnlyList<ReplayStep[]> GetExploredChoices()
@@ -157,7 +172,7 @@ internal sealed class Scheduler : IDisposable
             task.ProbeWaitInFlight = true;
             task.State = RunTaskState.Waiting;
             task.LastProbeName = name;
-            _trace.Add($"{task.WorkerId} hit {name}");
+            _trace.Messages.Add($"{task.WorkerId} hit {name}");
         }
 
         _ = _stateChanged.Release();
@@ -195,7 +210,10 @@ internal sealed class Scheduler : IDisposable
         try
         {
             lock (_gate)
-                _joined = true;
+            {
+                if (_joinPhase == JoinPhase.NotStarted)
+                    _joinPhase = _timeoutCts.IsCancellationRequested ? JoinPhase.StartedAfterTimeout : JoinPhase.Started;
+            }
 
             _joinFailure.ThrowIfRecorded();
             try
@@ -270,7 +288,8 @@ internal sealed class Scheduler : IDisposable
 
         if (ScriptSteps == null || _nextScheduleStep >= ScriptSteps.Count)
             return true;
-        var message = _tasks.Count == 0 ? "Scripted schedule contained unused steps, but no workers were forked."
+        var message = _tasks.Count == 0
+            ? "Scripted schedule contained unused steps, but no workers were forked."
             : "Scripted schedule contained unused steps after all workers completed.";
         throw CreateException(message, null).SkipInExploration();
     }
@@ -286,16 +305,17 @@ internal sealed class Scheduler : IDisposable
     /// </returns>
     private RunException CreateTimeoutException(OperationCanceledException exception)
     {
-        bool blockedOnParkedWorker;
         lock (_gate)
         {
-            blockedOnParkedWorker = _tasks.Exists(static task => task.State is RunTaskState.Running)
-                && _tasks.Exists(static task => task.State is RunTaskState.Waiting or RunTaskState.Held);
-        }
+            if (_joinPhase != JoinPhase.Started)
+                return CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout).ClassifyTimeout(RunTimeoutKind.BeforeJoin);
 
-        return blockedOnParkedWorker
-            ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler).SkipInExploration()
-            : CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout);
+            var blockedOnParkedWorker = _tasks.Exists(static task => task.State is RunTaskState.Running)
+                && _tasks.Exists(static task => task.State is RunTaskState.Waiting or RunTaskState.Held);
+            return blockedOnParkedWorker
+                ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler).ClassifyTimeout(RunTimeoutKind.PossibleParkedWorkerDependency).SkipInExploration()
+                : CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout).ClassifyTimeout(RunTimeoutKind.NoParkedWorkerDependency);
+        }
     }
 
     private string AppendReplayState(string message)
@@ -384,7 +404,7 @@ internal sealed class Scheduler : IDisposable
                 braidTask.Exception = CreateException(leftBehind, null);
 
             braidTask.State = RunTaskState.Completed;
-            _trace.Add($"{braidTask.WorkerId} completed");
+            _trace.Messages.Add($"{braidTask.WorkerId} completed");
         }
 
         _ = _stateChanged.Release();
@@ -392,9 +412,10 @@ internal sealed class Scheduler : IDisposable
 
     private async Task RunForkedOperationAsync(object? state)
     {
-        if (state is not (RunTask braidTask, Func<Task> operation, ForkOperationRegistration registration))
+        if (state is not ForkOperationRegistration registration)
             throw new InvalidOperationException("Invalid fork state.");
 
+        var braidTask = registration.BraidTask;
         RunTaskSlot.Current = braidTask;
         var returned = false;
         try
@@ -402,7 +423,7 @@ internal sealed class Scheduler : IDisposable
             await braidTask.WaitForReleaseAsync(_shutdownCts.Token).ConfigureAwait(false);
             var opTask = Task.Factory.StartNew(
                 SchedulerSearch.InvokeForkOperationAsync,
-                operation,
+                registration.Operation,
                 CancellationToken.None,
                 TaskCreationOptions.DenyChildAttach,
                 TaskScheduler.Default).Unwrap();
@@ -415,7 +436,8 @@ internal sealed class Scheduler : IDisposable
                 }
                 catch (OperationCanceledException operationCanceled)
                 {
-                    braidTask.Exception = operationCanceled is TaskCanceledException ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
+                    braidTask.Exception = operationCanceled is TaskCanceledException
+                        ? new OperationCanceledException(operationCanceled.Message, operationCanceled)
                         : operationCanceled;
                 }
             }
@@ -450,7 +472,7 @@ internal sealed class Scheduler : IDisposable
             NextScheduleStep = _nextScheduleStep,
             Script = _script,
             Random = _random,
-            Trace = _trace,
+            Trace = _trace.Messages,
             CreateException = CreateException,
         };
 
@@ -469,6 +491,7 @@ internal sealed class Scheduler : IDisposable
                 context.NextScheduleStep = _nextScheduleStep;
 
                 nextTask = SchedulerSearch.SelectNextJoinTask(context, cancellationToken, ref advancedWithoutRelease);
+                var consumedScriptStep = _nextScheduleStep != context.NextScheduleStep;
                 _nextScheduleStep = context.NextScheduleStep;
 
                 switch (nextTask)
@@ -485,7 +508,7 @@ internal sealed class Scheduler : IDisposable
                 {
                     nextTask.State = RunTaskState.Running;
                     nextTask.ReleaseOrder = ++_releases;
-                    _trace.Add(nextTask.LastProbeName == null ? $"{nextTask.WorkerId} released" : $"{nextTask.WorkerId} released at {nextTask.LastProbeName}");
+                    _trace.RecordRelease(nextTask, consumedScriptStep);
                 }
             }
 
@@ -558,7 +581,7 @@ internal sealed class Scheduler : IDisposable
             if (matches.Count == 0)
                 return [];
 
-            matches.Sort(static (left, right) => left.Id.CompareTo(right.Id));
+            // Workers are appended in id order; filtering preserves that order.
             var diagnostics = new ProbeWaitDiagnostic[matches.Count];
             for (var matchIndex = 0; matchIndex < matches.Count; matchIndex++)
             {
@@ -628,7 +651,7 @@ internal sealed class Scheduler : IDisposable
                     waitingTasks[writeIndex++] = task;
             }
 
-            Array.Sort(waitingTasks, static (left, right) => left.Id.CompareTo(right.Id));
+            // Workers are appended in id order; filtering preserves that order.
             return waitingTasks;
         }
 
@@ -744,10 +767,12 @@ internal sealed class Scheduler : IDisposable
             var releasableTask = heldTask ?? waitingTask;
             if (releasableTask == null)
             {
-                return hasRunningTasks ? null : throw context.CreateException(
-                    BuildStepMismatchMessage(context.NextScheduleStep, "hit", in step, sameWorkerBlockedTask),
-                    null,
-                    RunFailureOrigin.Scheduler).SkipInExploration();
+                return hasRunningTasks
+                    ? null
+                    : throw context.CreateException(
+                        BuildStepMismatchMessage(context.NextScheduleStep, "hit", in step, sameWorkerBlockedTask),
+                        null,
+                        RunFailureOrigin.Scheduler).SkipInExploration();
             }
 
             context.NextScheduleStep++;
@@ -841,6 +866,10 @@ internal sealed class Scheduler : IDisposable
 
     private sealed class ForkOperationRegistration
     {
+        internal required RunTask BraidTask { get; init; }
+
+        internal required Func<Task> Operation { get; init; }
+
         internal Task ForkTask { get; set; } = Task.CompletedTask;
     }
 }

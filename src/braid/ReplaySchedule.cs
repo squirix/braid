@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using Braid.Attributes;
@@ -17,7 +19,7 @@ public sealed class ReplaySchedule
     public IReadOnlyList<ReplayStep> Steps { get; }
 
     /// <summary>Parses a line-based textual replay schedule. Operation names are case-insensitive; worker ids and probe names are case-sensitive.</summary>
-    /// <param name="text">The schedule text. Empty lines and full-line # comments are ignored. At least one step is required.</param>
+    /// <param name="text">The schedule text. Empty lines and # comments are ignored. An inline comment begins after whitespace following the required step arguments. At least one step is required.</param>
     /// <returns>A replay schedule.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="text" /> is null.</exception>
     /// <exception cref="FormatException">The text is not a valid schedule.</exception>
@@ -122,7 +124,8 @@ public sealed class ReplaySchedule
             if (!char.IsWhiteSpace(ch))
                 continue;
             throw new InvalidOperationException(
-                isWorkerId ? "Worker id cannot be exported to replay text because it contains whitespace."
+                isWorkerId
+                    ? "Worker id cannot be exported to replay text because it contains whitespace."
                     : "Probe name cannot be exported to replay text because it contains whitespace.");
         }
     }
@@ -262,11 +265,16 @@ public sealed class ReplaySchedule
         workerId = string.Empty;
         probeName = string.Empty;
 
+        var expectedTokenCount = kind is ReplayStepKind.Start ? 2 : 3;
+        var tokenCount = tokens.Length;
+        if (tokenCount > expectedTokenCount && tokens[expectedTokenCount][0] == '#')
+            tokenCount = expectedTokenCount;
+
         if (kind is ReplayStepKind.Start)
         {
-            if (tokens.Length != 2)
+            if (tokenCount != expectedTokenCount)
             {
-                error = $"Line {lineNumber}: Expected exactly 2 tokens (start, worker id); found {tokens.Length}.";
+                error = $"Line {lineNumber}: Expected exactly 2 tokens (start, worker id); found {tokenCount}.";
                 return false;
             }
 
@@ -274,7 +282,7 @@ public sealed class ReplaySchedule
             return true;
         }
 
-        switch (tokens.Length)
+        switch (tokenCount)
         {
             case 1:
                 error = $"Line {lineNumber}: Missing worker id and probe name.";
@@ -287,7 +295,7 @@ public sealed class ReplaySchedule
                 probeName = tokens[2];
                 break;
             default:
-                error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokens.Length}.";
+                error = $"Line {lineNumber}: Expected exactly 3 tokens (operation, worker id, probe name); found {tokenCount}.";
                 return false;
         }
 

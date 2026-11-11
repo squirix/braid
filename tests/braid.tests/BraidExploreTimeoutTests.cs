@@ -1,4 +1,10 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using TUnit.Assertions;
 using TUnit.Assertions.Enums;
+using TUnit.Assertions.Extensions;
+using TUnit.Core;
 
 namespace Braid.Tests;
 
@@ -25,6 +31,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
                 cancellationToken));
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Timeout);
+        _ = await Assert.That(exception.TimeoutKind).IsEqualTo(RunTimeoutKind.NoParkedWorkerDependency);
         _ = await Assert.That(exception.Message).Contains("braid run timed out.");
         _ = await Assert.That(exception.SchedulerDiagnostics!.RunningWorkers).Contains(new ProbeWaitDiagnostic("w", ProbeWaitDiagnostic.StartProbeName));
     }
@@ -137,6 +144,7 @@ public sealed class BraidExploreTimeoutTests : TestBase
                 cancellationToken));
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Scheduler);
+        _ = await Assert.That(exception.TimeoutKind).IsEqualTo(RunTimeoutKind.PossibleParkedWorkerDependency);
         _ = await Assert.That(exception.Message).Contains("parked before their start or at probes");
         _ = await Assert.That(exception.SchedulerDiagnostics!.RunningWorkers).Contains(new ProbeWaitDiagnostic("second", "b"));
         _ = await Assert.That(exception.SchedulerDiagnostics.WaitingWorkers).Contains(new ProbeWaitDiagnostic("first", "a"));

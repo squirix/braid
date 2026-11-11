@@ -96,12 +96,14 @@ braid runs one released worker at a time and keeps the others parked before thei
 reaches its next probe or completes. A released worker that waits for a parked worker before its next probe (for example for a lock that
 the parked worker holds across a probe) never continues, and the run times out. Real threads would not hang there.
 
-- A timeout while a worker runs and others are parked is reported with `RunFailureOrigin.Scheduler`. The failure report lists the running
+- A timeout while a worker runs and others are parked has `RunFailureOrigin.Scheduler` and `RunTimeoutKind.PossibleParkedWorkerDependency`. The failure report lists the running
   worker under **Running workers** and the parked ones under **Waiting workers**; `(start)` and `(not started)` mark workers before their first probe.
 - `ExploreAsync` skips such schedules, so exploration can still complete without failure. When every schedule it ran hung this way,
   it fails with the first of those timeouts.
-- A timeout with no running worker blocked on a parked one is reported with `RunFailureOrigin.Timeout` and fails `ExploreAsync`.
-- A deadlock between two or more workers looks the same as such a hang, so `ExploreAsync` does not report it yet.
+- A timeout during a join with no running worker paired with a parked worker has `RunFailureOrigin.Timeout` and
+  `RunTimeoutKind.NoParkedWorkerDependency`. A timeout before the callback joins has `RunTimeoutKind.BeforeJoin`.
+- These categories describe what braid observed. A lock cycle, an external wait, and a slow operation can have the same timeout
+  classification because braid sees worker starts and probes, and has no visibility into arbitrary awaits.
 - Do not hold a lock that another worker waits for across a probe.
 - Canceling the token passed to `Probe.HitAsync` does not wake a parked worker. The worker observes the cancellation when the scheduler
   releases it: the probe then throws `OperationCanceledException`. A worker that cancels the token and then waits for the parked worker

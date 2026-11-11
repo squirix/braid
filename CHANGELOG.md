@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0
+
+### Added
+
+- The NuGet package includes a .NET 11 build alongside .NET 10.
+- `RunException.TryGetExecutedReplayText` exports the steps taken before a failure, including during random runs.
+- The `Runner.ExploreAsync` overload with `maxFailures` collects distinct failures within the schedule and failure limits.
+- `RunException.TimeoutKind` reports whether a timeout elapsed before join or may involve a parked worker.
+- Replay scripts accept inline `#` comments after a complete step.
+
+### Changed
+
+- Reduced scheduler allocations and redundant sorting, and reused the callback delegate across exploration runs.
+- Consolidated the release instructions and made PVS-Studio image builds manual.
+
+### Fixed
+
+- The release workflow pushes the main package once. NuGet receives the adjacent symbol package as part of the same push.
+
 ## 0.8.0
 
 ### Added

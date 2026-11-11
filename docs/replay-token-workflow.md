@@ -12,6 +12,9 @@ release <worker> <probe>
 `start` runs a worker from its beginning up to its first probe. A token without `start` lines starts every worker before its first line,
 in fork order; a token with them starts only the workers it names.
 
+Use `#` at the start of a line or after whitespace following a complete step to add a comment.
+A `#` in a worker id or probe name is part of that identifier. `ToReplayText()` emits only steps.
+
 **Product goal:** find the interleaving, copy the token, keep the race fixed forever.
 
 See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md), [README.md](../README.md).
@@ -25,7 +28,7 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
    ```csharp
    var schedule = ReplaySchedule.Parse("""
    hit worker-1 before-read
-   hit worker-2 before-read
+   hit worker-2 before-read  # both workers read before either writes
    hit worker-1 before-write
    hit worker-2 before-write
    """);
@@ -39,53 +42,25 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
 
 ---
 
-## When a random run fails (no token yet)
+## Export the decisions that led to a failure
 
-Random-only runs report **seed**, **iteration**, and **trace**. They do **not** synthesize a full replay token automatically.
-
-1. **Capture** seed and trace from `RunException.ToString()` or exception properties.
-2. **Re-run** with the same seed to confirm the failure (`RunOptions.Seed`).
-3. **Add probes** at async boundaries in the code under test (`Probe.HitAsync`).
-4. **Build** a typed or text schedule that matches the interleaving you need (use trace lines as hints).
-   Write a `start` line for each `<worker> released` trace line, in that order: a token without `start` lines starts the workers in fork order.
-5. **Export** canonical text with `ReplaySchedule.ToReplayText()` once the schedule reproduces the bug.
-6. **Regression test** using `ReplaySchedule.Parse(token)` or `ReplaySchedule.Replay(...)`.
-
----
-
-## When a replay-scheduled run fails
-
-If `RunOptions.Schedule` was configured, the failure may include exportable replay text.
-
-Prefer the API over parsing `ToString()`:
+`RunException.TryGetExecutedReplayText` exports the steps taken up to a failure in a random, scripted, or exploration run.
+It includes implicit worker starts and omits the unused tail of a configured schedule.
 
 ```csharp
 catch (RunException ex)
 {
-    if (ex.TryGetReplayText(out var token, out var error))
-    {
-        // Paste `token` into ReplaySchedule.Parse(...) for a regression test.
-    }
-    else
-    {
-        // `error` set: the schedule is not text-exportable (e.g. whitespace in worker/probe names).
-        // Use ex.Steps typed steps or fix naming.
-        // `error` null: a random run failed. ex.Steps is empty and is not a schedule.
-    }
-}
-```
+    if (ex.TryGetExecutedReplayText(out var token, out _))
+        output.WriteLine(token);
 
-In xUnit, you can also write the full report without a separate package:
-
-```csharp
-ITestOutputHelper output; // inject in test
-// ...
-catch (RunException ex)
-{
-    output.WriteLine(ex.ToString());
     throw;
 }
 ```
+
+Paste the text into `ReplaySchedule.Parse(...)` and replay it with the same callback. For names containing whitespace,
+pass `ex.Context.ExecutedSteps` to `ReplaySchedule.Replay(...)`. If the list is empty, the run made no scheduling decision.
+Use the seed and trace to reproduce the callback failure. For a script mismatch, use `TryGetReplayText` to recover
+the original script, including the step that could not be matched.
 
 ---
 
@@ -101,9 +76,9 @@ Use these to fix incomplete or mismatched schedules—not to replace a replay to
 | Situation | Replay token |
 | ----------- | ---------------- |
 | Typed or text schedule configured and exportable | Yes — `TryGetReplayText` or failure report |
-| Random-only run | No automatic full token — build schedule manually |
+| Random run with recorded steps | `TryGetExecutedReplayText` exports the steps taken before failure |
 | Whitespace in worker id or probe name | Token export may fail; use typed `ReplayStep` list |
-| No steps, for example `RunException.Steps` of a random run | Not a schedule: `ReplaySchedule.Replay` throws `ArgumentException` |
+| No executed steps | Use the seed and trace to reproduce the failure |
 
 ---
 

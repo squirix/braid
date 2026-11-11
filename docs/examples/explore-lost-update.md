@@ -51,3 +51,16 @@ The test passes because it expects exploration to fail with a replayable token, 
 
 - Use **explore** when you know the workers and probes but not the failing order (for example after a random `RunAsync` flake).
 - Use a **fixed token** (see [lost-update](lost-update.md)) once you have the schedule and want a fast, stable regression.
+
+## Collect several failures
+
+```csharp
+var bounds = new ExploreOptions(100, 10, TimeSpan.FromSeconds(5));
+var failures = await Runner.ExploreAsync(bounds, test, maxFailures: 3, cancellationToken);
+```
+
+The list contains failures in discovery order. The search stops at the schedule limit or the distinct failure limit.
+Failures with the same origin, exception type, and message are grouped. Timeouts before and during a join are grouped separately.
+A replay mismatch aborts the search. If every run times out with a possible parked-worker dependency, the list contains
+the first such timeout. Collection also stops if a recorded failure leaves a callback or worker running after the run ends.
+The three-argument `ExploreAsync` overload throws on the first failure.

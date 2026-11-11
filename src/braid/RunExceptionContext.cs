@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using Braid.Attributes;
 using JetBrains.Annotations;
 
@@ -37,6 +39,9 @@ public sealed record RunExceptionContext
 
     /// <summary>Gets the configured replay schedule or an empty list when random scheduling was used.</summary>
     public IReadOnlyList<ReplayStep> Steps { get; }
+
+    /// <summary>Gets the steps executed before the failure, including starts chosen by the scheduler.</summary>
+    public IReadOnlyList<ReplayStep> ExecutedSteps { get; internal init; } = [];
 
     /// <summary>Gets scheduler diagnostics captured when the failure was recorded, when available.</summary>
     public SchedulerDiagnostics? SchedulerDiagnostics { get; }

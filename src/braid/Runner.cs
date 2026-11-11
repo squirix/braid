@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Runtime.ExceptionServices;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Braid;
 
@@ -47,7 +52,29 @@ public static class Runner
 
     /// <inheritdoc cref="ExploreAsync(Action{ExploreOptionsBuilder}, Func{ExploreContext, Task}, CancellationToken)" />
     public static Task ExploreAsync(in ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken) =>
-        ExploreAsyncCoreAsync(options, test, cancellationToken);
+        ExploreAsyncCoreAsync(options, test, 0, cancellationToken);
+
+    /// <summary>Explores schedules and returns distinct failures in discovery order.</summary>
+    /// <remarks>
+    /// Failures are grouped by origin, exception type, and message. Timeouts are grouped by where they occurred.
+    /// A replay mismatch aborts exploration. Timeouts with a possible parked-worker dependency are skipped, with the first
+    /// returned if every explored schedule ended in such a timeout.
+    /// Collection also stops if a recorded failure leaves a callback or worker running after the run ends.
+    /// </remarks>
+    /// <param name="options">Bounds for the schedule search.</param>
+    /// <param name="test">The test callback. It must take the same steps under the same schedule.</param>
+    /// <param name="maxFailures">A positive limit on the number of distinct failures to return.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The failures found within the schedule and failure limits.</returns>
+    public static Task<IReadOnlyList<RunException>> ExploreAsync(
+        in ExploreOptions options,
+        Func<ExploreContext, Task> test,
+        int maxFailures,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxFailures);
+        return ExploreAsyncCoreAsync(options, test, maxFailures, cancellationToken);
+    }
 
     /// <summary>
     /// Runs the supplied test callback across one or more deterministic scheduling iterations.
@@ -108,13 +135,16 @@ public static class Runner
         return RunAsyncCoreAsync(test, resolvedOptions, cancellationToken);
     }
 
-    private static async Task ExploreAsyncCoreAsync(ExploreOptions options, Func<ExploreContext, Task> test, CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<RunException>> ExploreAsyncCoreAsync(
+        ExploreOptions options, Func<ExploreContext, Task> test, int maxFailures, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(test);
         options.Validate();
 
         var callback = new ExploreCallback(test);
+        Func<RunContext, Task> invoke = callback.InvokeAsync;
         var search = new ExploreSearch(options.MaxStepsPerSchedule);
+        List<RunException>? failures = maxFailures > 0 ? [] : null;
         RunException? firstHang = null;
         var anyRunCompleted = false;
         var hasNext = true;
@@ -135,7 +165,7 @@ public static class Runner
 
             try
             {
-                await RunAsync(callback.InvokeAsync, runOptions, cancellationToken).ConfigureAwait(false);
+                await RunAsync(invoke, runOptions, cancellationToken).ConfigureAwait(false);
                 anyRunCompleted = true;
             }
             catch (RunException ex) when (ex.SkippedByExploration)
@@ -149,13 +179,59 @@ public static class Runner
                 System.Diagnostics.Trace.TraceInformation($"Braid: skipping a schedule that hung ({ex}).");
                 firstHang ??= ex;
             }
+            catch (RunException ex) when (failures != null)
+            {
+                AddDistinctFailure(failures, ex);
+                if (failures.Count == maxFailures || ex.HasAbandonedWorkers || ex.TimeoutKind == RunTimeoutKind.BeforeJoin)
+                    break;
+            }
 
             hasNext = search.MoveNext(callback.TakeExploredChoices());
         }
 
         // No schedule ran to its end, so nothing was checked: passing would hide that.
-        if (!anyRunCompleted && firstHang != null)
-            ExceptionDispatchInfo.Throw(firstHang);
+        return FinishExploration(failures, anyRunCompleted ? null : firstHang);
+    }
+
+    private static ReadOnlyCollection<RunException> FinishExploration(List<RunException>? failures, RunException? firstHang)
+    {
+        if (firstHang != null && failures is not { Count: > 0 })
+        {
+            if (failures == null)
+                ExceptionDispatchInfo.Throw(firstHang);
+
+            failures.Add(firstHang);
+        }
+
+        return failures == null ? [] : failures.AsReadOnly();
+    }
+
+    private static void AddDistinctFailure(List<RunException> failures, RunException candidate)
+    {
+        if (candidate.SchedulerDiagnostics is { UnusedReplaySteps.Count: > 0 })
+            throw new RunException(NotRepeatableMessage, candidate.Context, candidate);
+
+        for (var index = 0; index < failures.Count; index++)
+        {
+            if (SameFailure(failures[index], candidate))
+                return;
+        }
+
+        failures.Add(candidate);
+    }
+
+    private static bool SameFailure(RunException first, RunException second)
+    {
+        if (first.FailureOrigin != second.FailureOrigin || first.TimeoutKind != second.TimeoutKind)
+            return false;
+
+        if (first.TimeoutKind != RunTimeoutKind.None)
+            return true;
+
+        var firstCause = first.InnerException ?? first;
+        var secondCause = second.InnerException ?? second;
+        return firstCause.GetType() == secondCause.GetType()
+            && string.Equals(firstCause.Message, secondCause.Message, StringComparison.Ordinal);
     }
 
     private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)
@@ -230,19 +306,16 @@ public static class Runner
             // The callback is left behind; observe a later fault so it is not reported as unobserved.
             _ = callbackTask.ContinueWith(static task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
             cancellationToken.ThrowIfCancellationRequested();
-            throw scheduler.CreateException(CallbackTimeoutMessage, null, RunFailureOrigin.Timeout);
+            throw scheduler.CreateException(CallbackTimeoutMessage, null, RunFailureOrigin.Timeout).ClassifyTimeout(RunTimeoutKind.BeforeJoin);
         }
 
         await callbackTask.ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Decides whether a failure that exploration skips is a hang on a worker that waits for a parked one.
-    /// Among the failures that exploration skips, only that timeout carries the cancellation of the run timeout.
-    /// </summary>
+    /// <summary>Checks whether the timeout may involve a parked worker.</summary>
     /// <param name="ex">The failure that exploration skips.</param>
     /// <returns><see langword="true" /> for a hang; <see langword="false" /> when the steps of the run did not fit the test.</returns>
-    private static bool IsHang(RunException ex) => ex.InnerException is OperationCanceledException;
+    private static bool IsHang(RunException ex) => ex.TimeoutKind == RunTimeoutKind.PossibleParkedWorkerDependency;
 
     private sealed class ExploreCallback
     {

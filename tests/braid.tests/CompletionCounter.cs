@@ -1,3 +1,5 @@
+using System.Threading;
+
 namespace Braid.Tests;
 
 /// <summary>Holds a mutable count shared across forked workers in tests.</summary>

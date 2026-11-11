@@ -1,3 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using TUnit.Assertions;
+using TUnit.Assertions.Extensions;
+using TUnit.Core;
+
 namespace Braid.Tests;
 
 /// <summary>Covers where the run callback starts: on the thread pool, without the synchronization context or task scheduler of the caller.</summary>
@@ -38,15 +46,8 @@ public sealed class IterationContextTests : TestBase
         var callerScheduler = new ConcurrentExclusiveSchedulerPair().ExclusiveScheduler;
 
         await Task.Factory.StartNew(
-            () => Runner.RunAsync(
-                async context =>
-                {
-                    starts.Add(DescribeStart());
-                    context.Fork("w", async () => await Probe.HitAsync("a", cancellationToken));
-                    await context.JoinAsync(cancellationToken);
-                },
-                new RunOptions { Iterations = 3, Seed = 1 },
-                cancellationToken),
+            static state => state is RecordedRun run ? run.StartAsync() : throw new InvalidOperationException("The task state is not the recorded run."),
+            new RecordedRun(starts, cancellationToken),
             cancellationToken,
             TaskCreationOptions.DenyChildAttach,
             callerScheduler).Unwrap();
@@ -144,6 +145,29 @@ public sealed class IterationContextTests : TestBase
         return started;
     }
 
+    /// <summary>A run of three iterations that records where each one starts.</summary>
+    private sealed class RecordedRun
+    {
+        private readonly CancellationToken _cancellationToken;
+        private readonly List<string> _starts;
+
+        public RecordedRun(List<string> starts, CancellationToken cancellationToken)
+        {
+            _starts = starts;
+            _cancellationToken = cancellationToken;
+        }
+
+        public Task StartAsync() => Runner.RunAsync(
+            async context =>
+            {
+                _starts.Add(DescribeStart());
+                context.Fork("w", async () => await Probe.HitAsync("a", _cancellationToken));
+                await context.JoinAsync(_cancellationToken);
+            },
+            new RunOptions { Iterations = 3, Seed = 1 },
+            _cancellationToken);
+    }
+
     private sealed class NeverPumpedContext : SynchronizationContext
     {
         public override void Post(SendOrPostCallback d, object? state)
@@ -157,19 +181,21 @@ public sealed class IterationContextTests : TestBase
         public override void Post(SendOrPostCallback d, object? state)
         {
             _ = ThreadPool.QueueUserWorkItem(
-                _ =>
+                static posted =>
                 {
                     var previous = Current;
-                    SetSynchronizationContext(this);
+                    SetSynchronizationContext(posted.Context);
                     try
                     {
-                        d(state);
+                        posted.Callback(posted.State);
                     }
                     finally
                     {
                         SetSynchronizationContext(previous);
                     }
-                });
+                },
+                (Context: this, Callback: d, State: state),
+                false);
         }
     }
 }
