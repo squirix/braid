@@ -235,19 +235,16 @@ public static class Runner
             // The callback is left behind; observe a later fault so it is not reported as unobserved.
             _ = callbackTask.ContinueWith(static task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
             cancellationToken.ThrowIfCancellationRequested();
-            throw scheduler.CreateException(CallbackTimeoutMessage, null, RunFailureOrigin.Timeout);
+            throw scheduler.CreateException(CallbackTimeoutMessage, null, RunFailureOrigin.Timeout).ClassifyTimeout(RunTimeoutKind.BeforeJoin);
         }
 
         await callbackTask.ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Decides whether a failure that exploration skips is a hang on a worker that waits for a parked one.
-    /// Among the failures that exploration skips, only that timeout carries the cancellation of the run timeout.
-    /// </summary>
+    /// <summary>Checks whether the timeout may involve a parked worker.</summary>
     /// <param name="ex">The failure that exploration skips.</param>
     /// <returns><see langword="true" /> for a hang; <see langword="false" /> when the steps of the run did not fit the test.</returns>
-    private static bool IsHang(RunException ex) => ex.InnerException is OperationCanceledException;
+    private static bool IsHang(RunException ex) => ex.TimeoutKind == RunTimeoutKind.PossibleParkedWorkerDependency;
 
     private sealed class ExploreCallback
     {

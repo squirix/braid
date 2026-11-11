@@ -8,6 +8,10 @@
 - Replay scripts accept inline `#` comments after a complete step.
 - `RunException.TryGetExecutedReplayText` exports the steps taken before a failure, including during random runs.
 
+### Changed
+
+- Run timeout diagnostics describe whether the timeout occurred before a join or could involve a parked worker.
+
 ## 0.8.0
 
 ### Added
