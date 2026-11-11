@@ -6,8 +6,6 @@ The current stable product intentionally focuses on small, reproducible async in
 Future controlled-runtime work is opt-in and phased; the project does not promise unrestricted CLR-wide scheduling control,
 binary rewriting, distributed-system simulation, or exhaustive model checking as the default product story.
 
-**Recommended next release:** **v0.9.0** — minimal replay tokens and richer failure collection (v0.8.0 shipped per [CHANGELOG.md](../CHANGELOG.md)).
-
 This roadmap matches [CHANGELOG.md](../CHANGELOG.md) for completed work and keeps future direction intentionally high level.
 
 ## Release policy
@@ -138,13 +136,12 @@ Delivered (see [CHANGELOG.md](../CHANGELOG.md) **0.8.0** and [design/explore-asy
 - the callback of every iteration starts on the thread pool; consecutive seeds make unrelated choices
 - runtime-boundary documentation for code before the first probe, waiting for a parked worker, and probes in tasks that a worker starts
 
-## Planned releases
-
-This section is intentionally high level. Detailed working plans stay local/private until they are stable enough for contributor-facing documentation.
-
 ### v0.9.0 — Replay tokens and failure collection
 
-Goal: minimal replay tokens for every failure, richer failure collection, and telling real deadlocks from hangs caused by the order of releases.
+- Export the steps taken before a failure with `RunException.TryGetExecutedReplayText`, including in random runs.
+- Collect distinct failures in one search with the `Runner.ExploreAsync` overload that takes `maxFailures`.
+- Diagnose whether a timeout occurred before join or could involve a parked worker with `RunException.TimeoutKind`.
+- Use inline comments in replay schedules and install one NuGet package for .NET 10 and .NET 11.
 
 ## Future preview
 
