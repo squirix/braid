@@ -63,6 +63,31 @@ public sealed class BraidScheduleParseTests : TestBase
         _ = await Assert.That(schedule.Steps.Count).IsEqualTo(2);
     }
 
+    /// <summary>Verifies comments can follow each kind of replay step.</summary>
+    [Test]
+    public async Task ParseIgnoresInlineComments()
+    {
+        const string text = "start worker-1 # let the worker reach its first probe\n"
+            + "hit worker-1 ready #release the worker\n"
+            + "arrive worker-1 before-write # park the worker\n"
+            + "release worker-1 before-write #";
+        const string expected = "start worker-1\nhit worker-1 ready\narrive worker-1 before-write\nrelease worker-1 before-write";
+
+        var schedule = ReplaySchedule.Parse(text);
+        _ = await Assert.That(schedule.ToReplayText()).IsEqualTo(expected.ReplaceLineEndings());
+    }
+
+    /// <summary>Verifies hash signs in required identifiers are preserved.</summary>
+    [Test]
+    public async Task ParsePreservesHashSignsInIdentifiers()
+    {
+        var schedule = ReplaySchedule.Parse("hit #worker ready#\t# comment");
+
+        var step = await Assert.That(schedule.Steps).HasSingleItem();
+        _ = await Assert.That(step.WorkerId).IsEqualTo("#worker");
+        _ = await Assert.That(step.ProbeName).IsEqualTo("ready#");
+    }
+
     /// <summary>Verifies multiple lines produce ordered steps.</summary>
     [Test]
     public async Task ParseMultipleSteps()
