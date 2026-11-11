@@ -25,7 +25,7 @@ internal sealed class Scheduler : IDisposable
     private readonly List<RunTask> _tasks = [];
     private readonly CancellationTokenSource _timeoutCts = new();
     private readonly RunTrace _trace = new();
-    private bool _joined;
+    private JoinPhase _joinPhase;
     private int _nextScheduleStep;
     private int _releases;
 
@@ -42,13 +42,20 @@ internal sealed class Scheduler : IDisposable
         _random = new DeterministicRandom(seed);
     }
 
+    private enum JoinPhase
+    {
+        NotStarted = 0,
+        Started = 1,
+        StartedAfterTimeout = 2,
+    }
+
     /// <summary>Gets a value indicating whether <see cref="JoinAsync" /> has started.</summary>
     internal bool HasJoined
     {
         get
         {
             lock (_gate)
-                return _joined;
+                return _joinPhase != JoinPhase.NotStarted;
         }
     }
 
@@ -111,7 +118,7 @@ internal sealed class Scheduler : IDisposable
         RunTask braidTask;
         lock (_gate)
         {
-            if (_joined)
+            if (_joinPhase != JoinPhase.NotStarted)
                 throw CreateException("Cannot fork after JoinAsync has started.", null);
 
             braidTask = new RunTask(_tasks.Count + 1, workerId);
@@ -203,7 +210,10 @@ internal sealed class Scheduler : IDisposable
         try
         {
             lock (_gate)
-                _joined = true;
+            {
+                if (_joinPhase == JoinPhase.NotStarted)
+                    _joinPhase = _timeoutCts.IsCancellationRequested ? JoinPhase.StartedAfterTimeout : JoinPhase.Started;
+            }
 
             _joinFailure.ThrowIfRecorded();
             try
@@ -295,16 +305,17 @@ internal sealed class Scheduler : IDisposable
     /// </returns>
     private RunException CreateTimeoutException(OperationCanceledException exception)
     {
-        bool blockedOnParkedWorker;
         lock (_gate)
         {
-            blockedOnParkedWorker = _tasks.Exists(static task => task.State is RunTaskState.Running)
-                && _tasks.Exists(static task => task.State is RunTaskState.Waiting or RunTaskState.Held);
-        }
+            if (_joinPhase != JoinPhase.Started)
+                return CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout).ClassifyTimeout(RunTimeoutKind.BeforeJoin);
 
-        return blockedOnParkedWorker
-            ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler).SkipInExploration()
-            : CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout);
+            var blockedOnParkedWorker = _tasks.Exists(static task => task.State is RunTaskState.Running)
+                && _tasks.Exists(static task => task.State is RunTaskState.Waiting or RunTaskState.Held);
+            return blockedOnParkedWorker
+                ? CreateException(ParkedTimeoutMessage, exception, RunFailureOrigin.Scheduler).ClassifyTimeout(RunTimeoutKind.PossibleParkedWorkerDependency).SkipInExploration()
+                : CreateException("braid run timed out.", exception, RunFailureOrigin.Timeout).ClassifyTimeout(RunTimeoutKind.NoParkedWorkerDependency);
+        }
     }
 
     private string AppendReplayState(string message)

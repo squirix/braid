@@ -72,6 +72,9 @@ public sealed class RunException : Exception
     /// <summary>Gets whether the failure originated from user test code, braid infrastructure, or a run timeout.</summary>
     public RunFailureOrigin FailureOrigin { get; }
 
+    /// <summary>Gets the scheduler state associated with a run timeout, or <see cref="RunTimeoutKind.None" />.</summary>
+    public RunTimeoutKind TimeoutKind { get; private set; }
+
     /// <summary>Gets the reproducibility context for the failure.</summary>
     public RunExceptionContext Context { get; }
 
@@ -146,6 +149,12 @@ public sealed class RunException : Exception
     /// <summary>Adds the description of the workers abandoned after the run stopped to <see cref="Message" />, once.</summary>
     /// <param name="description">The description of the abandoned workers.</param>
     internal void ReportAbandonedWorkers(string description) => _abandonedWorkers ??= description;
+
+    internal RunException ClassifyTimeout(RunTimeoutKind kind)
+    {
+        TimeoutKind = kind;
+        return this;
+    }
 
     private static void AppendIndentedLines(List<string> lines, string text)
     {

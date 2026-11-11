@@ -29,8 +29,32 @@ public sealed class CallbackBeforeJoinTests : TestBase
         await workerDone.CancelAsync();
 
         _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Timeout);
+        _ = await Assert.That(exception.TimeoutKind).IsEqualTo(RunTimeoutKind.BeforeJoin);
         _ = await Assert.That(exception.Message).StartsWith(BeforeJoinMessage);
         _ = await Assert.That(exception.Traces).Contains("w forked");
+    }
+
+    /// <summary>Verifies a join that first observes an elapsed timeout reports it as pre-join.</summary>
+    /// <param name="cancellationToken">The cancellation token for the current test.</param>
+    /// <returns>A task that represents the asynchronous test.</returns>
+    [Test]
+    public async Task LateJoinReportsBeforeJoinTimeout(CancellationToken cancellationToken)
+    {
+        var exception = await BraidAssertions.AssertExpectsAsync<RunException>(
+            Runner.RunAsync(
+                context =>
+                {
+#pragma warning disable MA0042 // Keep the callback synchronous so the runner cannot observe the timeout before JoinAsync.
+                    Thread.Sleep(RunTimeout);
+#pragma warning restore MA0042
+                    return context.JoinAsync(cancellationToken);
+                },
+                new RunOptions { Iterations = 1, Seed = 1, Timeout = TimeSpan.FromMilliseconds(1) },
+                cancellationToken));
+
+        _ = await Assert.That(exception.FailureOrigin).IsEqualTo(RunFailureOrigin.Timeout);
+        _ = await Assert.That(exception.TimeoutKind).IsEqualTo(RunTimeoutKind.BeforeJoin);
+        _ = await Assert.That(exception.InnerException is OperationCanceledException).IsTrue();
     }
 
     /// <summary>Verifies canceling the run token ends a callback that waits for a forked worker before joining.</summary>
