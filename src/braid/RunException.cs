@@ -103,6 +103,8 @@ public sealed class RunException : Exception
     /// </summary>
     internal bool SkippedByExploration { get; private set; }
 
+    internal bool HasAbandonedWorkers => _abandonedWorkers != null;
+
     /// <inheritdoc />
     public override string ToString()
     {

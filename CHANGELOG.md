@@ -4,6 +4,7 @@
 
 ### Added
 
+- The `Runner.ExploreAsync` overload with `maxFailures` collects distinct failures within the schedule and failure limits.
 - The NuGet package includes a .NET 11 build alongside .NET 10.
 - Replay scripts accept inline `#` comments after a complete step.
 - `RunException.TryGetExecutedReplayText` exports the steps taken before a failure, including during random runs.
