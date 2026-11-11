@@ -23,7 +23,7 @@ public abstract class TestBase
     {
         ArgumentNullException.ThrowIfNull(startTask);
         var effectiveTimeout = watchdogTimeout == TimeSpan.Zero ? TimeSpan.FromSeconds(2) : watchdogTimeout;
-        return BraidTestInternals.RunWatchdogAsync(startTask, failureMessage, effectiveTimeout, cancellationToken, prefixWatchdogMessage);
+        return AssertCompletesBeforeWatchdogAsync(startTask(), failureMessage, effectiveTimeout, prefixWatchdogMessage, cancellationToken);
     }
 
     /// <summary>Waits for an already-started task to complete before a watchdog timeout without blocking a thread.</summary>
@@ -35,27 +35,16 @@ public abstract class TestBase
     protected static async Task AssertCompletesBeforeWatchdogAsync(Task startedTask, string failureMessage, TimeSpan watchdogTimeout, bool prefixWatchdogMessage = true, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(startedTask);
-        var completed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        _ = startedTask.ContinueWith(
-            static (_, state) =>
-            {
-                if (state is TaskCompletionSource<bool> source)
-                    source.SetResult(true);
-            },
-            completed,
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
-
         var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, cancellationToken);
-        if (await Task.WhenAny(completed.Task, watchdog).ConfigureAwait(false) != completed.Task)
+#pragma warning disable VSTHRD003 // The watchdog observes an already-started task without capturing the caller context.
+        if (await Task.WhenAny(startedTask, watchdog).ConfigureAwait(false) != startedTask)
         {
             cancellationToken.ThrowIfCancellationRequested();
             Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
         }
 
-        _ = await completed.Task.ConfigureAwait(false);
-        BraidTestInternals.RethrowIfFaultedOrCanceled(startedTask);
+        await startedTask.ConfigureAwait(false);
+#pragma warning restore VSTHRD003
     }
 
     /// <summary>Asserts a concurrent probe race run fails with the expected braid error, or silently serializes without failure.</summary>
@@ -391,29 +380,6 @@ public abstract class TestBase
                     }
                 },
                 null);
-        }
-
-        public static void RethrowIfFaultedOrCanceled(Task task)
-        {
-            if (task.IsFaulted)
-                ExceptionDispatchInfo.Capture(task.Exception.GetBaseException()).Throw();
-
-            if (task.IsCanceled)
-                throw new TaskCanceledException(task);
-        }
-
-        public static async Task RunWatchdogAsync(Func<Task> startTask, string failureMessage, TimeSpan watchdogTimeout, CancellationToken cancellationToken, bool prefixWatchdogMessage = true)
-        {
-            ArgumentNullException.ThrowIfNull(startTask);
-            var task = startTask();
-            var watchdog = Task.Delay(watchdogTimeout, TimeProvider.System, cancellationToken);
-            if (await Task.WhenAny(task, watchdog).ConfigureAwait(false) != task)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                Assert.Fail(prefixWatchdogMessage ? $"Braid run did not complete before watchdog timeout. {failureMessage}" : failureMessage);
-            }
-
-            await task.ConfigureAwait(false);
         }
 
         private static void WaitUntilBothThreadsAreReady(CompletionCounter readyCount, CancellationToken cancellationToken)
