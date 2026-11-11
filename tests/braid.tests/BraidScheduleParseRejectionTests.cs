@@ -35,11 +35,11 @@ public sealed class BraidScheduleParseRejectionTests : TestBase
         _ = await Assert.That(ex.Message).Contains("exactly 3 tokens");
     }
 
-    /// <summary>Verifies inline comments are treated as extra tokens.</summary>
+    /// <summary>Verifies a comment does not hide an extra argument.</summary>
     [Test]
-    public async Task ParseRejectsInlineComment()
+    public async Task ParseRejectsExtraTokensBeforeComment()
     {
-        var ex = BraidAssertions.AssertExpects<FormatException>(static () => ReplaySchedule.Parse("hit worker-1 ready # inline"));
+        var ex = BraidAssertions.AssertExpects<FormatException>(static () => ReplaySchedule.Parse("hit worker-1 ready extra # inline"));
 
         _ = await Assert.That(ex.Message).Contains("line 1", StringComparison.OrdinalIgnoreCase);
         _ = await Assert.That(ex.Message).Contains("exactly 3 tokens");

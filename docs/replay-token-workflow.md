@@ -12,6 +12,9 @@ release <worker> <probe>
 `start` runs a worker from its beginning up to its first probe. A token without `start` lines starts every worker before its first line,
 in fork order; a token with them starts only the workers it names.
 
+Use `#` at the start of a line or after whitespace following a complete step to add a comment.
+A `#` in a worker id or probe name is part of that identifier. `ToReplayText()` emits only steps.
+
 **Product goal:** find the interleaving, copy the token, keep the race fixed forever.
 
 See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md), [README.md](../README.md).
@@ -25,7 +28,7 @@ See also: [roadmap.md](roadmap.md), [v0.4.0-roadmap.md](design/v0.4.0-roadmap.md
    ```csharp
    var schedule = ReplaySchedule.Parse("""
    hit worker-1 before-read
-   hit worker-2 before-read
+   hit worker-2 before-read  # both workers read before either writes
    hit worker-1 before-write
    hit worker-2 before-write
    """);
