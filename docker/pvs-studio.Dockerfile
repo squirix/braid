@@ -16,56 +16,40 @@ ENV DOTNET_ROOT=/usr/share/dotnet \
     DOTNET_NOLOGO=1 \
     DOTNET_CLI_TELEMETRY_OPTOUT=1
 
+# Pin downloaded bytes so redirects or upstream changes cannot substitute content.
+# Refresh these checksums together after verifying new upstream files.
+ADD --checksum=sha256:c7489168c0423756c998bc1db9a70cb90e85a852efce8d4cdb0f41dd6ad41cd3 \
+    https://files.pvs-studio.com/etc/pubkey.txt /tmp/pvs-key.asc
+ADD --checksum=sha256:082f7685e156738a1b2e2ed8381a621870d4ce8e8c59278034556f05c186eb2e \
+    https://builds.dotnet.microsoft.com/dotnet/scripts/v1/dotnet-install.sh /tmp/dotnet-install.sh
+ADD --checksum=sha256:3d0a1bdf59c7b732886544e3a76e7b526c247a823d85b498019aba6442720d83 \
+    https://builds.dotnet.microsoft.com/dotnet/scripts/v1/dotnet-install.sig /tmp/dotnet-install.sig
+ADD --checksum=sha256:3658c5df9fdb53326bd27bfb23430d2e7e1e93b4be83a71bae0f13d1b0cd7cb4 \
+    https://builds.dotnet.microsoft.com/dotnet/scripts/v1/dotnet-install.asc /tmp/dotnet-install.asc
+
+# Install the SDK after PVS-Studio's apt dependencies so it takes precedence.
+# Root is needed for package installation; analysis runs as the user below.
+# Bash provides pipefail for signature verification.
+SHELL ["/bin/bash", "-c"]
 # Install dependencies for .NET SDK and PVS-Studio.
 # gnupg (not the transitional gpg wrapper) provides gpg-agent, which the
 # dotnet-install.sh signature verification requires on Ubuntu 26.04.
-RUN apt-get update \
+RUN set -euo pipefail \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         gnupg \
-        wget \
         iproute2 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install the PVS-Studio apt repository and the analyzer packages.
-# pvs-studio-dotnet pulls apt's own dotnet (host + SDK 10.0.1xx) as a
-# dependency and installs it under /usr/lib/dotnet. That apt dotnet must NOT
-# become the .NET SDK used by CI, so the SDK install below must come AFTER
-# this layer and land on top of it in /usr/share/dotnet.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends gnupg wget \
-    && wget -qO- https://files.pvs-studio.com/etc/pubkey.txt \
-        | gpg --dearmor -o /etc/apt/trusted.gpg.d/viva64.gpg \
+    && gpg --batch --dearmor -o /etc/apt/trusted.gpg.d/viva64.gpg /tmp/pvs-key.asc \
     && printf 'deb [arch=amd64] https://files.pvs-studio.com/deb viva64-release pvs-studio\n' \
         > /etc/apt/sources.list.d/viva64.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends pvs-studio pvs-studio-dotnet \
-    && rm -rf /var/lib/apt/lists/*
-
-# Verify PVS-Studio installation.
-RUN pvs-studio-analyzer --version \
-    && pvs-studio-dotnet --version
-
-# Install .NET SDK via Microsoft's install script, AFTER the pvs-studio apt
-# packages, so this SDK (10.0.401) is the one on PATH and under DOTNET_ROOT.
-# Pinned with --version so the image matches global.json's version 10.0.401
-# exactly; bump together with global.json on SDK updates.
-#
-# The install script is verified before running: it is downloaded alongside
-# Microsoft's detached GPG signature and public key, the key fingerprint is
-# pinned to the known-good Microsoft signing key, and the script must verify
-# against that key or the build fails.
-#
-# Run the install and verification under Bash: the default /bin/sh (dash) on
-# Ubuntu does not implement `set -o pipefail`, which this pipeline relies on.
-SHELL ["/bin/bash", "-c"]
-RUN set -euo pipefail \
+    && pvs-studio-analyzer --version \
+    && pvs-studio-dotnet --version \
     && mkdir -p /tmp/gpghome \
     && chmod 700 /tmp/gpghome \
-    && curl --proto '=https' --tlsv1.2 -SL https://dot.net/v1/dotnet-install.sh --output /tmp/dotnet-install.sh \
-    && curl --proto '=https' --tlsv1.2 -SL https://dot.net/v1/dotnet-install.sig --output /tmp/dotnet-install.sig \
-    && curl --proto '=https' --tlsv1.2 -SL https://dot.net/v1/dotnet-install.asc --output /tmp/dotnet-install.asc \
     && gpg --batch --homedir /tmp/gpghome --import /tmp/dotnet-install.asc \
     && gpg --batch --homedir /tmp/gpghome --show-keys --with-colons /tmp/dotnet-install.asc \
         | grep -qi ":2b930ab1228d11d5d7f6b6acb9cf1a51fc7d3acf:" \
@@ -73,7 +57,10 @@ RUN set -euo pipefail \
     && chmod +x /tmp/dotnet-install.sh \
     && /tmp/dotnet-install.sh --version 10.0.401 --install-dir "$DOTNET_ROOT" \
     && ln -sf "$DOTNET_ROOT/dotnet" /usr/bin/dotnet \
-    && rm -rf /tmp/gpghome /tmp/dotnet-install.sh /tmp/dotnet-install.sig /tmp/dotnet-install.asc
+    && dotnet --list-sdks \
+    && rm -rf /var/lib/apt/lists/* /tmp/gpghome /tmp/pvs-key.asc \
+        /tmp/dotnet-install.sh /tmp/dotnet-install.sig /tmp/dotnet-install.asc \
+    && useradd --create-home --uid 1001 --shell /bin/bash analyzer
 
-# Verify the .NET SDK that CI will actually use.
-RUN dotnet --list-sdks
+USER analyzer
+WORKDIR /home/analyzer

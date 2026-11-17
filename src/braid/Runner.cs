@@ -170,13 +170,7 @@ public static class Runner
             }
             catch (RunException ex) when (ex.SkippedByExploration)
             {
-                // A prefix repeats steps that an earlier run took, so the run takes all of them unless the test changed between the runs.
-                if (!IsHang(ex) || ex.SchedulerDiagnostics is { UnusedReplaySteps.Count: > 0 })
-                    throw new RunException(NotRepeatableMessage, ex.Context, ex);
-
-                // The run hung on a worker that waits for a parked one. Its choices end at the hang, so the search moves on from there
-                // and runs no other schedule that begins the same way.
-                System.Diagnostics.Trace.TraceInformation($"Braid: skipping a schedule that hung ({ex}).");
+                ValidateSkippedSchedule(ex);
                 firstHang ??= ex;
             }
             catch (RunException ex) when (failures != null)
@@ -232,6 +226,16 @@ public static class Runner
         var secondCause = second.InnerException ?? second;
         return firstCause.GetType() == secondCause.GetType()
             && string.Equals(firstCause.Message, secondCause.Message, StringComparison.Ordinal);
+    }
+
+    private static void ValidateSkippedSchedule(RunException ex)
+    {
+        // A prefix repeats steps that an earlier run took unless the test changed between runs.
+        if (!IsHang(ex) || ex.SchedulerDiagnostics is { UnusedReplaySteps.Count: > 0 })
+            throw new RunException(NotRepeatableMessage, ex.Context, ex);
+
+        // The search moves on from the hang without exploring another schedule that begins the same way.
+        System.Diagnostics.Trace.TraceInformation($"Braid: skipping a schedule that hung ({ex}).");
     }
 
     private static async Task RunAsyncCoreAsync(Func<RunContext, Task> test, RunOptions resolvedOptions, CancellationToken cancellationToken)
