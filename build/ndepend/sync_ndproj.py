@@ -4,34 +4,20 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from xml.dom import Node, minidom
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--repo", type=Path, default=None)
-    args = parser.parse_args()
-    script_dir = Path(__file__).resolve().parent
-    repo = args.repo.resolve() if args.repo else script_dir.parents[1]
-    ndproj_path = repo / "braid.ndproj"
-    ndrules_path = script_dir / "braid.ndrules"
-    ndproj = minidom.parse(str(ndproj_path))
-    ndrules = minidom.parse(str(ndrules_path))
+def child(parent: Node, name: str) -> Node | None:
+    return next((n for n in parent.childNodes if n.nodeType == Node.ELEMENT_NODE and n.tagName == name), None)
+
+
+def children(parent: Node, name: str) -> list[Node]:
+    return [n for n in parent.childNodes if n.nodeType == Node.ELEMENT_NODE and n.tagName == name]
+
+
+def configure_ide(ndproj: minidom.Document, runtime: Node) -> None:
     root = ndproj.documentElement
-    rules_root = ndrules.documentElement
-
-    def child(parent: Node, name: str) -> Node | None:
-        return next((n for n in parent.childNodes if n.nodeType == Node.ELEMENT_NODE and n.tagName == name), None)
-
-    def children(parent: Node, name: str) -> list[Node]:
-        return [n for n in parent.childNodes if n.nodeType == Node.ELEMENT_NODE and n.tagName == name]
-
-    runtime = child(root, "RuntimeProfileDesc")
-    queries = child(root, "Queries")
-    if runtime is None or queries is None:
-        raise RuntimeError("Unexpected braid.ndproj shape: RuntimeProfileDesc or Queries not found.")
     ide = child(root, "IDEFiles")
     if ide is not None:
         root.removeChild(ide)
@@ -51,6 +37,8 @@ def main() -> int:
     ide.appendChild(file_node)
     root.insertBefore(ide, runtime)
 
+
+def synchronize_just_my_code(ndproj: minidom.Document, queries: Node, rules_root: Node) -> None:
     rule_queries = child(child(rules_root, "Queries"), "CustomJustMyCodeQueries")
     if rule_queries is None:
         raise RuntimeError("Unexpected braid.ndrules shape: CustomJustMyCodeQueries not found.")
@@ -66,28 +54,36 @@ def main() -> int:
     for q in children(rule_queries, "Query"):
         just.appendChild(ndproj.importNode(q, deep=True))
 
-    overrides = child(child(rules_root, "Queries"), "CustomRuleOverrides")
-    for override in children(overrides, "Query") if overrides is not None else []:
-        token, group_name = override.getAttribute("RuleToken"), override.getAttribute("Group")
-        if not token or not group_name:
-            raise RuntimeError("CustomRuleOverrides Query must specify RuleToken and Group attributes.")
-        text = override.toxml()
-        if f"// <Id>{token}:" not in text:
-            raise RuntimeError(f"Rule override '{token}' must include its explicit stock-rule Id.")
-        group = next((g for g in root.getElementsByTagName("Group") if g.getAttribute("Name") == group_name), None)
-        if group is None:
-            raise RuntimeError(f"NDepend group '{group_name}' not found.")
-        name = next((line[9:-7] for line in text.splitlines() if line.startswith("// <Name>") and line.endswith("</Name>")), None)
-        candidates = [q for q in group.getElementsByTagName("Query") if f"${token}$" in q.toxml() or f"// <Id>{token}:" in q.toxml() or (name and f"// <Name>{name}</Name>" in q.toxml())]
-        if not candidates:
-            raise RuntimeError(f"Rule override '{token}' target was not found.")
-        target = candidates[0]
-        for duplicate in candidates[1:]:
-            duplicate.parentNode.removeChild(duplicate)
-        replacement = ndproj.importNode(override, deep=True)
-        replacement.removeAttribute("RuleToken")
-        replacement.removeAttribute("Group")
-        target.parentNode.replaceChild(replacement, target)
+
+def matches_rule(query: Node, token: str, name: str | None) -> bool:
+    text = query.toxml()
+    return f"${token}$" in text or f"// <Id>{token}:" in text or bool(name and f"// <Name>{name}</Name>" in text)
+
+
+def apply_override(ndproj: minidom.Document, override: Node) -> None:
+    token, group_name = override.getAttribute("RuleToken"), override.getAttribute("Group")
+    if not token or not group_name:
+        raise RuntimeError("CustomRuleOverrides Query must specify RuleToken and Group attributes.")
+    text = override.toxml()
+    if f"// <Id>{token}:" not in text:
+        raise RuntimeError(f"Rule override '{token}' must include its explicit stock-rule Id.")
+    group = next((g for g in ndproj.documentElement.getElementsByTagName("Group") if g.getAttribute("Name") == group_name), None)
+    if group is None:
+        raise RuntimeError(f"NDepend group '{group_name}' not found.")
+    name = next((line[9:-7] for line in text.splitlines() if line.startswith("// <Name>") and line.endswith("</Name>")), None)
+    candidates = [q for q in group.getElementsByTagName("Query") if matches_rule(q, token, name)]
+    if not candidates:
+        raise RuntimeError(f"Rule override '{token}' target was not found.")
+    target = candidates[0]
+    for duplicate in candidates[1:]:
+        duplicate.parentNode.removeChild(duplicate)
+    replacement = ndproj.importNode(override, deep=True)
+    replacement.removeAttribute("RuleToken")
+    replacement.removeAttribute("Group")
+    target.parentNode.replaceChild(replacement, target)
+
+
+def disable_rules(root: Node) -> None:
     rule_files = child(root, "RuleFiles")
     if rule_files is not None:
         root.removeChild(rule_files)
@@ -95,6 +91,29 @@ def main() -> int:
         for q in root.getElementsByTagName("Query"):
             if f"${token}$" in q.toxml() or f"// <Id>{token}:" in q.toxml():
                 q.setAttribute("Active", "False")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", type=Path, default=None)
+    args = parser.parse_args()
+    script_dir = Path(__file__).resolve().parent
+    repo = args.repo.resolve() if args.repo else script_dir.parents[1]
+    ndproj_path = repo / "braid.ndproj"
+    ndproj = minidom.parse(str(ndproj_path))
+    ndrules = minidom.parse(str(script_dir / "braid.ndrules"))
+    root = ndproj.documentElement
+    rules_root = ndrules.documentElement
+    runtime = child(root, "RuntimeProfileDesc")
+    queries = child(root, "Queries")
+    if runtime is None or queries is None:
+        raise RuntimeError("Unexpected braid.ndproj shape: RuntimeProfileDesc or Queries not found.")
+    configure_ide(ndproj, runtime)
+    synchronize_just_my_code(ndproj, queries, rules_root)
+    overrides = child(child(rules_root, "Queries"), "CustomRuleOverrides")
+    for override in children(overrides, "Query") if overrides is not None else []:
+        apply_override(ndproj, override)
+    disable_rules(root)
     rendered = ndproj.toxml(encoding="utf-8").decode("utf-8")
     rendered = "\n".join(line.rstrip() for line in rendered.splitlines()) + "\n"
     ndproj_path.write_text(rendered, encoding="utf-8", newline="\n")
