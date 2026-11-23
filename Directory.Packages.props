@@ -20,7 +20,7 @@
         <PackageVersion Include="Roslynator.Analyzers" Version="5.0.1"/>
         <PackageVersion Include="SonarAnalyzer.CSharp" Version="10.37.0.15768"/>
         <PackageVersion Include="StyleCopNext.Analyzers" Version="1.0.14"/>
-        <PackageVersion Include="ZeroAlloc.Analyzers" Version="1.13.1"/>
+        <PackageVersion Include="ZeroAlloc.Analyzers" Version="1.13.2"/>
         <PackageVersion Include="squirix.analyzers" Version="0.1.18"/>
         <PackageVersion Include="JetBrains.Annotations" Version="2026.2.0"/>
     </ItemGroup>
